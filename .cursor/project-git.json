@@ -1,0 +1,12 @@
+{
+  "projectName": "Photomechanics",
+  "repository": "https://github.com/ge10yue12-netizen/Photomechanics-own.git",
+  "defaultBranch": "master",
+  "author": {
+    "name": "ge10yue12-netizen",
+    "email": "ge10yue12-netizen@users.noreply.github.com"
+  },
+  "proxy": "http://127.0.0.1:7890",
+  "autoCommitAfterCodeChanges": true,
+  "autoPushAfterCommit": true
+}
