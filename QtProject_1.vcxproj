@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{B8E9920B-E56A-4AB6-97BB-1FEB2ADF038B}</ProjectGuid>
+    <Keyword>QtVS_v304</Keyword>
+    <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">10.0.19041.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">10.0.19041.0</WindowsTargetPlatformVersion>
+    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')"
+      >$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+  </PropertyGroup>
+  <PropertyGroup Label="Pylon">
+    <PYLON_DEV>C:\Program Files\Basler\pylon 5\Development</PYLON_DEV>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
+    <CodeAnalysisExcludePath>$(PYLON_DEV)\include;$(CodeAnalysisExcludePath)</CodeAnalysisExcludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
+    <CodeAnalysisExcludePath>$(PYLON_DEV)\include;$(CodeAnalysisExcludePath)</CodeAnalysisExcludePath>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt_defaults.props')">
+    <Import Project="$(QtMsBuild)\qt_defaults.props" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
+    <QtInstall>msvc2019_64</QtInstall>
+    <QtModules>core;gui;widgets</QtModules>
+    <QtBuildConfig>debug</QtBuildConfig>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
+    <QtInstall>msvc2019_64</QtInstall>
+    <QtModules>core;gui;widgets</QtModules>
+    <QtBuildConfig>release</QtBuildConfig>
+  </PropertyGroup>
+  <Target Name="QtMsBuildNotFound"
+    BeforeTargets="CustomBuild;ClCompile"
+    Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
+    <Message Importance="High"
+      Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
+  </Target>
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(QtMsBuild)\Qt.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(QtMsBuild)\Qt.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros">
+    <!-- uic 可执行路径，与 QtSettings/QtInstall 一致；换 Qt 版本时改此处 -->
+    <QT_BIN>C:\Qt\5.15.2\msvc2019_64\bin</QT_BIN>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
+    <ClCompile>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <Optimization>Disabled</Optimization>
+      <!-- /wd26812 /wd26495：Pylon SDK 头；/wd26451：含 CameraController 编译单元 -->
+      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(ProjectDir)uic;$(ProjectDir)x64\Debug\uic;$(ProjectDir)x64\Debug\moc;$(IntDir)uic;$(IntDir)moc;$(ProjectDir);$(PYLON_DEV)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
+    <ClCompile>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <Optimization>MaxSpeed</Optimization>
+      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(ProjectDir)uic;$(ProjectDir)x64\Release\uic;$(ProjectDir)x64\Release\moc;$(IntDir)uic;$(IntDir)moc;$(ProjectDir);$(PYLON_DEV)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <QtRcc Include="QtProject_1.qrc"/>
+    <QtUic Include="QtProject_1.ui"/>
+    <QtMoc Include="QtProject_1.h"/>
+    <QtMoc Include="camera\CameraController.h"/>
+    <QtMoc Include="save\ImageSaveThread.h"/>
+    <QtMoc Include="stage\StageManager.h"/>
+    <ClCompile Include="QtProject_1.cpp"/>
+    <ClCompile Include="main.cpp"/>
+    <ClCompile Include="camera\CameraController.cpp">
+      <DisableSpecificWarnings>26812;26495;26451;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <ClCompile Include="core\AppConfig.cpp"/>
+    <ClInclude Include="core\AppConfig.h"/>
+    <ClInclude Include="core\AppTypes.h"/>
+    <ClCompile Include="save\ImageSaveThread.cpp"/>
+    <ClCompile Include="save\SavePathHelper.cpp"/>
+    <ClInclude Include="save\SavePathHelper.h"/>
+    <ClCompile Include="stage\StageManager.cpp"/>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
+    <Import Project="$(QtMsBuild)\qt.targets" />
+  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <!-- 编译前同步 ui 头到 $(ProjectDir)uic，避免 IntelliSense 找不到 $(IntDir)uic 报 E0070 -->
+  <Target Name="SyncProjectUicHeader" BeforeTargets="ClCompile">
+    <MakeDir Directories="$(ProjectDir)uic" />
+    <Copy Condition="Exists('$(IntDir)uic\ui_QtProject_1.h')"
+          SourceFiles="$(IntDir)uic\ui_QtProject_1.h"
+          DestinationFiles="$(ProjectDir)uic\ui_QtProject_1.h"
+          SkipUnchangedFiles="true" />
+    <Exec Condition="!Exists('$(ProjectDir)uic\ui_QtProject_1.h')"
+          Command="&quot;$(QT_BIN)\uic.exe&quot; &quot;$(ProjectDir)QtProject_1.ui&quot; -o &quot;$(ProjectDir)uic\ui_QtProject_1.h&quot;" />
+  </Target>
+</Project>
