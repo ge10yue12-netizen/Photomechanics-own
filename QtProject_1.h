@@ -42,7 +42,7 @@ private slots:
     void onStopStageCapture();
     void onStageApplyFps(double fps);
     void onStageSaveFrame();
-    void onStageStarted(const QString &name, const QDateTime &startTime);
+    void onStageStarted(const QString &name, const QDateTime &startTime, int loopIndex);
     void onStageFinished(const QString &name,
                          const QDateTime &startTime,
                          const QDateTime &endTime,
@@ -73,6 +73,8 @@ private:
     bool validateStageTable();
     QList<StageItem> readStageListFromTable() const;
     bool enqueueCurrentFrame();    // 抓最新帧并入存图队列
+    void startPreview();           // 点击「开始采集」时启动 grab + 预览定时器
+    void stopPreview();            // 点击「停止采集」或关相机时停止 grab 与预览
     void stopCaptureAndWaitSave(bool userStop);
     void shutdownAll();              // 退出/析构：停采、排空队列、关相机、终止 Pylon
     void insertStageRow(int row, const QString &name);
@@ -82,7 +84,7 @@ private:
     StageManager m_stageMgr;
     ImageSaveThread m_saveThread;
     SavePathHelper m_savePath;
-    QTimer m_displayTimer;           // 约 20fps 刷新预览 label
+    QTimer m_displayTimer;           // 约 30fps 刷新预览 label
     bool m_capturing = false;        // 相机处于连续 grab（预览或阶段）
     bool m_stageRunning = false;     // StageManager 正在跑阶段表
     bool m_shutdownDone = false;     // 防止退出过程中 log/回调再碰 UI

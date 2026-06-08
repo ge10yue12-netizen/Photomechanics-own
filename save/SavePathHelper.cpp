@@ -193,6 +193,72 @@ void SavePathHelper::syncIndexWithDisk()
         m_cameraFolderIndex = maxCameraIndex + 1;
 }
 
+// 阶段名去掉 Windows 非法路径字符，避免建目录失败
+QString SavePathHelper::sanitizeFolderName(const QString &name)
+{
+    QString s = name.trimmed();
+    if (s.isEmpty())
+        return QStringLiteral("Stage");
+
+    QString out;
+    out.reserve(s.size());
+    for (const QChar c : s)
+    {
+        if (c == QLatin1Char('\\') || c == QLatin1Char('/') || c == QLatin1Char(':')
+            || c == QLatin1Char('*') || c == QLatin1Char('?') || c == QLatin1Char('"')
+            || c == QLatin1Char('<') || c == QLatin1Char('>') || c == QLatin1Char('|'))
+            out += QLatin1Char('_');
+        else
+            out += c;
+    }
+    return out;
+}
+
+void SavePathHelper::beginStageCapture()
+{
+    m_stageCaptureActive = true;
+    m_loopIndex = 0;
+    m_stageName.clear();
+    m_stagePicIndex = 1;
+}
+
+void SavePathHelper::endStageCapture()
+{
+    m_stageCaptureActive = false;
+    m_loopIndex = 0;
+    m_stageName.clear();
+    m_stagePicIndex = 1;
+}
+
+// 每个阶段/每轮切换时进入独立子目录，Pic 在该目录内从 001 续接（不覆盖其他阶段）
+void SavePathHelper::setStageContext(int loopIndex, const QString &stageName)
+{
+    m_loopIndex = loopIndex < 1 ? 1 : loopIndex;
+    m_stageName = stageName.trimmed();
+    m_stagePicIndex = 1;
+
+    if (m_rootPath.isEmpty())
+        return;
+
+    const QString dir = stageFolderPath();
+    if (QDir(dir).exists())
+        m_stagePicIndex = maxPicInDir(QDir(dir)) + 1;
+}
+
+QString SavePathHelper::stageFolderPath() const
+{
+    const QString loopDir = QStringLiteral("Loop%1").arg(m_loopIndex, 3, 10, QChar('0'));
+    return QDir(m_rootPath).filePath(loopDir + QLatin1Char('/') + sanitizeFolderName(m_stageName));
+}
+
+void SavePathHelper::onFileSaved()
+{
+    ++m_totalSaved;
+    // 阶段采集不计入 CAMERA 分文件夹逻辑
+    if (!m_stageCaptureActive)
+        ++m_picsInCurrentFolder;
+}
+
 // 按张数或按时间判断是否需要新建 CAMERA 子目录
 bool SavePathHelper::needNewCameraFolder() const
 {
@@ -245,6 +311,24 @@ QString SavePathHelper::nextFilePath(bool *ok)
     if (m_rootPath.isEmpty() || isSaveLimitReached())
         return QString();
 
+    // 阶段采集：{root}/Loop001/阶段名/Pic001.bmp，每阶段独立目录、Pic 从 001 起
+    if (m_stageCaptureActive)
+    {
+        if (m_loopIndex < 1 || m_stageName.isEmpty())
+            return QString();
+
+        const QString dir = stageFolderPath();
+        if (!ensureFolderExists(dir))
+            return QString();
+
+        const QString path = QDir(dir).filePath(
+            QStringLiteral("Pic%1.bmp").arg(m_stagePicIndex++, 3, 10, QChar('0')));
+        if (ok)
+            *ok = true;
+        return path;
+    }
+
+    // 手动存图：沿用 CAMERA / 单文件夹 逻辑
     const QString dir = activeFolderPath();
     if (dir.isEmpty())
         return QString();

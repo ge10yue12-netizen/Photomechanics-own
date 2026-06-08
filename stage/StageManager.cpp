@@ -61,7 +61,7 @@ void StageManager::enterCurrentStage()
     m_targetFrameCount = qMax(0, qRound(st.durationSec * st.fps));
 
     emit applyFps(st.fps);
-    emit stageStarted(st.name, m_stageStartTime);
+    emit stageStarted(st.name, m_stageStartTime, m_currentLoop);
 
     if (m_targetFrameCount <= 0)
     {

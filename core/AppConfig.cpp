@@ -44,7 +44,9 @@ void resetStageTableToDefault(Ui::QtProject_1Class &ui)
 
     auto *chk = new QTableWidgetItem();
 
-    chk->setCheckState(Qt::Unchecked);
+    chk->setFlags(chk->flags() | Qt::ItemIsUserCheckable);
+
+    chk->setCheckState(Qt::Checked); // 默认勾选存图，避免只计时不写盘
 
     ui.stageTable->setItem(0, 3, chk);
 

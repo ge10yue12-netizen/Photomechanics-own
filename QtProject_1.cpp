@@ -14,6 +14,15 @@
 
 namespace
 {
+// 阶段表「存图」列：必须带 ItemIsUserCheckable，否则界面上点勾选无效
+QTableWidgetItem *makeSaveCheckItem(bool checked = true)
+{
+    auto *chk = new QTableWidgetItem();
+    chk->setFlags(chk->flags() | Qt::ItemIsUserCheckable);
+    chk->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+    return chk;
+}
+
 // 更新按钮 btnRole 属性并刷新样式（primary=蓝 / danger=红）
 void applyButtonRole(QPushButton *btn, const char *role)
 {
@@ -81,7 +90,7 @@ QtProject_1::QtProject_1(QWidget *parent)
     syncSavePath();
     m_savePath.resumeFromDisk(); // 启动时续接已有 Pic 序号，避免覆盖
 
-    m_displayTimer.setInterval(50); // 预览约 20Hz；阶段采集时会改为 33ms
+    m_displayTimer.setInterval(33); // 预览约 30Hz，打开相机后持续刷新
     connect(&m_displayTimer, &QTimer::timeout, this, &QtProject_1::onDisplayTimer);
     m_saveThread.start();
 
@@ -109,7 +118,6 @@ void QtProject_1::shutdownAll()
         return;
     m_shutdownDone = true;
 
-    m_displayTimer.stop();
     if (m_stageRunning)
     {
         m_stageMgr.stop();
@@ -120,7 +128,9 @@ void QtProject_1::shutdownAll()
     disconnect(&m_saveThread, nullptr, this, nullptr);
     disconnect(&m_stageMgr, nullptr, this, nullptr);
 
-    stopCaptureAndWaitSave(false);
+    if (m_saveThread.queueSize() > 0)
+        m_saveThread.waitUntilEmpty(30000);
+    stopPreview();
     m_saveThread.requestStopAndWait(30000);
 
     if (m_camera.isOpen())
@@ -166,9 +176,7 @@ void QtProject_1::insertStageRow(int row, const QString &name)
     ui.stageTable->setItem(row, 0, new QTableWidgetItem(name));
     ui.stageTable->setItem(row, 1, new QTableWidgetItem(QStringLiteral("1.0")));
     ui.stageTable->setItem(row, 2, new QTableWidgetItem(QStringLiteral("20")));
-    auto *chk = new QTableWidgetItem();
-    chk->setCheckState(Qt::Unchecked);
-    ui.stageTable->setItem(row, 3, chk);
+    ui.stageTable->setItem(row, 3, makeSaveCheckItem(true)); // 默认勾选存图
 }
 
 void QtProject_1::setupStageTable()
@@ -233,12 +241,12 @@ void QtProject_1::refreshButtonState()
     const bool idle = !stage && !grab; // 非采集非阶段时可编辑阶段表
 
     ui.openCameraBtn->setEnabled(!open);
-    ui.closeCameraBtn->setEnabled(open && !grab); // 采集中不允许关相机
+    ui.closeCameraBtn->setEnabled(open && !grab && !stage); // 采集中或阶段中不允许关相机
     ui.startGrabBtn->setEnabled(open && !grab && !stage);
     ui.stopGrabBtn->setEnabled(open && grab && !stage);
     ui.applyParamBtn->setEnabled(open && !stage);
     ui.saveOneBmpBtn->setEnabled(open && grab);
-    ui.startStageBtn->setEnabled(open && !grab);
+    ui.startStageBtn->setEnabled(open && !grab && !stage);
     ui.stopStageBtn->setEnabled(stage);
     ui.cameraSelectCombo->setEnabled(!open && idle);
     ui.stageTable->setEnabled(idle);
@@ -261,17 +269,40 @@ void QtProject_1::updateActionButtonStyles()
     applyButtonRole(ui.stopStageBtn, "danger");
 }
 
-// 停止 grab/阶段，可选等待存图队列排空，并恢复状态栏与按钮
-void QtProject_1::stopCaptureAndWaitSave(bool userStop)
+// 点击「开始采集」或阶段采集需要取帧时：启动 grab + 预览定时器
+void QtProject_1::startPreview()
+{
+    if (!m_camera.isOpen() || m_capturing)
+        return;
+
+    applyCamParams();
+    if (!m_camera.startGrab())
+    {
+        log(QStringLiteral("[警告] 开始采集失败。"));
+        return;
+    }
+    m_capturing = true;
+    m_displayTimer.setInterval(33);
+    m_displayTimer.start();
+    setCamStatus(QStringLiteral("状态: 预览中"), QStringLiteral("rgb(0, 120, 212)"));
+}
+
+// 点击「停止采集」或关相机：停止 grab 与预览刷新
+void QtProject_1::stopPreview()
 {
     m_displayTimer.stop();
-    m_displayTimer.setInterval(50);
     if (m_capturing)
     {
         m_camera.stopGrab();
         m_capturing = false;
     }
+}
+
+// 停止阶段业务、等待存图队列，并停止连续采集（与「停止采集」一致）
+void QtProject_1::stopCaptureAndWaitSave(bool userStop)
+{
     m_stageRunning = false;
+    stopPreview();
 
     if (userStop)
         log(QStringLiteral("用户停止，等待存图队列..."));
@@ -335,7 +366,12 @@ void QtProject_1::onOpenCamera()
 
 void QtProject_1::onCloseCamera()
 {
-    stopCaptureAndWaitSave(false);
+    if (m_stageRunning)
+        m_stageMgr.stop();
+    m_stageRunning = false;
+    if (m_saveThread.queueSize() > 0)
+        m_saveThread.waitUntilEmpty(30000);
+    stopPreview();
     m_camera.close();
     ui.imageLabel->clear();
     ui.imageLabel->setText(QStringLiteral("未连接相机"));
@@ -346,16 +382,9 @@ void QtProject_1::onCloseCamera()
 
 void QtProject_1::onStartGrab()
 {
-    applyCamParams();
-    if (!m_camera.startGrab())
-    {
-        log(QStringLiteral("[警告] 开始采集失败。"));
-        return;
-    }
-    m_capturing = true;
-    m_displayTimer.start();
-    setCamStatus(QStringLiteral("状态: 预览中"), QStringLiteral("rgb(0, 120, 212)"));
-    log(QStringLiteral("开始采集。"));
+    startPreview();
+    if (m_capturing)
+        log(QStringLiteral("开始采集。"));
     refreshButtonState();
 }
 
@@ -436,21 +465,19 @@ void QtProject_1::onStartStageCapture()
     }
 
     syncSavePath();
-    m_savePath.syncIndexWithDisk(); // 只对齐磁盘，不回退 Pic 序号（避免覆盖）
-    m_stageMgr.setStages(readStageListFromTable());
+    m_savePath.beginStageCapture(); // 阶段存图：{保存路径}/Loop001/阶段名/Pic001.bmp
+    const QList<StageItem> stages = readStageListFromTable();
+    m_stageMgr.setStages(stages);
     const int loopCount = ui.loopCountSpin->value();
     m_stageMgr.setLoopCount(loopCount);
     applyCamParams();
 
-    // 已在预览采集时不必重复 startGrab，否则返回 false 导致阶段无法启动
+    if (!m_capturing)
+        startPreview();
     if (!m_capturing)
     {
-        if (!m_camera.startGrab())
-        {
-            log(QStringLiteral("[警告] 阶段采集启动失败。"));
-            return;
-        }
-        m_capturing = true;
+        log(QStringLiteral("[警告] 阶段采集启动失败：预览未就绪。"));
+        return;
     }
 
     m_lastEnqueuedFrameSeq = 0;
@@ -462,10 +489,22 @@ void QtProject_1::onStartStageCapture()
     }
 
     m_stageRunning = true;
-    m_displayTimer.setInterval(33); // 阶段采集预览约 30Hz，更接近实时
-    m_displayTimer.start();
+    m_displayTimer.setInterval(33);
+    if (!m_displayTimer.isActive())
+        m_displayTimer.start(); // 阶段采集中同步刷新预览
     setCamStatus(QStringLiteral("状态: 阶段采集中"), QStringLiteral("rgb(202, 80, 16)"));
-    log(QStringLiteral("开始阶段采集，循环 %1 轮。").arg(loopCount));
+    log(QStringLiteral("开始阶段采集，循环 %1 轮，保存到 %2")
+            .arg(loopCount)
+            .arg(ui.savePathEdit->text().trimmed()));
+    for (const StageItem &st : stages)
+    {
+        log(QStringLiteral("  · %1：%2s × %3fps，目标 %4 张%5")
+                .arg(st.name)
+                .arg(st.durationSec, 0, 'f', 1)
+                .arg(st.fps, 0, 'f', 1)
+                .arg(qRound(st.durationSec * st.fps))
+                .arg(st.saveImage ? QStringLiteral("，存图") : QStringLiteral("，仅计时")));
+    }
     ui.rightTabWidget->setCurrentWidget(ui.stageSaveTab);
     m_stageMgr.start();
     refreshButtonState();
@@ -496,10 +535,22 @@ void QtProject_1::onStageSaveFrame()
         m_stageMgr.stop();
 }
 
-void QtProject_1::onStageStarted(const QString &name, const QDateTime &startTime)
+void QtProject_1::onStageStarted(const QString &name, const QDateTime &startTime, int loopIndex)
 {
-    log(QStringLiteral("阶段开始: %1").arg(name));
-    setStageStatus(QStringLiteral("运行中: %1").arg(name));
+    m_savePath.setStageContext(loopIndex, name);
+    // 每阶段重置帧去重基准，避免沿用上一阶段序号导致长时间入队失败
+    m_lastEnqueuedFrameSeq = 0;
+    {
+        QImage warmFrame;
+        quint64 warmSeq = 0;
+        if (m_camera.copyLatestImage(warmFrame, &warmSeq))
+            m_lastEnqueuedFrameSeq = warmSeq;
+    }
+    log(QStringLiteral("阶段开始: 第%1轮 %2 → %3/")
+            .arg(loopIndex)
+            .arg(name)
+            .arg(QStringLiteral("Loop%1").arg(loopIndex, 3, 10, QChar('0'))));
+    setStageStatus(QStringLiteral("第%1轮 运行中: %2").arg(loopIndex).arg(name));
     Q_UNUSED(startTime);
 }
 
@@ -511,24 +562,37 @@ void QtProject_1::onStageFinished(const QString &name,
                                   int savedCount,
                                   double)
 {
-    log(QStringLiteral("阶段结束: %1，入队%2，已写%3").arg(name).arg(saveRequestCount).arg(savedCount));
+    if (saveRequestCount == 0)
+    {
+        log(QStringLiteral("阶段结束: %1，入队0，已写0（本阶段未勾选存图，或相机无可用帧）")
+                .arg(name));
+    }
+    else
+    {
+        log(QStringLiteral("阶段结束: %1，入队%2，已写%3").arg(name).arg(saveRequestCount).arg(savedCount));
+    }
     setStageStatus(QStringLiteral("已完成: %1").arg(name));
 }
 
 void QtProject_1::onStageLoopStarted(int loopIndex, int totalLoops)
 {
-    log(QStringLiteral("第 %1/%2 轮开始（Pic 编号继续累加）。").arg(loopIndex).arg(totalLoops));
+    log(QStringLiteral("第 %1/%2 轮开始（存图目录 Loop%3/阶段名/）。")
+            .arg(loopIndex)
+            .arg(totalLoops)
+            .arg(loopIndex, 3, 10, QChar('0')));
     setStageStatus(QStringLiteral("第 %1/%2 轮").arg(loopIndex).arg(totalLoops));
 }
 
 void QtProject_1::onStageAllFinished()
 {
     log(QStringLiteral("阶段采集全部完成。"));
+    m_savePath.endStageCapture();
     stopCaptureAndWaitSave(false);
 }
 
 void QtProject_1::onStageStoppedByUser()
 {
+    m_savePath.endStageCapture();
     stopCaptureAndWaitSave(true);
 }
 
@@ -539,12 +603,13 @@ void QtProject_1::onSaveThreadFinished(const QString &path, bool ok, const QStri
     if (ok)
     {
         m_savePath.onFileSaved();
-        if (m_stageRunning)
+        // 用 StageManager 运行态判断，避免 stopCapture 先清 m_stageRunning 导致写盘计数丢失、状态机卡死
+        if (m_stageMgr.isRunning())
         {
             m_stageMgr.notifyImageSaved();
             setStageStatus(m_stageStatusText); // 刷新队列计数
         }
-        else
+        else if (!m_savePath.isStageCaptureActive())
         {
             log(QStringLiteral("已保存: %1").arg(path));
         }
@@ -613,6 +678,29 @@ bool QtProject_1::validateStageTable()
                                      .arg(lim.fpsMax, 0, 'f', 1));
             return false;
         }
+    }
+
+    // 全部未勾选存图时提示，避免误以为会保存 BMP
+    bool anySave = false;
+    for (int r = 0; r < ui.stageTable->rowCount(); ++r)
+    {
+        if (auto *chk = ui.stageTable->item(r, 3))
+        {
+            if (chk->checkState() == Qt::Checked)
+            {
+                anySave = true;
+                break;
+            }
+        }
+    }
+    if (!anySave)
+    {
+        const auto ans = QMessageBox::question(
+            this, QStringLiteral("阶段采集"),
+            QStringLiteral("所有阶段均未勾选「存图」，将只计时不保存任何图片。\n是否仍要开始？"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (ans != QMessageBox::Yes)
+            return false;
     }
     return true;
 }

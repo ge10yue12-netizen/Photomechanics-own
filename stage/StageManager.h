@@ -27,7 +27,7 @@ public:
 signals:
     void applyFps(double fps);           // 进入新阶段时通知主窗口改相机帧率
     void saveFrameRequested();           // 帧 tick 到达且勾选存图时触发
-    void stageStarted(const QString &name, const QDateTime &startTime);
+    void stageStarted(const QString &name, const QDateTime &startTime, int loopIndex);
     void stageFinished(const QString &name,
                        const QDateTime &startTime,
                        const QDateTime &endTime,
