@@ -78,6 +78,8 @@ QtProject_1::QtProject_1(QWidget *parent)
 
     AppConfig::loadUi(ui);
     updateSaveModeUi();
+    syncSavePath();
+    m_savePath.resumeFromDisk(); // 启动时续接已有 Pic 序号，避免覆盖
 
     m_displayTimer.setInterval(50); // 约 20Hz 刷新预览，减轻 UI 负担
     connect(&m_displayTimer, &QTimer::timeout, this, &QtProject_1::onDisplayTimer);
@@ -395,7 +397,11 @@ void QtProject_1::onBrowseSavePath()
     const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("选择保存目录"),
                                                           ui.savePathEdit->text());
     if (!dir.isEmpty())
+    {
         ui.savePathEdit->setText(dir);
+        syncSavePath();
+        m_savePath.resumeFromDisk(); // 切换目录后按新路径续接编号
+    }
 }
 
 void QtProject_1::onCameraError(const QString &message)
@@ -422,7 +428,7 @@ void QtProject_1::onStartStageCapture()
     }
 
     syncSavePath();
-    m_savePath.resetSession();
+    m_savePath.resumeFromDisk(); // 阶段存图累加编号，不 resetSession 覆盖 Pic001
     m_stageMgr.setStages(readStageListFromTable());
     m_stageMgr.setLoopCount(ui.loopCountSpin->value());
     applyCamParams();
@@ -489,7 +495,7 @@ void QtProject_1::onStageFinished(const QString &name,
 
 void QtProject_1::onStageLoopStarted(int loopIndex, int totalLoops)
 {
-    m_savePath.resetForNewLoop();
+    // Pic 编号跨轮次累加，不在新一轮 loop 时重置
     log(QStringLiteral("第 %1/%2 轮开始。").arg(loopIndex).arg(totalLoops));
     setStageStatus(QStringLiteral("第 %1/%2 轮").arg(loopIndex).arg(totalLoops));
 }

@@ -17,8 +17,9 @@ public:
     void setSecondsPerFolder(int seconds) { m_secondsPerFolder = seconds > 0 ? seconds : 1; }
     void setMaxSaveCount(int maxCount) { m_maxSaveCount = maxCount; } // 0 表示不限制
 
-    void resetSession();              // 新一次阶段采集开始前清零计数
-    void resetForNewLoop() { m_picIndex = 1; } // 新一轮阶段：Pic 序号从 1 重计
+    void resetSession();              // 显式清零（当前流程不自动调用，避免覆盖已有 Pic）
+    void resumeFromDisk();            // 扫描 Images 下已有 Pic/CAMERA，从下一张序号继续累加
+    void resetForNewLoop() {}         // 多轮 loop 不再重置 Pic，与阶段内一样连续编号
     bool isSaveLimitReached() const { return m_maxSaveCount > 0 && m_totalSaved >= m_maxSaveCount; }
     QString nextFilePath(bool *ok = nullptr); // 分配下一张 BMP 路径（尚未写盘）
     void onFileSaved() { ++m_totalSaved; ++m_picsInCurrentFolder; }
