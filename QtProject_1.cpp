@@ -130,7 +130,7 @@ void QtProject_1::shutdownAll()
 
     if (m_saveThread.queueSize() > 0)
         m_saveThread.waitUntilEmpty(30000);
-    stopPreview();
+    stopLiveView();
     m_saveThread.requestStopAndWait(30000);
 
     if (m_camera.isOpen())
@@ -236,17 +236,16 @@ void QtProject_1::updateSaveModeUi()
 void QtProject_1::refreshButtonState()
 {
     const bool open = m_camera.isOpen();
-    const bool grab = m_capturing;
     const bool stage = m_stageRunning;
-    const bool idle = !stage && !grab; // 非采集非阶段时可编辑阶段表
+    const bool idle = !stage && !m_acquisitionActive; // 非采集会话、非阶段时可编辑阶段表
 
     ui.openCameraBtn->setEnabled(!open);
-    ui.closeCameraBtn->setEnabled(open && !grab && !stage); // 采集中或阶段中不允许关相机
-    ui.startGrabBtn->setEnabled(open && !grab && !stage);
-    ui.stopGrabBtn->setEnabled(open && grab && !stage);
+    ui.closeCameraBtn->setEnabled(open && !stage); // 阶段运行中不允许关相机
+    ui.startGrabBtn->setEnabled(open && !m_acquisitionActive && !stage);
+    ui.stopGrabBtn->setEnabled(open && m_acquisitionActive && !stage);
     ui.applyParamBtn->setEnabled(open && !stage);
-    ui.saveOneBmpBtn->setEnabled(open && grab);
-    ui.startStageBtn->setEnabled(open && !grab && !stage);
+    ui.saveOneBmpBtn->setEnabled(open && m_acquisitionActive && m_liveViewActive);
+    ui.startStageBtn->setEnabled(open && !stage); // 预览常开，可直接开始阶段
     ui.stopStageBtn->setEnabled(stage);
     ui.cameraSelectCombo->setEnabled(!open && idle);
     ui.stageTable->setEnabled(idle);
@@ -269,40 +268,64 @@ void QtProject_1::updateActionButtonStyles()
     applyButtonRole(ui.stopStageBtn, "danger");
 }
 
-// 点击「开始采集」或阶段采集需要取帧时：启动 grab + 预览定时器
-void QtProject_1::startPreview()
+// 打开相机后启动底层 grab + 预览定时器，画面实时刷新
+void QtProject_1::startLiveView()
 {
-    if (!m_camera.isOpen() || m_capturing)
+    if (!m_camera.isOpen() || m_liveViewActive)
         return;
 
     applyCamParams();
     if (!m_camera.startGrab())
     {
-        log(QStringLiteral("[警告] 开始采集失败。"));
+        log(QStringLiteral("[警告] 实时预览启动失败。"));
         return;
     }
-    m_capturing = true;
+    m_liveViewActive = true;
+    m_lastDisplayFrameSeq = 0;
     m_displayTimer.setInterval(33);
     m_displayTimer.start();
     setCamStatus(QStringLiteral("状态: 预览中"), QStringLiteral("rgb(0, 120, 212)"));
 }
 
-// 点击「停止采集」或关相机：停止 grab 与预览刷新
-void QtProject_1::stopPreview()
+// 采集会话结束或阶段结束后，确保预览仍在刷新
+void QtProject_1::ensureLiveView()
 {
-    m_displayTimer.stop();
-    if (m_capturing)
+    if (!m_camera.isOpen())
+        return;
+
+    if (!m_liveViewActive)
+        startLiveView();
+    else if (!m_displayTimer.isActive())
     {
-        m_camera.stopGrab();
-        m_capturing = false;
+        m_displayTimer.setInterval(33);
+        m_displayTimer.start();
+    }
+
+    if (!m_stageRunning)
+    {
+        if (m_acquisitionActive)
+            setCamStatus(QStringLiteral("状态: 采集中"), QStringLiteral("rgb(202, 80, 16)"));
+        else
+            setCamStatus(QStringLiteral("状态: 预览中"), QStringLiteral("rgb(0, 120, 212)"));
     }
 }
 
-// 停止阶段业务、等待存图队列，并停止连续采集（与「停止采集」一致）
+// 仅关相机/退出时停止 grab 与预览
+void QtProject_1::stopLiveView()
+{
+    m_displayTimer.stop();
+    if (m_liveViewActive)
+    {
+        m_camera.stopGrab();
+        m_liveViewActive = false;
+    }
+    m_lastDisplayFrameSeq = 0;
+}
+
+// 停止阶段业务并等待存图队列；不停止实时预览
 void QtProject_1::stopCaptureAndWaitSave(bool userStop)
 {
     m_stageRunning = false;
-    stopPreview();
 
     if (userStop)
         log(QStringLiteral("用户停止，等待存图队列..."));
@@ -318,8 +341,7 @@ void QtProject_1::stopCaptureAndWaitSave(bool userStop)
         return;
 
     setStageStatus(QString());
-    setCamStatus(m_camera.isOpen() ? QStringLiteral("状态: 已连接") : QStringLiteral("状态: 未连接"),
-                 m_camera.isOpen() ? QStringLiteral("rgb(16, 124, 16)") : QStringLiteral("rgb(102, 102, 102)"));
+    ensureLiveView();
     refreshButtonState();
 }
 
@@ -352,9 +374,9 @@ void QtProject_1::onOpenCamera()
     if (m_camera.open())
     {
         updateParamSpinLimits();
-        applyCamParams();
-        setCamStatus(QStringLiteral("状态: 已连接"), QStringLiteral("rgb(16, 124, 16)"));
-        log(QStringLiteral("相机连接成功。"));
+        startLiveView(); // 打开相机即实时预览；「开始采集」为独立会话
+        log(m_liveViewActive ? QStringLiteral("相机连接成功，预览已启动。")
+                             : QStringLiteral("相机连接成功。"));
     }
     else
     {
@@ -371,7 +393,8 @@ void QtProject_1::onCloseCamera()
     m_stageRunning = false;
     if (m_saveThread.queueSize() > 0)
         m_saveThread.waitUntilEmpty(30000);
-    stopPreview();
+    m_acquisitionActive = false;
+    stopLiveView();
     m_camera.close();
     ui.imageLabel->clear();
     ui.imageLabel->setText(QStringLiteral("未连接相机"));
@@ -382,17 +405,29 @@ void QtProject_1::onCloseCamera()
 
 void QtProject_1::onStartGrab()
 {
-    startPreview();
-    if (m_capturing)
-        log(QStringLiteral("开始采集。"));
+    if (!m_camera.isOpen())
+        return;
+
+    ensureLiveView();
+    if (!m_liveViewActive)
+        return;
+
+    m_acquisitionActive = true;
+    applyCamParams();
+    setCamStatus(QStringLiteral("状态: 采集中"), QStringLiteral("rgb(202, 80, 16)"));
+    log(QStringLiteral("开始采集。"));
     refreshButtonState();
 }
 
 void QtProject_1::onStopGrab()
 {
-    stopCaptureAndWaitSave(false);
+    m_acquisitionActive = false;
+    if (m_saveThread.queueSize() > 0)
+        m_saveThread.waitUntilEmpty(30000);
+    ensureLiveView(); // 停止采集会话，预览继续实时刷新
     if (!m_shutdownDone)
-        log(QStringLiteral("停止采集。"));
+        log(QStringLiteral("停止采集，预览继续。"));
+    refreshButtonState();
 }
 
 void QtProject_1::onApplyParams()
@@ -403,15 +438,26 @@ void QtProject_1::onApplyParams()
 void QtProject_1::onDisplayTimer()
 {
     QImage frame;
-    if (!m_camera.copyLatestImage(frame) || frame.isNull())
+    quint64 frameSeq = 0;
+    if (!m_camera.copyLatestImage(frame, &frameSeq) || frame.isNull())
         return;
 
+    const QSize labelSize = ui.imageLabel->size();
+    // 同一帧且预览区尺寸未变时跳过重绘，减轻卡顿
+    if (frameSeq == m_lastDisplayFrameSeq && labelSize == m_lastDisplayLabelSize)
+        return;
+
+    m_lastDisplayFrameSeq = frameSeq;
+    m_lastDisplayLabelSize = labelSize;
     ui.imageLabel->setPixmap(QPixmap::fromImage(frame).scaled(
-        ui.imageLabel->size(), Qt::KeepAspectRatio, Qt::FastTransformation));
+        labelSize, Qt::KeepAspectRatio, Qt::FastTransformation));
+
     QString info = QStringLiteral("%1×%2").arg(frame.width()).arg(frame.height());
     if (m_stageRunning)
         info += QStringLiteral(" | 阶段");
-    else if (m_capturing)
+    else if (m_acquisitionActive)
+        info += QStringLiteral(" | 采集");
+    else if (m_liveViewActive)
         info += QStringLiteral(" | 预览");
     const int q = m_saveThread.queueSize();
     if (q > 0)
@@ -472,9 +518,8 @@ void QtProject_1::onStartStageCapture()
     m_stageMgr.setLoopCount(loopCount);
     applyCamParams();
 
-    if (!m_capturing)
-        startPreview();
-    if (!m_capturing)
+    ensureLiveView();
+    if (!m_liveViewActive)
     {
         log(QStringLiteral("[警告] 阶段采集启动失败：预览未就绪。"));
         return;
@@ -631,7 +676,7 @@ void QtProject_1::onSaveQueueBacklog(int queueSize)
 
 void QtProject_1::onAddStage()
 {
-    if (m_capturing || m_stageRunning)
+    if (m_acquisitionActive || m_stageRunning)
         return;
     insertStageRow(ui.stageTable->rowCount(),
                    QStringLiteral("阶段%1").arg(ui.stageTable->rowCount() + 1));
@@ -726,7 +771,7 @@ QList<StageItem> QtProject_1::readStageListFromTable() const
 
 void QtProject_1::onDeleteStage()
 {
-    if (m_capturing || m_stageRunning)
+    if (m_acquisitionActive || m_stageRunning)
         return;
     const int row = ui.stageTable->currentRow();
     if (row >= 0)
@@ -735,6 +780,6 @@ void QtProject_1::onDeleteStage()
 
 void QtProject_1::onClearStages()
 {
-    if (!m_capturing && !m_stageRunning)
+    if (!m_acquisitionActive && !m_stageRunning)
         ui.stageTable->setRowCount(0);
 }

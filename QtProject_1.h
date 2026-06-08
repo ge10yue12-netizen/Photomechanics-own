@@ -73,8 +73,9 @@ private:
     bool validateStageTable();
     QList<StageItem> readStageListFromTable() const;
     bool enqueueCurrentFrame();    // 抓最新帧并入存图队列
-    void startPreview();           // 点击「开始采集」时启动 grab + 预览定时器
-    void stopPreview();            // 点击「停止采集」或关相机时停止 grab 与预览
+    void startLiveView();          // 打开相机后：启动 grab + 预览定时器（实时画面）
+    void ensureLiveView();         // 确保 grab 与预览定时器在运行
+    void stopLiveView();           // 仅关相机/退出时停止 grab 与预览
     void stopCaptureAndWaitSave(bool userStop);
     void shutdownAll();              // 退出/析构：停采、排空队列、关相机、终止 Pylon
     void insertStageRow(int row, const QString &name);
@@ -85,9 +86,12 @@ private:
     ImageSaveThread m_saveThread;
     SavePathHelper m_savePath;
     QTimer m_displayTimer;           // 约 30fps 刷新预览 label
-    bool m_capturing = false;        // 相机处于连续 grab（预览或阶段）
+    bool m_liveViewActive = false;   // 相机连续 grab + 预览定时器（打开相机后常开）
+    bool m_acquisitionActive = false; // 用户点击「开始采集」后的采集会话
     bool m_stageRunning = false;     // StageManager 正在跑阶段表
     bool m_shutdownDone = false;     // 防止退出过程中 log/回调再碰 UI
     QString m_stageStatusText;       // 阶段状态栏缓存，便于追加队列信息
     quint64 m_lastEnqueuedFrameSeq = 0; // 阶段存图已入队的最新帧序号，避免重复保存同一帧
+    quint64 m_lastDisplayFrameSeq = 0;  // 预览已显示的最新帧序号，避免重复缩放卡顿
+    QSize m_lastDisplayLabelSize;       // 预览区上次尺寸，尺寸变时需重绘
 };
