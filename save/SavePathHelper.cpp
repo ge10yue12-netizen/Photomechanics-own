@@ -136,6 +136,63 @@ void SavePathHelper::resumeFromDisk()
     m_folderStartTime = QDateTime::currentDateTime();
 }
 
+// 仅当内存序号落后于磁盘时上调，避免阶段开始前回扫磁盘把 Pic 序号改小导致覆盖
+void SavePathHelper::syncIndexWithDisk()
+{
+    if (m_rootPath.isEmpty())
+        return;
+
+    QDir root(m_rootPath);
+    if (!root.exists())
+        return;
+
+    const int diskTotal = countSavedBmpUnderRoot(root);
+    if (diskTotal > m_totalSaved)
+        m_totalSaved = diskTotal;
+
+    if (m_mode == SaveFolderMode::SingleFolder)
+    {
+        m_currentFolder = m_rootPath;
+        const int diskMax = maxPicInDir(root);
+        if (m_picIndex <= diskMax)
+            m_picIndex = diskMax + 1;
+        if (m_picsInCurrentFolder < diskMax)
+            m_picsInCurrentFolder = diskMax;
+        return;
+    }
+
+    int maxCameraIndex = 0;
+    QString latestCameraDir;
+    const QStringList subs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &name : subs)
+    {
+        if (name.length() < 7 || !name.startsWith(QStringLiteral("CAMERA"), Qt::CaseInsensitive))
+            continue;
+        bool ok = false;
+        const int idx = name.mid(6).toInt(&ok);
+        if (!ok || idx <= 0)
+            continue;
+        if (idx >= maxCameraIndex)
+        {
+            maxCameraIndex = idx;
+            latestCameraDir = root.filePath(name);
+        }
+    }
+
+    if (maxCameraIndex <= 0 || latestCameraDir.isEmpty())
+        return;
+
+    const int diskMaxPic = maxPicInDir(QDir(latestCameraDir));
+    if (m_currentFolder.isEmpty())
+        m_currentFolder = latestCameraDir;
+    if (m_picIndex <= diskMaxPic)
+        m_picIndex = diskMaxPic + 1;
+    if (m_picsInCurrentFolder < diskMaxPic)
+        m_picsInCurrentFolder = diskMaxPic;
+    if (m_cameraFolderIndex <= maxCameraIndex)
+        m_cameraFolderIndex = maxCameraIndex + 1;
+}
+
 // 按张数或按时间判断是否需要新建 CAMERA 子目录
 bool SavePathHelper::needNewCameraFolder() const
 {

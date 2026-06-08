@@ -87,4 +87,5 @@ private:
     bool m_stageRunning = false;     // StageManager 正在跑阶段表
     bool m_shutdownDone = false;     // 防止退出过程中 log/回调再碰 UI
     QString m_stageStatusText;       // 阶段状态栏缓存，便于追加队列信息
+    quint64 m_lastEnqueuedFrameSeq = 0; // 阶段存图已入队的最新帧序号，避免重复保存同一帧
 };

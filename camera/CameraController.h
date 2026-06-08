@@ -21,11 +21,13 @@ public:
     bool isOpen() const;
     bool startGrab();              // 启动 grabLoopWorker 连续取帧
     void stopGrab();
+    bool isGrabbing() const { return m_grabbing; }
     bool setExposureUs(double us);
     bool setGainDb(double db);
     bool setFps(double fps);
     CamParamLimits paramLimits() const; // 当前缓存的节点 min/max
-    bool copyLatestImage(QImage &out);  // 主线程取最近一帧深拷贝
+    // frameSeq 非空时返回当前帧序号（每成功抓一帧 +1），用于阶段存图去重
+    bool copyLatestImage(QImage &out, quint64 *frameSeq = nullptr);
 
 signals:
     void errorOccurred(const QString &message);

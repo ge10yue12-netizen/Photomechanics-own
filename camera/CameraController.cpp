@@ -35,6 +35,7 @@ struct CameraController::Impl
     CImageFormatConverter converter;    // 原始格式 → RGB8
     QMutex imageMutex;                  // 保护 latestImage 与抓图线程的读写
     QImage latestImage;                 // 最近一帧副本，供 UI 预览与存图
+    std::atomic<quint64> frameSequence{0}; // 抓图线程每更新一帧 +1，供阶段存图跳过重复帧
     std::thread grabThread;             // 执行 grabLoopWorker 的专用线程
     std::atomic<bool> grabStop{false};  // 为 true 时 grabLoopWorker 退出循环
 #endif
@@ -212,6 +213,7 @@ bool CameraController::startGrab()
             QMutexLocker lock(&m_impl->imageMutex);
             m_impl->latestImage = QImage();
         }
+        m_impl->frameSequence.store(0, std::memory_order_relaxed);
 
         // 仅用户线程（grabLoopWorker）调用 RetrieveResult，避免与 Pylon 内置抓图循环冲突
         m_impl->camera.StartGrabbing(GrabStrategy_LatestImageOnly, GrabLoop_ProvidedByUser);
@@ -296,6 +298,7 @@ void CameraController::grabLoopWorker()
 
             QMutexLocker lock(&m_impl->imageMutex);
             m_impl->latestImage = img;
+            m_impl->frameSequence.fetch_add(1, std::memory_order_relaxed);
         }
         catch (const GenericException &e)
         {
@@ -353,7 +356,7 @@ CamParamLimits CameraController::paramLimits() const
 }
 
 // 主线程调用：在 imageMutex 下复制 latestImage，未采集或无帧返回 false
-bool CameraController::copyLatestImage(QImage &out)
+bool CameraController::copyLatestImage(QImage &out, quint64 *frameSeq)
 {
 #ifdef QT_PROJECT_USE_PYLON
     if (!m_grabbing)
@@ -363,9 +366,12 @@ bool CameraController::copyLatestImage(QImage &out)
     if (m_impl->latestImage.isNull())
         return false;
     out = m_impl->latestImage.copy(); // 深拷贝，避免抓图线程更新缓冲区时预览/存图撕裂
+    if (frameSeq)
+        *frameSeq = m_impl->frameSequence.load(std::memory_order_relaxed);
     return true;
 #else
     Q_UNUSED(out);
+    Q_UNUSED(frameSeq);
     return false;
 #endif
 }

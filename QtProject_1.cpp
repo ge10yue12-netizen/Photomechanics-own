@@ -81,7 +81,7 @@ QtProject_1::QtProject_1(QWidget *parent)
     syncSavePath();
     m_savePath.resumeFromDisk(); // 启动时续接已有 Pic 序号，避免覆盖
 
-    m_displayTimer.setInterval(50); // 约 20Hz 刷新预览，减轻 UI 负担
+    m_displayTimer.setInterval(50); // 预览约 20Hz；阶段采集时会改为 33ms
     connect(&m_displayTimer, &QTimer::timeout, this, &QtProject_1::onDisplayTimer);
     m_saveThread.start();
 
@@ -265,6 +265,7 @@ void QtProject_1::updateActionButtonStyles()
 void QtProject_1::stopCaptureAndWaitSave(bool userStop)
 {
     m_displayTimer.stop();
+    m_displayTimer.setInterval(50);
     if (m_capturing)
     {
         m_camera.stopGrab();
@@ -294,7 +295,11 @@ void QtProject_1::stopCaptureAndWaitSave(bool userStop)
 bool QtProject_1::enqueueCurrentFrame()
 {
     QImage frame;
-    if (!m_camera.copyLatestImage(frame) || frame.isNull())
+    quint64 frameSeq = 0;
+    if (!m_camera.copyLatestImage(frame, &frameSeq) || frame.isNull())
+        return false;
+    // 阶段存图：必须等新帧，避免 tick 快于相机时重复保存同一静止画面
+    if (m_stageRunning && frameSeq <= m_lastEnqueuedFrameSeq)
         return false;
     if (m_savePath.isSaveLimitReached())
         return false;
@@ -306,6 +311,8 @@ bool QtProject_1::enqueueCurrentFrame()
 
     SaveTask task{frame.copy(), path};
     m_saveThread.enqueue(task);
+    if (m_stageRunning)
+        m_lastEnqueuedFrameSeq = frameSeq;
     return true;
 }
 
@@ -400,7 +407,8 @@ void QtProject_1::onBrowseSavePath()
     {
         ui.savePathEdit->setText(dir);
         syncSavePath();
-        m_savePath.resumeFromDisk(); // 切换目录后按新路径续接编号
+        m_savePath.resetSession();
+        m_savePath.resumeFromDisk(); // 换目录后从该目录已有 Pic 续接
     }
 }
 
@@ -428,22 +436,36 @@ void QtProject_1::onStartStageCapture()
     }
 
     syncSavePath();
-    m_savePath.resumeFromDisk(); // 阶段存图累加编号，不 resetSession 覆盖 Pic001
+    m_savePath.syncIndexWithDisk(); // 只对齐磁盘，不回退 Pic 序号（避免覆盖）
     m_stageMgr.setStages(readStageListFromTable());
-    m_stageMgr.setLoopCount(ui.loopCountSpin->value());
+    const int loopCount = ui.loopCountSpin->value();
+    m_stageMgr.setLoopCount(loopCount);
     applyCamParams();
 
-    if (!m_camera.startGrab())
+    // 已在预览采集时不必重复 startGrab，否则返回 false 导致阶段无法启动
+    if (!m_capturing)
     {
-        log(QStringLiteral("[警告] 阶段采集启动失败。"));
-        return;
+        if (!m_camera.startGrab())
+        {
+            log(QStringLiteral("[警告] 阶段采集启动失败。"));
+            return;
+        }
+        m_capturing = true;
     }
 
-    m_capturing = true;
+    m_lastEnqueuedFrameSeq = 0;
+    {
+        QImage warmFrame;
+        quint64 warmSeq = 0;
+        if (m_camera.copyLatestImage(warmFrame, &warmSeq))
+            m_lastEnqueuedFrameSeq = warmSeq;
+    }
+
     m_stageRunning = true;
+    m_displayTimer.setInterval(33); // 阶段采集预览约 30Hz，更接近实时
     m_displayTimer.start();
     setCamStatus(QStringLiteral("状态: 阶段采集中"), QStringLiteral("rgb(202, 80, 16)"));
-    log(QStringLiteral("开始阶段采集。"));
+    log(QStringLiteral("开始阶段采集，循环 %1 轮。").arg(loopCount));
     ui.rightTabWidget->setCurrentWidget(ui.stageSaveTab);
     m_stageMgr.start();
     refreshButtonState();
@@ -495,8 +517,7 @@ void QtProject_1::onStageFinished(const QString &name,
 
 void QtProject_1::onStageLoopStarted(int loopIndex, int totalLoops)
 {
-    // Pic 编号跨轮次累加，不在新一轮 loop 时重置
-    log(QStringLiteral("第 %1/%2 轮开始。").arg(loopIndex).arg(totalLoops));
+    log(QStringLiteral("第 %1/%2 轮开始（Pic 编号继续累加）。").arg(loopIndex).arg(totalLoops));
     setStageStatus(QStringLiteral("第 %1/%2 轮").arg(loopIndex).arg(totalLoops));
 }
 
