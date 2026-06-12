@@ -27,11 +27,11 @@ struct StageItem
     bool saveImage = false; // 是否按帧率定时存图
 };
 
-// 异步存图队列中的单条任务
+// 存图任务队列元素：图像数据与目标文件路径
 struct SaveTask
 {
-    QImage image;    // 待写入的帧（已在入队前深拷贝）
-    QString filePath; // 目标 BMP 完整路径
+    QImage image;     // 待写入图像（入队前已完成拷贝）
+    QString filePath; // BMP 目标路径
 };
 
 // 存图目录切分策略（与 saveModeCombo 索引一致）

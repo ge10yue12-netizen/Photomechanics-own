@@ -8,7 +8,7 @@
 #include "save/SavePathHelper.h"
 #include "ui_QtProject_1.h"
 
-// QtProject_1 — 主窗口：UI（.ui）+ 相机预览/采集 + 阶段存图 + 日志
+// QtProject_1：主窗口，负责 UI、相机预览/采集、阶段存图与日志
 class QtProject_1 : public QWidget
 {
     Q_OBJECT
@@ -57,6 +57,7 @@ private slots:
     // 存图线程回调
     void onSaveThreadFinished(const QString &path, bool ok, const QString &errorMsg);
     void onSaveQueueBacklog(int queueSize);
+    void onSaveQueueFull(int queueSize);
 
     void updateSaveModeUi();
 
@@ -69,15 +70,15 @@ private:
     void updateActionButtonStyles(); // 六个主操作按钮蓝/红样式角色
     void updateParamSpinLimits();
     bool applyCamParams();
-    void syncSavePath();             // 界面存图选项 → m_savePath
+    void syncSavePath();             // 将界面存图配置同步至 m_savePath
     bool validateStageTable();
     QList<StageItem> readStageListFromTable() const;
-    bool enqueueCurrentFrame();    // 抓最新帧并入存图队列
-    void startLiveView();          // 打开相机后：启动 grab + 预览定时器（实时画面）
-    void ensureLiveView();         // 确保 grab 与预览定时器在运行
-    void stopLiveView();           // 仅关相机/退出时停止 grab 与预览
+    bool enqueueCurrentFrame();    // 复制最新帧并提交存图任务
+    void startLiveView();          // 启动 grab 与预览定时器
+    void ensureLiveView();         // 确保 grab 与预览定时器处于运行状态
+    void stopLiveView();           // 关闭 grab 与预览定时器
     void stopCaptureAndWaitSave(bool userStop);
-    void shutdownAll();              // 退出/析构：停采、排空队列、关相机、终止 Pylon
+    void shutdownAll();              // 退出清理：停采、排空队列、关相机、终止 Pylon
     void insertStageRow(int row, const QString &name);
 
     Ui::QtProject_1Class ui;
@@ -88,10 +89,10 @@ private:
     QTimer m_displayTimer;           // 约 30fps 刷新预览 label
     bool m_liveViewActive = false;   // 相机连续 grab + 预览定时器（打开相机后常开）
     bool m_acquisitionActive = false; // 用户点击「开始采集」后的采集会话
-    bool m_stageRunning = false;     // StageManager 正在跑阶段表
-    bool m_shutdownDone = false;     // 防止退出过程中 log/回调再碰 UI
-    QString m_stageStatusText;       // 阶段状态栏缓存，便于追加队列信息
-    quint64 m_lastEnqueuedFrameSeq = 0; // 阶段存图已入队的最新帧序号，避免重复保存同一帧
-    quint64 m_lastDisplayFrameSeq = 0;  // 预览已显示的最新帧序号，避免重复缩放卡顿
-    QSize m_lastDisplayLabelSize;       // 预览区上次尺寸，尺寸变时需重绘
+    bool m_stageRunning = false;     // StageManager 是否正在执行阶段表
+    bool m_shutdownDone = false;     // 退出标志，防止退出过程中回调访问 UI
+    QString m_stageStatusText;       // 阶段状态栏文本缓存，用于附加队列长度
+    quint64 m_lastEnqueuedFrameSeq = 0; // 阶段存图已入队的最新帧序号，用于去重
+    quint64 m_lastDisplayFrameSeq = 0;  // 预览已显示的最新帧序号，用于跳过重复绘制
+    QSize m_lastDisplayLabelSize;       // 预览区上次尺寸，尺寸变化时需重绘
 };

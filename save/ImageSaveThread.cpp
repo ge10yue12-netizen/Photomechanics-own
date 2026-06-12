@@ -1,4 +1,4 @@
-// ImageSaveThread.cpp — 独立线程消费 SaveTask 队列并写 BMP
+// ImageSaveThread.cpp：有界存图任务队列与 BMP 写盘线程实现
 
 #include "ImageSaveThread.h"
 #include <QDebug>
@@ -12,71 +12,96 @@ ImageSaveThread::ImageSaveThread(QObject *parent)
 
 ImageSaveThread::~ImageSaveThread()
 {
-    requestStopAndWait(5000);
+    requestStopAndWait(10000);
 }
 
-void ImageSaveThread::enqueue(const SaveTask &task)
+// 将任务放入存图队列；队列满时触发 queueFull 并返回 false
+bool ImageSaveThread::trySubmit(SaveTask &task)
 {
-    QMutexLocker lock(&m_mutex);
-    m_queue.enqueue(task);
-    const int sz = m_queue.size();
+    QMutexLocker lock(&m_queueMutex);
+    const int szBefore = m_taskQueue.size();
+    if (m_taskQueue.size() >= kMaxQueueSize)
+    {
+        lock.unlock();
+        emit queueFull(szBefore);
+        return false;
+    }
+    m_taskQueue.enqueue(std::move(task));
+    m_queueNotEmpty.wakeOne();
     lock.unlock();
+
+    const int sz = queueSize();
     if (sz >= kBacklogWarnSize)
         emit queueBacklog(sz);
+    return true;
 }
 
 int ImageSaveThread::queueSize() const
 {
-    QMutexLocker lock(&m_mutex);
-    return m_queue.size();
+    QMutexLocker lock(&m_queueMutex);
+    return m_taskQueue.size();
 }
 
-// 轮询等待队列排空，用于停止采集/退出前尽量写完已入队图片
+int ImageSaveThread::capacity() const
+{
+    return kMaxQueueSize;
+}
+
+// 阻塞等待队列排空或超时
 void ImageSaveThread::waitUntilEmpty(int timeoutMs)
 {
     QElapsedTimer timer;
     timer.start();
-    while (queueSize() > 0 && timer.elapsed() < timeoutMs)
-        msleep(20);
+    QMutexLocker lock(&m_queueMutex);
+    while (!m_taskQueue.isEmpty())
+    {
+        const int remaining = timeoutMs - static_cast<int>(timer.elapsed());
+        if (remaining <= 0)
+            break;
+        m_queueEmpty.wait(&m_queueMutex, remaining);
+    }
 }
 
 void ImageSaveThread::requestStopAndWait(int timeoutMs)
 {
     {
-        QMutexLocker lock(&m_mutex);
+        QMutexLocker lock(&m_queueMutex);
         m_stop = true;
+        m_queueNotEmpty.wakeAll();
+        m_queueEmpty.wakeAll();
     }
     if (isRunning() && !wait(timeoutMs))
         qWarning("ImageSaveThread: 等待存图线程结束超时 (%d ms)。", timeoutMs);
 }
 
+// 写盘线程主循环：出队、保存 BMP、上报结果
 void ImageSaveThread::run()
 {
     while (true)
     {
         SaveTask task;
         {
-            QMutexLocker lock(&m_mutex);
-            if (m_queue.isEmpty())
-            {
-                if (m_stop)
-                    break;
-                lock.unlock();
-                msleep(5);
-                continue;
-            }
-            task = m_queue.dequeue();
+            QMutexLocker lock(&m_queueMutex);
+            while (m_taskQueue.isEmpty() && !m_stop)
+                m_queueNotEmpty.wait(&m_queueMutex);
+
+            if (m_taskQueue.isEmpty())
+                break;
+
+            task = m_taskQueue.dequeue();
+            if (m_taskQueue.isEmpty())
+                m_queueEmpty.wakeAll();
         }
 
         const bool ok = task.image.save(task.filePath, "BMP");
         const QString err = ok ? QString() : QStringLiteral("写入 BMP 失败");
 
-        // 退出过程中不再向 UI 发 saveFinished，避免关闭窗口后仍更新界面
         bool stopping = false;
         {
-            QMutexLocker lock(&m_mutex);
+            QMutexLocker lock(&m_queueMutex);
             stopping = m_stop;
         }
+        // 退出过程中不再通知 UI，避免窗口关闭后仍更新界面
         if (!stopping)
             emit saveFinished(task.filePath, ok, err);
 
@@ -85,8 +110,8 @@ void ImageSaveThread::run()
             emit queueBacklog(sz);
 
         {
-            QMutexLocker lock(&m_mutex);
-            if (m_stop && m_queue.isEmpty())
+            QMutexLocker lock(&m_queueMutex);
+            if (m_stop && m_taskQueue.isEmpty())
                 break;
         }
     }

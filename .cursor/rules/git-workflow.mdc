@@ -1,5 +1,5 @@
 ---
-description: 本项目 Git 自动提交与推送（Photomechanics-own）
+description: 本项目 Git 提交与推送规范（Photomechanics-own）
 alwaysApply: true
 ---
 
@@ -14,25 +14,29 @@ alwaysApply: true
 
 ## 何时执行 Git
 
-在完成**用户要求的代码修改**后（非纯问答、非只读审查），在回复用户前：
+- **仅当用户明确要求** `commit` / `push` / 「提交」时才执行
+- 完成代码修改后：**默认不自动 commit/push**
+- 用户仅提问、审查、分析 → 不 commit
+- 用户说「先别提交 / 别 push」→ 必须遵守
 
-1. `git status` / `git diff` — 确认改动范围
-2. `git add` — 只加入与本次任务相关的文件，不提交 `.env`、密钥、本地构建产物
-3. `git commit -m "..."` — 中文或英文均可，说明「为什么改」，1～2 句
-4. `git push origin master` — 推送到 GitHub
+## 提交步骤（用户要求提交时）
 
-## 不做的事
+1. `git status` / `git diff` — 确认范围
+2. `git add` — 仅本次相关文件；不含 `.env`、密钥、构建产物
+3. `git commit -m "..."` — 1～2 句，说明「为什么改」
+4. 用户要求 push 时：`git push origin master`
 
-- 用户仅提问、未要求改代码 → 不 commit
-- 用户明确说「先别提交 / 别 push」→ 遵守
-- 不用 `--force`、不改写历史，除非用户明确要求
-- 不提交含密码、Token 的文件
+## 禁止
+
+- `--force`、改写历史（除非用户明确要求）
+- 未询问用户而主动 commit/push
+- 提交含密码、Token 的文件
 
 ## 推送失败
 
-- 网络/代理问题：本地 commit 保留，告知用户开 Clash 后 `git push`
-- 认证失败：提示用 GitHub Token，不要用登录密码
+- 网络/代理：保留本地 commit，提示开 Clash 后手动 push
+- 认证失败：提示 GitHub Token，勿用登录密码
 
 ## 换新项目时
 
-用户说明新仓库 URL 后：初始化/绑定 remote、更新本 rule 中的仓库信息，或新建对应项目的 `git-workflow.mdc`。
+用户给出新仓库 URL 后：绑定 remote 并更新本 rule 中的仓库信息。

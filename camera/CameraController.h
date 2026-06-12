@@ -3,8 +3,8 @@
 #include "core/AppTypes.h"
 #include <QObject>
 
-// CameraController — Basler Pylon 相机封装：开闭、连续采集、参数读写、最新帧副本
-// 未定义 QT_PROJECT_USE_PYLON 时接口仍可用，但 open/startGrab 等会失败并 emit errorOccurred
+// CameraController：Basler Pylon 相机封装，提供开闭、连续采集、参数读写与帧拷贝
+// 未定义 QT_PROJECT_USE_PYLON 时接口可用，但 open/startGrab 等将失败并 emit errorOccurred
 class CameraController : public QObject
 {
     Q_OBJECT

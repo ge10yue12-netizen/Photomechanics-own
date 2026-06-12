@@ -1,4 +1,4 @@
-// QtProject_1.cpp — 主窗口：信号槽、预览定时器、按钮状态与阶段/存图编排
+// QtProject_1.cpp：主窗口信号槽、预览定时器、按钮状态与阶段/存图调度
 
 #include "QtProject_1.h"
 #include "core/AppConfig.h"
@@ -14,7 +14,7 @@
 
 namespace
 {
-// 阶段表「存图」列：必须带 ItemIsUserCheckable，否则界面上点勾选无效
+// 阶段表「存图」列须设置 ItemIsUserCheckable，否则勾选框无法交互
 QTableWidgetItem *makeSaveCheckItem(bool checked = true)
 {
     auto *chk = new QTableWidgetItem();
@@ -83,12 +83,13 @@ QtProject_1::QtProject_1(QWidget *parent)
     connect(&m_stageMgr, &StageManager::stoppedByUser, this, &QtProject_1::onStageStoppedByUser);
     connect(&m_saveThread, &ImageSaveThread::saveFinished, this, &QtProject_1::onSaveThreadFinished);
     connect(&m_saveThread, &ImageSaveThread::queueBacklog, this, &QtProject_1::onSaveQueueBacklog);
+    connect(&m_saveThread, &ImageSaveThread::queueFull, this, &QtProject_1::onSaveQueueFull);
     connect(&m_camera, &CameraController::errorOccurred, this, &QtProject_1::onCameraError);
 
     AppConfig::loadUi(ui);
     updateSaveModeUi();
     syncSavePath();
-    m_savePath.resumeFromDisk(); // 启动时续接已有 Pic 序号，避免覆盖
+    m_savePath.resumeFromDisk(); // 启动时根据磁盘已有文件续接 Pic 序号
 
     m_displayTimer.setInterval(33); // 预览约 30Hz，打开相机后持续刷新
     connect(&m_displayTimer, &QTimer::timeout, this, &QtProject_1::onDisplayTimer);
@@ -111,7 +112,7 @@ void QtProject_1::closeEvent(QCloseEvent *event)
     QWidget::closeEvent(event);
 }
 
-// 只执行一次：停阶段、断信号、停采、等存图、关相机、PylonTerminate
+// 退出清理，仅执行一次：停止阶段、断开信号、停采、等待写盘、关相机、终止 Pylon
 void QtProject_1::shutdownAll()
 {
     if (m_shutdownDone)
@@ -129,7 +130,7 @@ void QtProject_1::shutdownAll()
     disconnect(&m_stageMgr, nullptr, this, nullptr);
 
     if (m_saveThread.queueSize() > 0)
-        m_saveThread.waitUntilEmpty(30000);
+        m_saveThread.waitUntilEmpty(60000);
     stopLiveView();
     m_saveThread.requestStopAndWait(30000);
 
@@ -156,7 +157,7 @@ void QtProject_1::setCamStatus(const QString &text, const QString &color)
         QStringLiteral("color:%1;font-weight:bold;padding:4px 0;").arg(color));
 }
 
-// 阶段状态栏；运行中且存图队列非空时追加队列长度
+// 阶段状态栏；阶段运行中且队列非空时附加队列长度
 void QtProject_1::setStageStatus(const QString &text)
 {
     m_stageStatusText = text;
@@ -176,7 +177,7 @@ void QtProject_1::insertStageRow(int row, const QString &name)
     ui.stageTable->setItem(row, 0, new QTableWidgetItem(name));
     ui.stageTable->setItem(row, 1, new QTableWidgetItem(QStringLiteral("1.0")));
     ui.stageTable->setItem(row, 2, new QTableWidgetItem(QStringLiteral("20")));
-    ui.stageTable->setItem(row, 3, makeSaveCheckItem(true)); // 默认勾选存图
+    ui.stageTable->setItem(row, 3, makeSaveCheckItem(true)); // 默认启用存图
 }
 
 void QtProject_1::setupStageTable()
@@ -245,7 +246,7 @@ void QtProject_1::refreshButtonState()
     ui.stopGrabBtn->setEnabled(open && m_acquisitionActive && !stage);
     ui.applyParamBtn->setEnabled(open && !stage);
     ui.saveOneBmpBtn->setEnabled(open && m_acquisitionActive && m_liveViewActive);
-    ui.startStageBtn->setEnabled(open && !stage); // 预览常开，可直接开始阶段
+    ui.startStageBtn->setEnabled(open && !stage); // 预览常开，可直接启动阶段采集
     ui.stopStageBtn->setEnabled(stage);
     ui.cameraSelectCombo->setEnabled(!open && idle);
     ui.stageTable->setEnabled(idle);
@@ -268,7 +269,7 @@ void QtProject_1::updateActionButtonStyles()
     applyButtonRole(ui.stopStageBtn, "danger");
 }
 
-// 打开相机后启动底层 grab + 预览定时器，画面实时刷新
+// 打开相机后启动 grab 与预览定时器
 void QtProject_1::startLiveView()
 {
     if (!m_camera.isOpen() || m_liveViewActive)
@@ -332,7 +333,7 @@ void QtProject_1::stopCaptureAndWaitSave(bool userStop)
 
     if (m_saveThread.queueSize() > 0)
     {
-        m_saveThread.waitUntilEmpty(30000);
+        m_saveThread.waitUntilEmpty(60000);
         if (m_saveThread.queueSize() > 0)
             log(QStringLiteral("[警告] 仍有图片未保存完成。"));
     }
@@ -351,7 +352,7 @@ bool QtProject_1::enqueueCurrentFrame()
     quint64 frameSeq = 0;
     if (!m_camera.copyLatestImage(frame, &frameSeq) || frame.isNull())
         return false;
-    // 阶段存图：必须等新帧，避免 tick 快于相机时重复保存同一静止画面
+    // 阶段存图须等待新帧，防止定时器快于相机时重复保存同一帧
     if (m_stageRunning && frameSeq <= m_lastEnqueuedFrameSeq)
         return false;
     if (m_savePath.isSaveLimitReached())
@@ -363,7 +364,8 @@ bool QtProject_1::enqueueCurrentFrame()
         return false;
 
     SaveTask task{frame.copy(), path};
-    m_saveThread.enqueue(task);
+    if (!m_saveThread.trySubmit(task))
+        return false;
     if (m_stageRunning)
         m_lastEnqueuedFrameSeq = frameSeq;
     return true;
@@ -374,7 +376,7 @@ void QtProject_1::onOpenCamera()
     if (m_camera.open())
     {
         updateParamSpinLimits();
-        startLiveView(); // 打开相机即实时预览；「开始采集」为独立会话
+        startLiveView(); // 打开相机后启动预览；「开始采集」为独立会话
         log(m_liveViewActive ? QStringLiteral("相机连接成功，预览已启动。")
                              : QStringLiteral("相机连接成功。"));
     }
@@ -392,7 +394,7 @@ void QtProject_1::onCloseCamera()
         m_stageMgr.stop();
     m_stageRunning = false;
     if (m_saveThread.queueSize() > 0)
-        m_saveThread.waitUntilEmpty(30000);
+        m_saveThread.waitUntilEmpty(60000);
     m_acquisitionActive = false;
     stopLiveView();
     m_camera.close();
@@ -423,7 +425,7 @@ void QtProject_1::onStopGrab()
 {
     m_acquisitionActive = false;
     if (m_saveThread.queueSize() > 0)
-        m_saveThread.waitUntilEmpty(30000);
+        m_saveThread.waitUntilEmpty(60000);
     ensureLiveView(); // 停止采集会话，预览继续实时刷新
     if (!m_shutdownDone)
         log(QStringLiteral("停止采集，预览继续。"));
@@ -443,7 +445,7 @@ void QtProject_1::onDisplayTimer()
         return;
 
     const QSize labelSize = ui.imageLabel->size();
-    // 同一帧且预览区尺寸未变时跳过重绘，减轻卡顿
+    // 相同帧且预览区尺寸未变时跳过重绘，降低 UI 开销
     if (frameSeq == m_lastDisplayFrameSeq && labelSize == m_lastDisplayLabelSize)
         return;
 
@@ -483,7 +485,7 @@ void QtProject_1::onBrowseSavePath()
         ui.savePathEdit->setText(dir);
         syncSavePath();
         m_savePath.resetSession();
-        m_savePath.resumeFromDisk(); // 换目录后从该目录已有 Pic 续接
+        m_savePath.resumeFromDisk(); // 切换目录后根据磁盘续接 Pic 序号
     }
 }
 
@@ -573,7 +575,7 @@ void QtProject_1::onStageSaveFrame()
         m_stageMgr.notifySaveEnqueued();
         return;
     }
-    // 入队失败时不计入目标帧数，由 StageManager 立即重试
+    // 入队失败不计入目标帧数，由 StageManager 触发重试
     m_stageMgr.notifySaveEnqueueFailed();
     // 达到最大存图张数时自动结束阶段采集
     if (m_savePath.isSaveLimitReached())
@@ -583,7 +585,7 @@ void QtProject_1::onStageSaveFrame()
 void QtProject_1::onStageStarted(const QString &name, const QDateTime &startTime, int loopIndex)
 {
     m_savePath.setStageContext(loopIndex, name);
-    // 每阶段重置帧去重基准，避免沿用上一阶段序号导致长时间入队失败
+    // 每阶段重置帧序号基准，防止沿用上一阶段序号导致入队失败
     m_lastEnqueuedFrameSeq = 0;
     {
         QImage warmFrame;
@@ -648,11 +650,11 @@ void QtProject_1::onSaveThreadFinished(const QString &path, bool ok, const QStri
     if (ok)
     {
         m_savePath.onFileSaved();
-        // 用 StageManager 运行态判断，避免 stopCapture 先清 m_stageRunning 导致写盘计数丢失、状态机卡死
+        // 以 StageManager 运行态为准，防止 stopCapture 提前清除 m_stageRunning 导致计数丢失
         if (m_stageMgr.isRunning())
         {
             m_stageMgr.notifyImageSaved();
-            setStageStatus(m_stageStatusText); // 刷新队列计数
+            setStageStatus(m_stageStatusText);
         }
         else if (!m_savePath.isStageCaptureActive())
         {
@@ -670,6 +672,17 @@ void QtProject_1::onSaveQueueBacklog(int queueSize)
     if (!m_shutdownDone)
     {
         log(QStringLiteral("[警告] 存图队列积压 %1 张。").arg(queueSize));
+        setStageStatus(m_stageStatusText);
+    }
+}
+
+void QtProject_1::onSaveQueueFull(int queueSize)
+{
+    if (!m_shutdownDone)
+    {
+        log(QStringLiteral("[警告] 存图队列已满(%1/%2)，本帧已拒绝入队。")
+                .arg(queueSize)
+                .arg(m_saveThread.capacity()));
         setStageStatus(m_stageStatusText);
     }
 }
@@ -725,7 +738,7 @@ bool QtProject_1::validateStageTable()
         }
     }
 
-    // 全部未勾选存图时提示，避免误以为会保存 BMP
+    // 全部未启用存图时提示，防止用户误认为将写入 BMP
     bool anySave = false;
     for (int r = 0; r < ui.stageTable->rowCount(); ++r)
     {

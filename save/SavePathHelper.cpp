@@ -1,4 +1,4 @@
-// SavePathHelper.cpp — 存图路径与 CAMERA/Pic 命名规则
+// SavePathHelper.cpp：存图路径与 CAMERA/Pic 命名规则
 
 #include "SavePathHelper.h"
 #include <QCoreApplication>
@@ -48,7 +48,7 @@ int countSavedBmpUnderRoot(const QDir &root)
 }
 }
 
-// 默认 Images：与 exe 同级的上上级（Debug 下为项目根/Images）
+// 默认 Images 目录：可执行文件上两级（Debug 构建下为项目根/Images）
 QString SavePathHelper::defaultRootPath()
 {
     QDir d(QCoreApplication::applicationDirPath());
@@ -67,7 +67,7 @@ void SavePathHelper::resetSession()
     m_folderStartTime = QDateTime();
 }
 
-// 根据磁盘已有文件恢复 Pic/CAMERA 计数，避免阶段存图覆盖 Pic001
+// 根据磁盘已有文件恢复 Pic/CAMERA 计数，防止阶段存图覆盖 Pic001
 void SavePathHelper::resumeFromDisk()
 {
     if (m_rootPath.isEmpty())
@@ -136,7 +136,7 @@ void SavePathHelper::resumeFromDisk()
     m_folderStartTime = QDateTime::currentDateTime();
 }
 
-// 仅当内存序号落后于磁盘时上调，避免阶段开始前回扫磁盘把 Pic 序号改小导致覆盖
+// 仅当内存序号落后于磁盘时上调，防止 Pic 序号回退导致覆盖
 void SavePathHelper::syncIndexWithDisk()
 {
     if (m_rootPath.isEmpty())
@@ -193,7 +193,7 @@ void SavePathHelper::syncIndexWithDisk()
         m_cameraFolderIndex = maxCameraIndex + 1;
 }
 
-// 阶段名去掉 Windows 非法路径字符，避免建目录失败
+// 过滤阶段名中的 Windows 非法路径字符
 QString SavePathHelper::sanitizeFolderName(const QString &name)
 {
     QString s = name.trimmed();
@@ -230,7 +230,7 @@ void SavePathHelper::endStageCapture()
     m_stagePicIndex = 1;
 }
 
-// 每个阶段/每轮切换时进入独立子目录，Pic 在该目录内从 001 续接（不覆盖其他阶段）
+// 每阶段/每轮切换独立子目录，Pic 序号在该目录内从 001 续接
 void SavePathHelper::setStageContext(int loopIndex, const QString &stageName)
 {
     m_loopIndex = loopIndex < 1 ? 1 : loopIndex;
@@ -328,7 +328,7 @@ QString SavePathHelper::nextFilePath(bool *ok)
         return path;
     }
 
-    // 手动存图：沿用 CAMERA / 单文件夹 逻辑
+    // 手动存图：使用 CAMERA 分目录或单目录逻辑
     const QString dir = activeFolderPath();
     if (dir.isEmpty())
         return QString();

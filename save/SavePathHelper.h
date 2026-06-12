@@ -5,7 +5,7 @@
 #include <QDir>
 #include <QString>
 
-// SavePathHelper — 生成 PicNNN.bmp 路径；阶段采集按 Loop/阶段名 分目录，手动存图走 CAMERA 模式
+// SavePathHelper：PicNNN.bmp 路径生成；阶段采集按 Loop/阶段分目录，手动存图使用 CAMERA 分目录
 class SavePathHelper
 {
 public:
@@ -19,7 +19,7 @@ public:
 
     void resetSession();              // 显式清零（切换目录等场景）
     void resumeFromDisk();            // 扫描磁盘，初始化 Pic/CAMERA 计数（仅启动/换目录）
-    void syncIndexWithDisk();         // 手动存图：只把序号往上对齐磁盘，绝不回退
+    void syncIndexWithDisk();         // 手动存图：将 Pic 序号与磁盘对齐，仅允许递增
     void beginStageCapture();         // 进入阶段采集：启用 Loop/阶段 分目录
     void endStageCapture();           // 退出阶段采集：恢复手动存图路径逻辑
     void setStageContext(int loopIndex, const QString &stageName); // 新阶段/新轮：切换子目录，Pic 从 001 续接

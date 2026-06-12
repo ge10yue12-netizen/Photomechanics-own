@@ -1,4 +1,4 @@
-// CameraController.cpp — Pylon 实现（Impl、grabLoopWorker）。
+// CameraController.cpp：Basler Pylon 封装（Impl、grabLoopWorker）
 
 #include "CameraController.h"
 
@@ -13,7 +13,7 @@
 #include <QMutexLocker>
 
 #ifdef QT_PROJECT_USE_PYLON
-// Pylon/GenApi 为第三方头：屏蔽警告，勿改 SDK 源码
+// Pylon/GenApi 为第三方头文件，屏蔽编译警告，请勿修改 SDK 源码
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 26451 26495 26812)
@@ -34,8 +34,8 @@ struct CameraController::Impl
     CInstantCamera camera;              // Basler 设备实例
     CImageFormatConverter converter;    // 原始格式 → RGB8
     QMutex imageMutex;                  // 保护 latestImage 与抓图线程的读写
-    QImage latestImage;                 // 最近一帧副本，供 UI 预览与存图
-    std::atomic<quint64> frameSequence{0}; // 抓图线程每更新一帧 +1，供阶段存图跳过重复帧
+    QImage latestImage;                 // 最近一帧，供 UI 预览与存图
+    std::atomic<quint64> frameSequence{0}; // 抓图线程每更新一帧递增，供阶段存图去重
     std::thread grabThread;             // 执行 grabLoopWorker 的专用线程
     std::atomic<bool> grabStop{false};  // 为 true 时 grabLoopWorker 退出循环
 #endif
@@ -89,7 +89,7 @@ bool CameraController::initPylon()
 #endif
 }
 
-// 进程退出时：停采关设备 → 重建 Impl → PylonTerminate，避免 SDK 对象泄漏崩溃
+// 进程退出：停采关设备、重建 Impl、PylonTerminate，防止 SDK 对象泄漏
 void CameraController::shutdownPylon()
 {
 #ifdef QT_PROJECT_USE_PYLON
@@ -99,7 +99,7 @@ void CameraController::shutdownPylon()
     stopGrab();
     close();
 
-    // 须在 PylonTerminate 之前释放 CInstantCamera / Converter，否则退出时可能 0xC0000005
+    // 须在 PylonTerminate 之前释放 CInstantCamera / Converter，否则可能触发访问冲突
     delete m_impl;
     m_impl = new Impl;
 
@@ -145,7 +145,7 @@ bool CameraController::open()
 
         if (!applyResolution())
         {
-            close(); // 分辨率失败时设备可能已 Open，须释放避免重复挂接
+            close(); // 分辨率设置失败时设备可能已 Open，需释放后再重试
             return false;
         }
 
@@ -281,7 +281,7 @@ void CameraController::grabLoopWorker()
             const int w = static_cast<int>(target.GetWidth());
             const int h = static_cast<int>(target.GetHeight());
             QImage img(w, h, QImage::Format_RGB888);
-            // 按行拷贝：Pylon stride 与 QImage bytesPerLine 可能不一致，整块 memcpy 会花屏
+            // 按行拷贝：Pylon stride 与 QImage bytesPerLine 可能不一致，整块 memcpy 会导致图像错位
             const uchar *src = static_cast<const uchar *>(target.GetBuffer());
             size_t srcStrideBytes = static_cast<size_t>(w) * 3u;
             if (!target.GetStride(srcStrideBytes) || srcStrideBytes == 0)
@@ -302,7 +302,7 @@ void CameraController::grabLoopWorker()
         }
         catch (const GenericException &e)
         {
-            // 抓图线程内用 QueuedConnection 投递，避免 lambda 捕获已析构的 this
+            // 抓图线程内使用 QueuedConnection，防止 lambda 捕获已析构的 this
             const QString msg = QString::fromLocal8Bit(e.GetDescription());
             QMetaObject::invokeMethod(this, "errorOccurred", Qt::QueuedConnection,
                                     Q_ARG(QString, msg));
@@ -365,7 +365,7 @@ bool CameraController::copyLatestImage(QImage &out, quint64 *frameSeq)
     QMutexLocker lock(&m_impl->imageMutex);
     if (m_impl->latestImage.isNull())
         return false;
-    out = m_impl->latestImage.copy(); // 深拷贝，避免抓图线程更新缓冲区时预览/存图撕裂
+    out = m_impl->latestImage.copy(); // 深拷贝，防止抓图线程更新缓冲区时发生读写冲突
     if (frameSeq)
         *frameSeq = m_impl->frameSequence.load(std::memory_order_relaxed);
     return true;

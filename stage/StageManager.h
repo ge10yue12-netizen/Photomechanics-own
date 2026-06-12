@@ -6,7 +6,7 @@
 #include <QObject>
 #include <QTimer>
 
-// StageManager — 按阶段表顺序执行多轮采集：以目标帧数结束阶段，按 fps 触发存图
+// StageManager：按阶段表顺序执行多轮采集，以目标帧数结束阶段，按 fps 触发存图
 class StageManager : public QObject
 {
     Q_OBJECT
@@ -21,12 +21,12 @@ public:
     void stop();                  // 用户停止：立即停定时器并 emit stoppedByUser
     bool isRunning() const { return m_running; }
     void notifyImageSaved();                   // BMP 写盘完成后回调，用于统计与延迟切阶段
-    void notifySaveEnqueued();                 // 主窗口入队成功后回调，才计入目标帧数
-    void notifySaveEnqueueFailed();            // 入队失败时回调，立即重试直至成功
+    void notifySaveEnqueued();                 // 主窗口入队成功后回调，计入目标帧数
+    void notifySaveEnqueueFailed();            // 入队失败回调，触发重试
 
 signals:
     void applyFps(double fps);           // 进入新阶段时通知主窗口改相机帧率
-    void saveFrameRequested();           // 帧 tick 到达且勾选存图时触发
+    void saveFrameRequested();           // 帧 tick 到达且启用存图时触发
     void stageStarted(const QString &name, const QDateTime &startTime, int loopIndex);
     void stageFinished(const QString &name,
                        const QDateTime &startTime,
@@ -48,7 +48,7 @@ private:
     void advanceStage();     // 下一阶段或下一轮，或全部结束
     void startFrameTickTimer(double fps);
     void tryEmitSaveRequest();       // 未达目标且无待确认请求时 emit 存图
-    bool tryFinishStageIfDone();     // 未勾选存图：计帧达标即结束；勾选存图：入队达标后等待写盘
+    bool tryFinishStageIfDone();     // 未启用存图：计帧达标即结束；启用存图：入队达标后等待写盘
     bool tryCompleteStageAfterSave(); // 入队已满且写盘数对齐后 emit stageFinished
 
     QList<StageItem> m_stages;

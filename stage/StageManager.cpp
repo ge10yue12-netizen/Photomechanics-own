@@ -1,4 +1,4 @@
-// StageManager.cpp — 阶段采集状态机：目标帧数驱动切阶段 + fps 节拍存图
+// StageManager.cpp：阶段采集状态机，按目标帧数切换阶段，按 fps 触发存图
 
 #include "StageManager.h"
 #include <QtGlobal>
@@ -44,7 +44,7 @@ void StageManager::stop()
     emit stoppedByUser();
 }
 
-// 进入本阶段：计算目标帧数，勾选存图则 t=0 立即入队首帧，余下由 tick 补齐
+// 进入本阶段：计算目标帧数；若启用存图则在 t=0 立即入队首帧，其余由定时器补齐
 void StageManager::enterCurrentStage()
 {
     if (m_userStop || m_currentStage >= m_stages.size())
@@ -70,7 +70,7 @@ void StageManager::enterCurrentStage()
         return;
     }
 
-    // 勾选存图时在阶段起点立即尝试存第一帧，入队成功后才计入目标帧数
+    // 启用存图时在阶段起点尝试保存首帧，入队成功后才计入目标帧数
     if (st.saveImage && st.fps > 0.0)
         tryEmitSaveRequest();
 
@@ -86,7 +86,7 @@ void StageManager::startFrameTickTimer(double fps)
     m_frameTickTimer.start();
 }
 
-// 未达目标且无待确认请求时，向主窗口发起一次存图
+// 未达目标且无待确认请求时，向主窗口发起存图请求
 void StageManager::tryEmitSaveRequest()
 {
     if (!m_running || m_userStop)
@@ -113,7 +113,7 @@ void StageManager::notifySaveEnqueued()
     tryFinishStageIfDone();
 }
 
-// 入队失败（如 t=0 相机尚无帧）时不计数，异步重试避免同步递归
+// 入队失败（例如 t=0 时相机尚无帧）不计数，异步重试以避免同步递归
 void StageManager::notifySaveEnqueueFailed()
 {
     m_awaitingEnqueueAck = false;
@@ -135,7 +135,7 @@ bool StageManager::tryFinishStageIfDone()
 
     m_frameTickTimer.stop();
 
-    // 勾选存图：最后一帧可能仍在写盘队列，延迟到 notifyImageSaved 对齐后再打日志
+    // 启用存图时最后一帧可能仍在写盘队列，待 notifyImageSaved 对齐后再输出阶段结束日志
     if (st.saveImage && st.fps > 0.0)
     {
         m_pendingStageFinish = true;
@@ -147,7 +147,7 @@ bool StageManager::tryFinishStageIfDone()
     return true;
 }
 
-// 入队已满且 m_saveCount 已追上 m_saveRequestCount 时真正结束本阶段
+// 入队数已满且写盘数对齐后，触发 stageFinished
 bool StageManager::tryCompleteStageAfterSave()
 {
     if (!m_pendingStageFinish)

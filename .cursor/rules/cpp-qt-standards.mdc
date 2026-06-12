@@ -1,0 +1,39 @@
+---
+description: C++/Qt 本仓库编码与存图模块约定
+globs: "**/*.{cpp,h,hpp}"
+alwaysApply: false
+---
+
+# C++/Qt 编码约定
+
+## 模块边界
+
+| 模块 | 职责 |
+|------|------|
+| `SavePathHelper` | 路径与 Pic/CAMERA 计数 |
+| `ImageSaveThread` | 存图队列 `m_taskQueue` + 后台写 BMP |
+| `QtProject_1::enqueueCurrentFrame` | 取帧、算路径、入队 |
+
+存图容器 = `ImageSaveThread` 内 `QQueue<SaveTask> m_taskQueue`，不另建模板/多类封装，除非用户明确要求重构。
+
+## 存图入队流程
+
+```
+copyLatestImage → SaveTask → trySubmit → m_taskQueue → run() dequeue → save BMP
+```
+
+队列满时 `trySubmit` 返回 false，由 `queueFull` 告警；不静默丢帧。
+
+## 注释示例
+
+```cpp
+// 非阻塞入队；队列已满时返回 false，且不移动 task
+bool trySubmit(SaveTask &task);
+
+QQueue<SaveTask> m_taskQueue; // 存图任务队列
+```
+
+## 禁止
+
+- 整文件「每行后空一行」的异常格式
+- 为存图单独增加 `BoundedQueue`、`BufferPool` 等层，除非用户确认架构变更
