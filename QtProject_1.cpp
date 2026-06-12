@@ -113,6 +113,8 @@ QtProject_1::QtProject_1(QWidget *parent)
     connect(&m_displayTimer, &QTimer::timeout, this, &QtProject_1::onDisplayTimer);
     m_saveThread.start();
 
+    m_logger.openRunLog();
+
     log(m_camera.initPylon() ? QStringLiteral("Pylon 初始化成功。")
                               : QStringLiteral("[警告] Pylon 初始化失败。"));
     log(QStringLiteral("软件启动。"));
@@ -130,7 +132,7 @@ void QtProject_1::closeEvent(QCloseEvent *event)
     QWidget::closeEvent(event);
 }
 
-// 退出清理，仅执行一次：停止阶段、断开信号、停采、等待写盘、关相机、终止 Pylon
+// 退出清理（幂等）：停止阶段、断开信号、停止采集、等待写盘队列、关闭相机、终止 Pylon
 void QtProject_1::shutdownAll()
 {
     if (m_shutdownDone)
@@ -155,6 +157,8 @@ void QtProject_1::shutdownAll()
         m_camera.close();
     if (m_camera.isPylonInitialized())
         m_camera.shutdownPylon();
+
+    m_logger.closeRunLog();
 }
 
 void QtProject_1::loadDefaultUiValues()
@@ -191,14 +195,17 @@ void QtProject_1::resetEnqueueFrameSeqFromCamera()
 
 void QtProject_1::log(const QString &msg)
 {
+    const QString line = m_logger.formatLine(msg);
+
+    // 退出流程中仍将日志写入运行日志文件；不再更新界面日志控件
+    m_logger.writeLine(line);
+
     if (m_shutdownDone)
         return;
-    ui.logTextEdit->appendPlainText(QStringLiteral("[%1] %2")
-                                        .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")),
-                                             msg));
+    ui.logTextEdit->appendPlainText(line);
 }
 
-// 相机连接状态文字 + 颜色
+// 更新相机连接状态标签的文本与颜色样式
 void QtProject_1::setCamStatus(const QString &text, const QString &color)
 {
     ui.cameraStatusLabel->setText(text);
@@ -206,7 +213,7 @@ void QtProject_1::setCamStatus(const QString &text, const QString &color)
         QStringLiteral("color:%1;font-weight:bold;padding:4px 0;").arg(color));
 }
 
-// 阶段状态栏；阶段运行中且队列非空时附加队列长度
+// 更新阶段状态栏；阶段运行中且存图队列非空时附加队列长度
 void QtProject_1::setStageStatus(const QString &text)
 {
     m_stageStatusText = text;
@@ -254,7 +261,7 @@ void QtProject_1::setupStageTable()
     t->setHorizontalHeaderLabels({QStringLiteral("序号"), QStringLiteral("阶段名称"),
                                   QStringLiteral("时长(s)"), QStringLiteral("帧率(fps)"),
                                   QStringLiteral("存图")});
-    t->verticalHeader()->setVisible(false); // 隐藏 Qt 自带行号，避免清空后表头布局变化
+    t->verticalHeader()->setVisible(false); // 隐藏 Qt 垂直表头行号，避免清空表格后表头布局异常
     t->horizontalHeader()->setSectionResizeMode(ColSerial, QHeaderView::ResizeToContents);
     t->horizontalHeader()->setSectionResizeMode(ColName, QHeaderView::Stretch);
     t->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -404,7 +411,7 @@ bool QtProject_1::enqueueCurrentFrame()
     quint64 frameSeq = 0;
     if (!m_camera.copyLatestImage(frame, &frameSeq) || frame.isNull())
         return false;
-    // 阶段存图须等待新帧，防止定时器快于相机时重复保存同一帧
+    // 阶段存图须基于递增帧序号入队，避免定时器周期短于采集周期时重复保存同一帧
     if (m_stageRunning && frameSeq <= m_lastEnqueuedFrameSeq)
         return false;
     if (m_savePath.isSaveLimitReached())
@@ -417,7 +424,7 @@ bool QtProject_1::enqueueCurrentFrame()
 
     SaveTask task;
     task.filePath = path;
-    task.image = std::move(frame); // 入队前已在 copyLatestImage 完成一次深拷贝，此处不再 copy
+    task.image = std::move(frame); // 帧数据已在 copyLatestImage 中深拷贝，此处 move 入队
     if (!m_saveThread.trySubmit(task))
         return false;
     if (m_stageRunning)
@@ -430,7 +437,7 @@ void QtProject_1::onOpenCamera()
     if (m_camera.open())
     {
         updateParamSpinLimits();
-        startLiveView(); // 打开相机后启动预览；「开始采集」为独立会话
+        startLiveView(); // 打开相机后启动连续采集与预览定时器；「开始采集」为独立业务会话
         log(m_liveViewActive ? QStringLiteral("相机连接成功，预览已启动。")
                              : QStringLiteral("相机连接成功。"));
     }
@@ -497,7 +504,7 @@ void QtProject_1::onDisplayTimer()
         return;
 
     const QSize labelSize = ui.imageLabel->size();
-    // 相同帧且预览区尺寸未变时跳过重绘，降低 UI 开销
+    // 帧序号与预览区尺寸均未变化时跳过重绘，以降低界面刷新开销
     if (frameSeq == m_lastDisplayFrameSeq && labelSize == m_lastDisplayLabelSize)
         return;
 
@@ -646,12 +653,21 @@ void QtProject_1::onStageFinished(const QString &name,
                                   int,
                                   int saveRequestCount,
                                   int savedCount,
+                                  int saveFailCount,
                                   double)
 {
     if (saveRequestCount == 0)
     {
         log(QStringLiteral("阶段结束: %1，入队0，已写0（本阶段未勾选存图，或相机无可用帧）")
                 .arg(name));
+    }
+    else if (saveFailCount > 0)
+    {
+        log(QStringLiteral("阶段结束: %1，入队%2，已写%3，失败%4")
+                .arg(name)
+                .arg(saveRequestCount)
+                .arg(savedCount)
+                .arg(saveFailCount));
     }
     else
     {
@@ -686,16 +702,21 @@ void QtProject_1::onSaveThreadFinished(const QString &path, bool ok, const QStri
 {
     if (m_shutdownDone)
         return;
+
+    // 阶段采集中：运行态或 pending 等待写盘计数对齐时，均须将写盘结果通知 StageManager
+    const bool inStageCapture = m_savePath.isStageCaptureActive();
+    const bool ackStage = inStageCapture
+        && (m_stageMgr.isRunning() || m_stageMgr.isPendingStageFinish());
+
     if (ok)
     {
         m_savePath.onFileSaved();
-        // 以 StageManager 运行态为准，防止 stopCapture 提前清除 m_stageRunning 导致计数丢失
-        if (m_stageMgr.isRunning())
+        if (ackStage)
         {
-            m_stageMgr.notifyImageSaved();
+            m_stageMgr.notifySaveWriteFinished(true);
             setStageStatus(m_stageStatusText);
         }
-        else if (!m_savePath.isStageCaptureActive())
+        else if (!inStageCapture)
         {
             log(QStringLiteral("已保存: %1").arg(path));
         }
@@ -703,7 +724,13 @@ void QtProject_1::onSaveThreadFinished(const QString &path, bool ok, const QStri
     else
     {
         log(QStringLiteral("[错误] 保存失败: %1 %2").arg(path, errorMsg));
+        if (ackStage)
+            m_stageMgr.notifySaveWriteFinished(false);
     }
+
+    // 存图队列排空后再次尝试完成本阶段（含超时强制完成）
+    if (inStageCapture && m_saveThread.queueSize() == 0)
+        m_stageMgr.onSaveQueueDrained();
 }
 
 void QtProject_1::onSaveQueueBacklog(int queueSize)
@@ -777,7 +804,7 @@ bool QtProject_1::validateStageTable()
         }
     }
 
-    // 全部未启用存图时提示，防止用户误认为将写入 BMP
+    // 全部阶段均未勾选存图时提示，避免用户预期将生成 BMP 文件
     bool anySave = false;
     for (int r = 0; r < ui.stageTable->rowCount(); ++r)
     {

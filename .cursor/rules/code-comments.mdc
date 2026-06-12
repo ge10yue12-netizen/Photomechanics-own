@@ -1,0 +1,10 @@
+---
+description: 代码注释规范（与 ~/.cursor/rules/code-comments.mdc 同步）
+alwaysApply: true
+---
+
+# 代码注释规范
+
+与全局规则 **`~/.cursor/rules/code-comments.mdc`** 一致；编辑 `*.cpp` / `*.h` 时须 Read 该文件并按其执行。
+
+C++ 存图相关示例见 `cpp-qt-standards.mdc` 注释小节。

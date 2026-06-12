@@ -22,7 +22,7 @@ void writeLe16(char *p, quint16 v)
     p[1] = static_cast<char>((v >> 8) & 0xff);
 }
 
-// 24 位未压缩 BMP 直写磁盘（RGB888→BGR、自下而上），避免 QImage::save 通用编码开销
+// 将 24 位未压缩 BMP 直接写入磁盘（RGB888 转 BGR、自下而上扫描），绕过 QImage::save 的通用编码路径
 bool writeBmpFile(const QString &path, const QImage &image)
 {
     if (image.isNull())
@@ -189,7 +189,7 @@ void ImageSaveThread::run()
             QMutexLocker lock(&m_queueMutex);
             stopping = m_stop;
         }
-        // 退出过程中不再通知 UI，避免窗口关闭后仍更新界面
+        // 停止请求已发出时不再 emit saveFinished，避免窗口关闭后仍更新 UI
         if (!stopping)
             emit saveFinished(task.filePath, ok, err);
 

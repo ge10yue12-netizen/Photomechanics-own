@@ -13,6 +13,7 @@
 | **相机** | `CameraController` — 唯一包含 Pylon 头的模块 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit` 入队；`writeBmpFile` 直写 24 位 BMP |
+| **日志** | `AppLogger` — `Log/run_*.log` 落盘；主窗口 `log()` 同步写文件与界面 |
 | **配置** | 主窗口 `loadDefaultUiValues` — 启动固定默认参数（不持久化 QSettings） |
 
 ---
@@ -105,7 +106,7 @@ flowchart TB
 1. VS2019 打开 `QtProject_1.sln`，**Debug \| x64** 重新生成  
 2. 安装 Qt 5.15.2 msvc2019_64 + pylon 5 Runtime x64  
 3. 连接相机，运行 `x64\Debug\QtProject_1.exe`  
-4. 默认存图目录：项目根 **`Images/`**
+4. 默认存图目录：项目根 **`Images/`**；运行日志：**`Log/run_yyyyMMdd_HHmmss.log`**
 
 完整说明 → [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)
 
@@ -116,11 +117,14 @@ flowchart TB
 ```
 QtProject_1/
 ├── README.md                 ← 你在这里（入口）
+├── core/
+│   ├── AppTypes.h
+│   └── AppLogger.h / AppLogger.cpp   ← 运行日志（Log/run_*.log）
+├── Log/                      ← 运行日志目录（启动时自动创建）
 ├── docs/
 │   └── DEVELOPER_GUIDE.md    ← 唯一详细开发者手册
 ├── main.cpp
 ├── QtProject_1.h/cpp/ui
-├── core/     AppTypes.h
 ├── camera/   CameraController
 ├── stage/    StageManager
 └── save/     SavePathHelper, ImageSaveThread
@@ -132,7 +136,7 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | 存图优化：`writeBmpFile` 直写 BMP；阶段表 5 列（序号/名称/时长/fps/存图），隐藏 Qt 行号 |
+| **当前** | `AppLogger` 统一写 `Log/run_*.log`；阶段写盘回调对齐后切阶段 |
 | 上一版 | 双定时器（时长+fps tick） |
 
 ---

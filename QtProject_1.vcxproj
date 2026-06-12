@@ -114,6 +114,8 @@
       <DisableSpecificWarnings>26812;26495;26451;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ClInclude Include="core\AppTypes.h"/>
+    <ClInclude Include="core\AppLogger.h"/>
+    <ClCompile Include="core\AppLogger.cpp"/>
     <ClCompile Include="save\ImageSaveThread.cpp"/>
     <ClCompile Include="save\SavePathHelper.cpp"/>
     <ClInclude Include="save\SavePathHelper.h"/>

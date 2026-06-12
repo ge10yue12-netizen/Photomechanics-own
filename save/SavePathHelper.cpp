@@ -90,7 +90,7 @@ void SavePathHelper::resetSession()
     m_folderStartTime = QDateTime();
 }
 
-// 根据磁盘已有文件恢复 Pic/CAMERA 计数，防止阶段存图覆盖 Pic001
+// 根据磁盘已有 Pic*.bmp 恢复 Pic/CAMERA 计数，避免覆盖已有序号
 void SavePathHelper::resumeFromDisk()
 {
     if (m_rootPath.isEmpty())

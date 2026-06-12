@@ -58,7 +58,7 @@ CameraController::CameraController(QObject *parent)
 // 若仍在运行则先停采关设备，再释放 Impl
 CameraController::~CameraController()
 {
-    // shutdownPylon 可能已在主窗口退出流程中重建 Impl，此处仅释放堆对象
+    // shutdownPylon 可能已在主窗口退出流程中重建 Impl；析构阶段仅释放 Impl 堆对象
     if (m_pylonInitialized)
     {
         stopGrab();
@@ -89,7 +89,7 @@ bool CameraController::initPylon()
 #endif
 }
 
-// 进程退出：停采关设备、重建 Impl、PylonTerminate，防止 SDK 对象泄漏
+// 进程退出：停止采集、关闭设备、重建 Impl、调用 PylonTerminate，避免 SDK 对象泄漏
 void CameraController::shutdownPylon()
 {
 #ifdef QT_PROJECT_USE_PYLON
@@ -109,7 +109,7 @@ void CameraController::shutdownPylon()
     }
     catch (...)
     {
-        // 退出流程中仅记录，不再向外抛异常
+        // 退出流程中捕获异常并记录，不再向调用方传播
         qWarning("CameraController::shutdownPylon: PylonTerminate 异常已忽略。");
     }
     m_pylonInitialized = false;
@@ -302,7 +302,7 @@ void CameraController::grabLoopWorker()
         }
         catch (const GenericException &e)
         {
-            // 抓图线程内使用 QueuedConnection，防止 lambda 捕获已析构的 this
+            // 抓图线程内以 QueuedConnection 投递 errorOccurred，避免目标对象已销毁时在同线程调用槽函数
             const QString msg = QString::fromLocal8Bit(e.GetDescription());
             QMetaObject::invokeMethod(this, "errorOccurred", Qt::QueuedConnection,
                                     Q_ARG(QString, msg));
@@ -365,7 +365,7 @@ bool CameraController::copyLatestImage(QImage &out, quint64 *frameSeq)
     QMutexLocker lock(&m_impl->imageMutex);
     if (m_impl->latestImage.isNull())
         return false;
-    out = m_impl->latestImage.copy(); // 深拷贝，防止抓图线程更新缓冲区时发生读写冲突
+    out = m_impl->latestImage.copy(); // 深拷贝，避免抓图线程更新缓冲区时与调用方发生读写冲突
     if (frameSeq)
         *frameSeq = m_impl->frameSequence.load(std::memory_order_relaxed);
     return true;

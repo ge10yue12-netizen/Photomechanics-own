@@ -24,13 +24,20 @@ copyLatestImage（深拷贝一次）→ SaveTask move 入队 → m_taskQueue →
 
 队列满时 `trySubmit` 返回 false，由 `queueFull` 告警；不静默丢帧。
 
-## 注释示例
+## 注释
+
+新增或修改注释时遵循 **`~/.cursor/rules/code-comments.mdc`**。
 
 ```cpp
 // 非阻塞入队；队列已满时返回 false，且不移动 task
 bool trySubmit(SaveTask &task);
 
-QQueue<SaveTask> m_taskQueue; // 存图任务队列
+QQueue<SaveTask> m_taskQueue; // 存图任务队列，上限 48，由 ImageSaveThread::run 消费
+```
+
+```cpp
+// ❌ 禁止：打日志 / 就这三样 / 队列空了再等
+// ✅ 应写：写入运行日志；存图队列排空后返回
 ```
 
 ## 禁止

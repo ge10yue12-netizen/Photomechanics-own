@@ -1,7 +1,14 @@
 // StageManager.cpp：阶段采集状态机，按目标帧数切换阶段，按 fps 触发存图
 
 #include "StageManager.h"
+#include <QElapsedTimer>
 #include <QtGlobal>
+
+namespace
+{
+// 入队已满后队列为空仍无法对齐写盘计数时，超过该毫秒数则强制结束本阶段
+const int kPendingFinishForceMs = 3000;
+}
 
 StageManager::StageManager(QObject *parent)
     : QObject(parent)
@@ -54,6 +61,7 @@ void StageManager::enterCurrentStage()
     m_frameCount = 0;
     m_saveRequestCount = 0;
     m_saveCount = 0;
+    m_saveFailCount = 0;
     m_awaitingEnqueueAck = false;
     m_pendingStageFinish = false;
     m_stageStartTime = QDateTime::currentDateTime();
@@ -97,10 +105,29 @@ void StageManager::tryEmitSaveRequest()
     emit saveFrameRequested();
 }
 
-// 主窗口 BMP 写盘完成后累加，若本阶段已在等写盘则尝试切阶段
-void StageManager::notifyImageSaved()
+// 写盘线程回调：成功与失败均计入，避免单帧写盘失败导致阶段结束状态无法完成对齐
+void StageManager::notifySaveWriteFinished(bool ok)
 {
-    ++m_saveCount;
+    if (ok)
+        ++m_saveCount;
+    else
+        ++m_saveFailCount;
+    tryCompleteStageAfterSave();
+}
+
+// 存图队列已排空时再次尝试完成本阶段；超时仍未对齐则按失败补齐计数并强制切换阶段
+void StageManager::onSaveQueueDrained()
+{
+    if (!m_pendingStageFinish)
+        return;
+    if (tryCompleteStageAfterSave())
+        return;
+    if (m_pendingFinishTimer.isValid() && m_pendingFinishTimer.elapsed() < kPendingFinishForceMs)
+        return;
+
+    const int resolved = m_saveCount + m_saveFailCount;
+    if (resolved < m_saveRequestCount)
+        m_saveFailCount += m_saveRequestCount - resolved;
     tryCompleteStageAfterSave();
 }
 
@@ -113,7 +140,7 @@ void StageManager::notifySaveEnqueued()
     tryFinishStageIfDone();
 }
 
-// 入队失败（例如 t=0 时相机尚无帧）不计数，异步重试以避免同步递归
+// 入队失败（例如 t=0 时相机尚无可用帧）不计入目标帧数，通过 singleShot 异步重试以避免同步递归
 void StageManager::notifySaveEnqueueFailed()
 {
     m_awaitingEnqueueAck = false;
@@ -135,10 +162,12 @@ bool StageManager::tryFinishStageIfDone()
 
     m_frameTickTimer.stop();
 
-    // 启用存图时最后一帧可能仍在写盘队列，待 notifyImageSaved 对齐后再输出阶段结束日志
+    // 启用存图时末帧可能仍在写盘队列中，须待写盘回调计数与入队数对齐后再 emit stageFinished
     if (st.saveImage && st.fps > 0.0)
     {
+        m_awaitingEnqueueAck = false;
         m_pendingStageFinish = true;
+        m_pendingFinishTimer.start();
         return tryCompleteStageAfterSave();
     }
 
@@ -147,12 +176,12 @@ bool StageManager::tryFinishStageIfDone()
     return true;
 }
 
-// 入队数已满且写盘数对齐后，触发 stageFinished
+// 入队数已满且（成功+失败）写盘回调数对齐后，触发 stageFinished
 bool StageManager::tryCompleteStageAfterSave()
 {
     if (!m_pendingStageFinish)
         return false;
-    if (m_saveCount < m_saveRequestCount)
+    if (m_saveCount + m_saveFailCount < m_saveRequestCount)
         return false;
 
     m_pendingStageFinish = false;
@@ -184,7 +213,7 @@ void StageManager::finishCurrentStage()
 
     const StageItem &st = m_stages[m_currentStage];
     emit stageFinished(st.name, m_stageStartTime, QDateTime::currentDateTime(),
-                       m_frameCount, m_saveRequestCount, m_saveCount, st.fps);
+                       m_frameCount, m_saveRequestCount, m_saveCount, m_saveFailCount, st.fps);
 }
 
 // 顺序：下一阶段 → 下一轮首阶段 → 全部完成

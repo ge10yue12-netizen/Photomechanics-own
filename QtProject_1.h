@@ -3,12 +3,13 @@
 #include <QtWidgets/QWidget>
 #include <QTimer>
 #include "camera/CameraController.h"
+#include "core/AppLogger.h"
 #include "stage/StageManager.h"
 #include "save/ImageSaveThread.h"
 #include "save/SavePathHelper.h"
 #include "ui_QtProject_1.h"
 
-// QtProject_1：主窗口，负责 UI、相机预览/采集、阶段存图与日志
+// QtProject_1：主窗口；协调 UI、相机预览/采集、阶段调度与存图
 class QtProject_1 : public QWidget
 {
     Q_OBJECT
@@ -49,6 +50,7 @@ private slots:
                          int frameCount,
                          int saveRequestCount,
                          int savedCount,
+                         int saveFailCount,
                          double setFps);
     void onStageLoopStarted(int loopIndex, int totalLoops);
     void onStageAllFinished();
@@ -89,11 +91,12 @@ private:
     StageManager m_stageMgr;
     ImageSaveThread m_saveThread;
     SavePathHelper m_savePath;
-    QTimer m_displayTimer;           // 约 30fps 刷新预览 label
-    bool m_liveViewActive = false;   // 相机连续 grab + 预览定时器（打开相机后常开）
-    bool m_acquisitionActive = false; // 用户点击「开始采集」后的采集会话
-    bool m_stageRunning = false;     // StageManager 是否正在执行阶段表
-    bool m_shutdownDone = false;     // 退出标志，防止退出过程中回调访问 UI
+    AppLogger m_logger;              // 运行日志写入 Log/run_*.log；log() 同步写入文件与界面控件
+    QTimer m_displayTimer;           // 预览刷新定时器，间隔约 33 ms（约 30 Hz）
+    bool m_liveViewActive = false;   // 连续 grab 与预览定时器已启动（打开相机后常开）
+    bool m_acquisitionActive = false; // 用户已点击「开始采集」，处于采集业务会话
+    bool m_stageRunning = false;     // StageManager 正在执行阶段表
+    bool m_shutdownDone = false;     // 退出标志；为 true 时禁止回调访问 UI 控件
     QString m_stageStatusText;       // 阶段状态栏文本缓存，用于附加队列长度
     quint64 m_lastEnqueuedFrameSeq = 0; // 阶段存图已入队的最新帧序号，用于去重
     quint64 m_lastDisplayFrameSeq = 0;  // 预览已显示的最新帧序号，用于跳过重复绘制

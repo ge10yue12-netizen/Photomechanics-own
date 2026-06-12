@@ -2,6 +2,7 @@
 
 #include "core/AppTypes.h"
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QList>
 #include <QObject>
 #include <QTimer>
@@ -18,11 +19,13 @@ public:
     void setLoopCount(int count); // 总轮数，最小为 1
 
     void start();
-    void stop();                  // 用户停止：立即停定时器并 emit stoppedByUser
+    void stop();                  // 用户停止：立即停止帧定时器并 emit stoppedByUser
     bool isRunning() const { return m_running; }
-    void notifyImageSaved();                   // BMP 写盘完成后回调，用于统计与延迟切阶段
+    bool isPendingStageFinish() const { return m_pendingStageFinish; }
+    void notifySaveWriteFinished(bool ok);     // 写盘成功/失败均计入，用于与入队数对齐后切阶段
     void notifySaveEnqueued();                 // 主窗口入队成功后回调，计入目标帧数
     void notifySaveEnqueueFailed();            // 入队失败回调，触发重试
+    void onSaveQueueDrained();                 // 存图队列排空时再次尝试完成本阶段
 
 signals:
     void applyFps(double fps);           // 进入新阶段时通知主窗口改相机帧率
@@ -34,6 +37,7 @@ signals:
                        int frameCount,
                        int saveRequestCount,
                        int savedCount,
+                       int saveFailCount,
                        double setFps);
     void allLoopsFinished();             // 全部轮次与阶段完成
     void stoppedByUser();
@@ -49,7 +53,7 @@ private:
     void startFrameTickTimer(double fps);
     void tryEmitSaveRequest();       // 未达目标且无待确认请求时 emit 存图
     bool tryFinishStageIfDone();     // 未启用存图：计帧达标即结束；启用存图：入队达标后等待写盘
-    bool tryCompleteStageAfterSave(); // 入队已满且写盘数对齐后 emit stageFinished
+    bool tryCompleteStageAfterSave(); // 入队已满且写盘回调数（成功+失败）对齐后 emit stageFinished
 
     QList<StageItem> m_stages;
     int m_loopCount = 1;         // 用户设置的总轮数
@@ -62,7 +66,9 @@ private:
     int m_frameCount = 0;        // 本阶段已过帧数
     int m_saveRequestCount = 0;  // 本阶段实际入队成功次数
     bool m_awaitingEnqueueAck = false; // 已 emit 存图请求、尚未收到入队结果
-    bool m_pendingStageFinish = false; // 入队已满，等待本阶段 BMP 全部写盘后切阶段
-    int m_saveCount = 0;         // 本阶段实际写盘完成数（由 notifyImageSaved 累加）
+    bool m_pendingStageFinish = false; // 入队已满，等待本阶段写盘回调与入队数对齐
+    int m_saveCount = 0;         // 本阶段写盘成功数
+    int m_saveFailCount = 0;     // 本阶段写盘失败数（与成功合计须达到入队数才切阶段）
+    QElapsedTimer m_pendingFinishTimer; // pending 起始时刻，用于队列排空后的超时强制完成
     QDateTime m_stageStartTime;
 };

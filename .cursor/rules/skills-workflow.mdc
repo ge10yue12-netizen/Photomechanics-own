@@ -11,7 +11,7 @@ alwaysApply: true
 
 | Skill | 路径 | 触发条件 |
 |-------|------|----------|
-| code-reviewer | `.cursor/skills/code-reviewer/SKILL.md` | 检查 / review / 找 bug / 优化代码 / 提交前检查 |
+| code-reviewer | `~/.cursor/skills/code-reviewer/SKILL.md`（本项目：`.cursor/skills/code-reviewer/SKILL.md`） | 检查 / review / 找 bug / 优化代码 / 提交前检查 |
 | debug-helper | `.cursor/skills/debug-helper/SKILL.md` | 编译失败、运行报错、启动失败、链接错误 |
 | test-writer | `.cursor/skills/test-writer/SKILL.md` | 写测试、补测试、单元测试 / 集成测试 |
 | Context7 | MCP `user-context7` | 查 Qt、Pylon、第三方库 API 与用法 |
@@ -24,5 +24,5 @@ alwaysApply: true
 
 ## 与本仓库改码流程衔接
 
-- 用户回复「确认修改」并完成代码改动后，涉及功能或 bug 修复时，**默认追加 code-reviewer 自检**（按 SKILL 输出格式给出审查摘要），除非用户说「不要 review」
+- 用户回复「确认修改」并完成代码改动后，涉及功能或 bug 修复时，**默认追加 code-reviewer 自检**（按 SKILL 输出格式给出审查摘要，**含注释规范检查**），除非用户说「不要 review」
 - 改码或运行过程中出现编译 / 运行错误，**切换 debug-helper**，按该 Skill 四段格式输出
