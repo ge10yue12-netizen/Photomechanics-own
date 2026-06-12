@@ -33,9 +33,10 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
-    void grabLoopWorker();         // 独立线程：RetrieveResult → RGB888 → latestImage
+    void grabLoopWorker();         // 独立线程：RetrieveResult → Grayscale8/RGB888 → latestImage
     void readParamLimits();        // open 后从 GenICam 刷新 m_limits
     bool applyResolution();        // 设置 Width/Height 为 kImageWidth×kImageHeight
+    bool applyGrayscaleCapture();  // 设置 Mono8 像素格式与转换器；失败时回退 RGB888
     bool setFloatNode(const char *nodeName, double value);
 
     struct Impl;                   // Pimpl：隐藏 Pylon 类型，见 CameraController.cpp

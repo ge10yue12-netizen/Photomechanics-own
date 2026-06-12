@@ -464,7 +464,7 @@ public:
 
         retranslateUi(QtProject_1Class);
 
-        rightTabWidget->setCurrentIndex(2);
+        rightTabWidget->setCurrentIndex(0);
 
 
         QMetaObject::connectSlotsByName(QtProject_1Class);

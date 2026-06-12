@@ -1,7 +1,7 @@
 # Basler 相机采集测试软件（QtProject_1）
 
 基于 **VS2019 + Qt 5.15.2 + Basler Pylon 5** 的工业相机采集程序。  
-分辨率 **2592×2048**，存图 **BMP**，架构为 **分层模块 + 信号槽协调**。
+分辨率 **2592×2048**，**Mono8 灰度**采集，存图 **8 位灰度 BMP**（设备不支持时回退 24 位 RGB），架构为 **分层模块 + 信号槽协调**。
 
 ---
 
@@ -10,9 +10,9 @@
 | 项目 | 说明 |
 |------|------|
 | **主窗口** | `QtProject_1` — 连接 UI 与各模块，不直接调用 Pylon |
-| **相机** | `CameraController` — 唯一包含 Pylon 头的模块 |
+| **相机** | `CameraController` — Mono8 采集、`Grayscale8` QImage；不支持时回退 RGB888 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
-| **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit` 入队；`writeBmpFile` 直写 24 位 BMP |
+| **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit`；`writeBmpFile` 写入 8 位灰度或 24 位 RGB BMP |
 | **日志** | `AppLogger` — `Log/run_*.log` 落盘；主窗口 `log()` 同步写文件与界面 |
 | **配置** | 主窗口 `loadDefaultUiValues` — 启动固定默认参数（不持久化 QSettings） |
 
@@ -136,8 +136,8 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | `AppLogger` 统一写 `Log/run_*.log`；阶段写盘回调对齐后切阶段 |
-| 上一版 | 双定时器（时长+fps tick） |
+| **当前** | Mono8 灰度采集 + 8 位 BMP 存图（约 1/3 内存与写盘量）；Mono8 不可用时回退 RGB888 |
+| 上一版 | AppLogger、阶段写盘对齐、注释规范 |
 
 ---
 

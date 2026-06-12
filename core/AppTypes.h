@@ -30,7 +30,7 @@ struct StageItem
 // 存图任务队列元素：图像数据与目标文件路径
 struct SaveTask
 {
-    QImage image;     // 待写入图像（入队前已完成拷贝）
+    QImage image;     // 待写入图像（Grayscale8 或 RGB888，入队前已完成拷贝）
     QString filePath; // BMP 目标路径
 };
 

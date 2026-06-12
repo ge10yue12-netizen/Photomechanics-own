@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstring>
 #include <thread>
+#include <utility>
 
 #include <QDebug>
 #include <QImage>
@@ -32,7 +33,9 @@ struct CameraController::Impl
 {
 #ifdef QT_PROJECT_USE_PYLON
     CInstantCamera camera;              // Basler 设备实例
-    CImageFormatConverter converter;    // 原始格式 → RGB8
+    CImageFormatConverter converter;    // 原始格式 → Mono8（失败时回退 RGB8）
+    enum class CapturePixelLayout { Grayscale8, Rgb888 };
+    CapturePixelLayout captureLayout = CapturePixelLayout::Grayscale8; // 当前抓图与 QImage 格式
     QMutex imageMutex;                  // 保护 latestImage 与抓图线程的读写
     QImage latestImage;                 // 最近一帧，供 UI 预览与存图
     std::atomic<quint64> frameSequence{0}; // 抓图线程每更新一帧递增，供阶段存图去重
@@ -118,6 +121,36 @@ void CameraController::shutdownPylon()
 #endif
 }
 
+#ifdef QT_PROJECT_USE_PYLON
+namespace
+{
+// 将 Pylon 转换结果按行拷贝至 QImage；stride 不一致时逐行 memcpy
+bool copyPylonImageToQImage(const CPylonImage &target, QImage &out, int bytesPerPixel, QImage::Format format)
+{
+    const int w = static_cast<int>(target.GetWidth());
+    const int h = static_cast<int>(target.GetHeight());
+    if (w <= 0 || h <= 0 || bytesPerPixel <= 0)
+        return false;
+
+    out = QImage(w, h, format);
+    const uchar *src = static_cast<const uchar *>(target.GetBuffer());
+    size_t srcStrideBytes = static_cast<size_t>(w) * static_cast<size_t>(bytesPerPixel);
+    if (!target.GetStride(srcStrideBytes) || srcStrideBytes == 0)
+        srcStrideBytes = static_cast<size_t>(w) * static_cast<size_t>(bytesPerPixel);
+
+    const int dstStride = out.bytesPerLine();
+    const size_t copyBytes = static_cast<size_t>(w) * static_cast<size_t>(bytesPerPixel);
+    for (int y = 0; y < h; ++y)
+    {
+        const size_t dstOff = static_cast<size_t>(y) * static_cast<size_t>(dstStride);
+        const size_t srcOff = static_cast<size_t>(y) * srcStrideBytes;
+        memcpy(out.bits() + dstOff, src + srcOff, copyBytes);
+    }
+    return true;
+}
+}
+#endif
+
 // 打开设备：当前固定 CreateFirstDevice；预留由界面 cameraSelectCombo 指定序列号/索引
 bool CameraController::open()
 {
@@ -141,7 +174,8 @@ bool CameraController::open()
         m_impl->camera.Attach(device);
         m_impl->camera.Open();
 
-        m_impl->converter.OutputPixelFormat = PixelType_RGB8packed;
+        if (!applyGrayscaleCapture())
+            qWarning("CameraController::open: Mono8 未生效，已回退 RGB888 采集。");
 
         if (!applyResolution())
         {
@@ -261,10 +295,14 @@ void CameraController::stopGrab()
     m_grabbing = false;
 }
 
-// 抓图线程主循环：100ms 超时取帧 → 转 RGB888 → 加锁更新 latestImage
+// 抓图线程主循环：100ms 超时取帧 → Grayscale8/RGB888 → 加锁更新 latestImage
 void CameraController::grabLoopWorker()
 {
 #ifdef QT_PROJECT_USE_PYLON
+    const bool mono = m_impl->captureLayout == Impl::CapturePixelLayout::Grayscale8;
+    const int bytesPerPixel = mono ? 1 : 3;
+    const QImage::Format qFormat = mono ? QImage::Format_Grayscale8 : QImage::Format_RGB888;
+
     while (!m_impl->grabStop.load(std::memory_order_relaxed) && m_impl->camera.IsGrabbing())
     {
         try
@@ -278,26 +316,12 @@ void CameraController::grabLoopWorker()
             CPylonImage target;
             m_impl->converter.Convert(target, grabResult);
 
-            const int w = static_cast<int>(target.GetWidth());
-            const int h = static_cast<int>(target.GetHeight());
-            QImage img(w, h, QImage::Format_RGB888);
-            // 按行拷贝：Pylon stride 与 QImage bytesPerLine 可能不一致，整块 memcpy 会导致图像错位
-            const uchar *src = static_cast<const uchar *>(target.GetBuffer());
-            size_t srcStrideBytes = static_cast<size_t>(w) * 3u;
-            if (!target.GetStride(srcStrideBytes) || srcStrideBytes == 0)
-                srcStrideBytes = static_cast<size_t>(w) * 3u;
-            const int dstStride = img.bytesPerLine();
-            const size_t copyBytes = static_cast<size_t>(w) * 3u;
-            for (int y = 0; y < h; ++y)
-            {
-                // 用 size_t 做行偏移，避免 C26451（int*int 再转指针）
-                const size_t dstOff = static_cast<size_t>(y) * static_cast<size_t>(dstStride);
-                const size_t srcOff = static_cast<size_t>(y) * srcStrideBytes;
-                memcpy(img.bits() + dstOff, src + srcOff, copyBytes);
-            }
+            QImage img;
+            if (!copyPylonImageToQImage(target, img, bytesPerPixel, qFormat))
+                continue;
 
             QMutexLocker lock(&m_impl->imageMutex);
-            m_impl->latestImage = img;
+            m_impl->latestImage = std::move(img);
             m_impl->frameSequence.fetch_add(1, std::memory_order_relaxed);
         }
         catch (const GenericException &e)
@@ -372,6 +396,46 @@ bool CameraController::copyLatestImage(QImage &out, quint64 *frameSeq)
 #else
     Q_UNUSED(out);
     Q_UNUSED(frameSeq);
+    return false;
+#endif
+}
+
+// 设置 Mono8 像素格式与 Pylon 转换器；设备不支持时回退 RGB888
+bool CameraController::applyGrayscaleCapture()
+{
+#ifdef QT_PROJECT_USE_PYLON
+    try
+    {
+        INodeMap &nodemap = m_impl->camera.GetNodeMap();
+        CEnumerationPtr pixelFormat(nodemap.GetNode("PixelFormat"));
+        if (pixelFormat && IsWritable(pixelFormat))
+            pixelFormat->FromString("Mono8");
+
+        m_impl->converter.OutputPixelFormat = PixelType_Mono8;
+        m_impl->captureLayout = Impl::CapturePixelLayout::Grayscale8;
+        return true;
+    }
+    catch (const GenericException &e)
+    {
+        qWarning("CameraController::applyGrayscaleCapture: Mono8 失败 (%s)，回退 RGB888。",
+                 e.GetDescription());
+    }
+    catch (...)
+    {
+        qWarning("CameraController::applyGrayscaleCapture: Mono8 失败，回退 RGB888。");
+    }
+
+    try
+    {
+        m_impl->converter.OutputPixelFormat = PixelType_RGB8packed;
+        m_impl->captureLayout = Impl::CapturePixelLayout::Rgb888;
+    }
+    catch (...)
+    {
+        return false;
+    }
+    return false;
+#else
     return false;
 #endif
 }

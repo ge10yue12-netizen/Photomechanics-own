@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QMutexLocker>
+#include <cstring>
 
 namespace
 {
@@ -22,8 +23,74 @@ void writeLe16(char *p, quint16 v)
     p[1] = static_cast<char>((v >> 8) & 0xff);
 }
 
-// 将 24 位未压缩 BMP 直接写入磁盘（RGB888 转 BGR、自下而上扫描），绕过 QImage::save 的通用编码路径
-bool writeBmpFile(const QString &path, const QImage &image)
+// 将 8 位灰度 QImage 直接写入未压缩 BMP（256 级灰度调色板，自下而上扫描）
+bool writeBmp8Grayscale(const QString &path, const QImage &image)
+{
+    if (image.isNull() || image.format() != QImage::Format_Grayscale8)
+        return false;
+
+    const int w = image.width();
+    const int h = image.height();
+    if (w <= 0 || h <= 0)
+        return false;
+
+    const int dstRowBytes = ((w + 3) / 4) * 4; // BMP 行须 4 字节对齐
+    const quint32 pixelBytes = static_cast<quint32>(dstRowBytes * h);
+    const quint32 paletteBytes = 256u * 4u;
+    const quint32 fileSize = 14u + 40u + paletteBytes + pixelBytes;
+    const quint32 pixelOffset = 14u + 40u + paletteBytes;
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+
+    char fileHeader[14] = {};
+    fileHeader[0] = 'B';
+    fileHeader[1] = 'M';
+    writeLe32(fileHeader + 2, fileSize);
+    writeLe32(fileHeader + 10, pixelOffset);
+    if (file.write(fileHeader, 14) != 14)
+        return false;
+
+    char dibHeader[40] = {};
+    writeLe32(dibHeader + 0, 40u);
+    writeLe32(dibHeader + 4, static_cast<quint32>(w));
+    writeLe32(dibHeader + 8, static_cast<quint32>(h));
+    writeLe16(dibHeader + 12, 1);
+    writeLe16(dibHeader + 14, 8);
+    writeLe32(dibHeader + 20, pixelBytes);
+    if (file.write(dibHeader, 40) != 40)
+        return false;
+
+    // 标准 256 级灰度调色板：索引 i 对应 RGB(i,i,i)
+    char palette[256 * 4];
+    for (int i = 0; i < 256; ++i)
+    {
+        palette[i * 4 + 0] = static_cast<char>(i);
+        palette[i * 4 + 1] = static_cast<char>(i);
+        palette[i * 4 + 2] = static_cast<char>(i);
+        palette[i * 4 + 3] = 0;
+    }
+    if (file.write(palette, sizeof(palette)) != static_cast<qint64>(sizeof(palette)))
+        return false;
+
+    QByteArray rowBuf(dstRowBytes, 0);
+    char *const dst = rowBuf.data();
+
+    // BMP 像素区自下而上；Grayscale8 按行拷贝，不足 4 字节对齐处由 rowBuf 填零
+    for (int y = h - 1; y >= 0; --y)
+    {
+        const uchar *src = image.constScanLine(y);
+        memcpy(dst, src, static_cast<size_t>(w));
+        if (file.write(rowBuf.constData(), dstRowBytes) != dstRowBytes)
+            return false;
+    }
+
+    return file.flush();
+}
+
+// 将 24 位 RGB888 QImage 直接写入未压缩 BMP（转 BGR、自下而上扫描）
+bool writeBmp24Rgb(const QString &path, const QImage &image)
 {
     if (image.isNull())
         return false;
@@ -90,6 +157,31 @@ bool writeBmpFile(const QString &path, const QImage &image)
     }
 
     return file.flush();
+}
+
+// 按 QImage 格式分发至 8 位灰度或 24 位 RGB BMP 写入
+bool writeBmpFile(const QString &path, const QImage &image)
+{
+    if (image.isNull())
+        return false;
+
+    if (image.format() == QImage::Format_Grayscale8)
+        return writeBmp8Grayscale(path, image);
+
+    if (image.format() == QImage::Format_RGB888)
+        return writeBmp24Rgb(path, image);
+
+    if (image.isGrayscale())
+    {
+        const QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
+        if (!gray.isNull())
+            return writeBmp8Grayscale(path, gray);
+    }
+
+    const QImage rgb = image.convertToFormat(QImage::Format_RGB888);
+    if (rgb.isNull())
+        return false;
+    return writeBmp24Rgb(path, rgb);
 }
 }
 
