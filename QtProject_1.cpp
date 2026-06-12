@@ -13,6 +13,17 @@
 
 namespace
 {
+// 阶段表列索引：0=序号（只读），1~4 为阶段配置
+enum StageTableCol
+{
+    ColSerial = 0,
+    ColName = 1,
+    ColDuration = 2,
+    ColFps = 3,
+    ColSave = 4,
+    StageTableColumnCount = 5
+};
+
 // 阶段表「存图」列须设置 ItemIsUserCheckable，否则勾选框无法交互
 QTableWidgetItem *makeSaveCheckItem(bool checked = true)
 {
@@ -212,19 +223,40 @@ void QtProject_1::setStageStatus(const QString &text)
 void QtProject_1::insertStageRow(int row, const QString &name)
 {
     ui.stageTable->insertRow(row);
-    ui.stageTable->setItem(row, 0, new QTableWidgetItem(name));
-    ui.stageTable->setItem(row, 1, new QTableWidgetItem(QStringLiteral("1.0")));
-    ui.stageTable->setItem(row, 2, new QTableWidgetItem(QStringLiteral("20")));
-    ui.stageTable->setItem(row, 3, makeSaveCheckItem(true)); // 默认启用存图
+    ui.stageTable->setItem(row, ColName, new QTableWidgetItem(name));
+    ui.stageTable->setItem(row, ColDuration, new QTableWidgetItem(QStringLiteral("1.0")));
+    ui.stageTable->setItem(row, ColFps, new QTableWidgetItem(QStringLiteral("20")));
+    ui.stageTable->setItem(row, ColSave, makeSaveCheckItem(true)); // 默认启用存图
+    refreshStageTableSerialNumbers();
+}
+
+void QtProject_1::refreshStageTableSerialNumbers()
+{
+    for (int r = 0; r < ui.stageTable->rowCount(); ++r)
+    {
+        auto *item = ui.stageTable->item(r, ColSerial);
+        if (!item)
+        {
+            item = new QTableWidgetItem();
+            item->setTextAlignment(Qt::AlignCenter);
+            // 序号由程序维护，用户不可编辑
+            item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+            ui.stageTable->setItem(r, ColSerial, item);
+        }
+        item->setText(QString::number(r + 1));
+    }
 }
 
 void QtProject_1::setupStageTable()
 {
     auto *t = ui.stageTable;
-    t->setColumnCount(4);
-    t->setHorizontalHeaderLabels({QStringLiteral("阶段名称"), QStringLiteral("时长(s)"),
-                                  QStringLiteral("帧率(fps)"), QStringLiteral("存图")});
-    t->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    t->setColumnCount(StageTableColumnCount);
+    t->setHorizontalHeaderLabels({QStringLiteral("序号"), QStringLiteral("阶段名称"),
+                                  QStringLiteral("时长(s)"), QStringLiteral("帧率(fps)"),
+                                  QStringLiteral("存图")});
+    t->verticalHeader()->setVisible(false); // 隐藏 Qt 自带行号，避免清空后表头布局变化
+    t->horizontalHeader()->setSectionResizeMode(ColSerial, QHeaderView::ResizeToContents);
+    t->horizontalHeader()->setSectionResizeMode(ColName, QHeaderView::Stretch);
     t->setSelectionBehavior(QAbstractItemView::SelectRows);
     if (t->rowCount() == 0)
         insertStageRow(0, QStringLiteral("阶段1"));
@@ -383,7 +415,9 @@ bool QtProject_1::enqueueCurrentFrame()
     if (!ok || path.isEmpty())
         return false;
 
-    SaveTask task{frame.copy(), path};
+    SaveTask task;
+    task.filePath = path;
+    task.image = std::move(frame); // 入队前已在 copyLatestImage 完成一次深拷贝，此处不再 copy
     if (!m_saveThread.trySubmit(task))
         return false;
     if (m_stageRunning)
@@ -712,10 +746,10 @@ bool QtProject_1::validateStageTable()
 
     for (int r = 0; r < ui.stageTable->rowCount(); ++r)
     {
-        auto *nameItem = ui.stageTable->item(r, 0);
-        auto *durItem = ui.stageTable->item(r, 1);
-        auto *fpsItem = ui.stageTable->item(r, 2);
-        // 列 0：阶段名
+        auto *nameItem = ui.stageTable->item(r, ColName);
+        auto *durItem = ui.stageTable->item(r, ColDuration);
+        auto *fpsItem = ui.stageTable->item(r, ColFps);
+        // 列 1：阶段名
         if (!nameItem || nameItem->text().trimmed().isEmpty())
         {
             QMessageBox::warning(this, QStringLiteral("阶段采集"),
@@ -747,7 +781,7 @@ bool QtProject_1::validateStageTable()
     bool anySave = false;
     for (int r = 0; r < ui.stageTable->rowCount(); ++r)
     {
-        if (auto *chk = ui.stageTable->item(r, 3))
+        if (auto *chk = ui.stageTable->item(r, ColSave))
         {
             if (chk->checkState() == Qt::Checked)
             {
@@ -774,13 +808,13 @@ QList<StageItem> QtProject_1::readStageListFromTable() const
     for (int r = 0; r < ui.stageTable->rowCount(); ++r)
     {
         StageItem s;
-        if (auto *it = ui.stageTable->item(r, 0))
+        if (auto *it = ui.stageTable->item(r, ColName))
             s.name = it->text().trimmed();
-        if (auto *it = ui.stageTable->item(r, 1))
+        if (auto *it = ui.stageTable->item(r, ColDuration))
             s.durationSec = it->text().toDouble();
-        if (auto *it = ui.stageTable->item(r, 2))
+        if (auto *it = ui.stageTable->item(r, ColFps))
             s.fps = it->text().toDouble();
-        if (auto *it = ui.stageTable->item(r, 3))
+        if (auto *it = ui.stageTable->item(r, ColSave))
             s.saveImage = it->checkState() == Qt::Checked;
         list.append(s);
     }
@@ -793,7 +827,10 @@ void QtProject_1::onDeleteStage()
         return;
     const int row = ui.stageTable->currentRow();
     if (row >= 0)
+    {
         ui.stageTable->removeRow(row);
+        refreshStageTableSerialNumbers();
+    }
 }
 
 void QtProject_1::onClearStages()

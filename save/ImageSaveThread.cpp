@@ -3,7 +3,95 @@
 #include "ImageSaveThread.h"
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QMutexLocker>
+
+namespace
+{
+void writeLe32(char *p, quint32 v)
+{
+    p[0] = static_cast<char>(v & 0xff);
+    p[1] = static_cast<char>((v >> 8) & 0xff);
+    p[2] = static_cast<char>((v >> 16) & 0xff);
+    p[3] = static_cast<char>((v >> 24) & 0xff);
+}
+
+void writeLe16(char *p, quint16 v)
+{
+    p[0] = static_cast<char>(v & 0xff);
+    p[1] = static_cast<char>((v >> 8) & 0xff);
+}
+
+// 24 位未压缩 BMP 直写磁盘（RGB888→BGR、自下而上），避免 QImage::save 通用编码开销
+bool writeBmpFile(const QString &path, const QImage &image)
+{
+    if (image.isNull())
+        return false;
+
+    const QImage *rgbPtr = &image;
+    QImage converted;
+    if (image.format() != QImage::Format_RGB888)
+    {
+        converted = image.convertToFormat(QImage::Format_RGB888);
+        if (converted.isNull())
+            return false;
+        rgbPtr = &converted;
+    }
+
+    const QImage &rgb = *rgbPtr;
+    const int w = rgb.width();
+    const int h = rgb.height();
+    if (w <= 0 || h <= 0)
+        return false;
+
+    const int dstRowBytes = ((w * 3 + 3) / 4) * 4; // BMP 行须 4 字节对齐
+    const quint32 pixelBytes = static_cast<quint32>(dstRowBytes * h);
+    const quint32 fileSize = 54u + pixelBytes;
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+
+    char fileHeader[14] = {};
+    fileHeader[0] = 'B';
+    fileHeader[1] = 'M';
+    writeLe32(fileHeader + 2, fileSize);
+    writeLe32(fileHeader + 10, 54u);
+    if (file.write(fileHeader, 14) != 14)
+        return false;
+
+    char dibHeader[40] = {};
+    writeLe32(dibHeader + 0, 40u);
+    writeLe32(dibHeader + 4, static_cast<quint32>(w));
+    writeLe32(dibHeader + 8, static_cast<quint32>(h));
+    writeLe16(dibHeader + 12, 1);
+    writeLe16(dibHeader + 14, 24);
+    writeLe32(dibHeader + 20, pixelBytes);
+    if (file.write(dibHeader, 40) != 40)
+        return false;
+
+    QByteArray rowBuf(dstRowBytes, 0);
+    char *const dst = rowBuf.data();
+
+    // BMP 像素区自下而上；源图为 RGB888，写入时交换为 BGR
+    for (int y = h - 1; y >= 0; --y)
+    {
+        const uchar *src = rgb.constScanLine(y);
+        for (int x = 0; x < w; ++x)
+        {
+            const int sx = x * 3;
+            const int dx = x * 3;
+            dst[dx + 0] = static_cast<char>(src[sx + 2]);
+            dst[dx + 1] = static_cast<char>(src[sx + 1]);
+            dst[dx + 2] = static_cast<char>(src[sx + 0]);
+        }
+        if (file.write(rowBuf.constData(), dstRowBytes) != dstRowBytes)
+            return false;
+    }
+
+    return file.flush();
+}
+}
 
 ImageSaveThread::ImageSaveThread(QObject *parent)
     : QThread(parent)
@@ -93,7 +181,7 @@ void ImageSaveThread::run()
                 m_queueEmpty.wakeAll();
         }
 
-        const bool ok = task.image.save(task.filePath, "BMP");
+        const bool ok = writeBmpFile(task.filePath, task.image);
         const QString err = ok ? QString() : QStringLiteral("写入 BMP 失败");
 
         bool stopping = false;

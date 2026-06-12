@@ -12,7 +12,7 @@
 | **主窗口** | `QtProject_1` — 连接 UI 与各模块，不直接调用 Pylon |
 | **相机** | `CameraController` — 唯一包含 Pylon 头的模块 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
-| **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 内有界队列（48 帧）+ `trySubmit` 非阻塞入队，单线程写 BMP |
+| **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit` 入队；`writeBmpFile` 直写 24 位 BMP |
 | **配置** | 主窗口 `loadDefaultUiValues` — 启动固定默认参数（不持久化 QSettings） |
 
 ---
@@ -84,7 +84,7 @@ flowchart TB
 | 目标张数计算 | `enterCurrentStage` 内 `qRound(duration×fps)` | `stage/StageManager.cpp` L61 |
 | 阶段结束日志 | `onStageFinished` | `QtProject_1.cpp` L490 |
 | 非阻塞入队 | `ImageSaveThread::trySubmit` | `save/ImageSaveThread.cpp` |
-| 写 BMP | `ImageSaveThread::run`（出队 `m_taskQueue`） | `save/ImageSaveThread.cpp` |
+| 写 BMP | `ImageSaveThread::run` → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
 
 ---
 
@@ -132,7 +132,7 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | 阶段目标帧数驱动；`trySubmit` 有界队列；启动默认参数由主窗口 `loadDefaultUiValues` 设置（不持久化） |
+| **当前** | 存图优化：`writeBmpFile` 直写 BMP；阶段表 5 列（序号/名称/时长/fps/存图），隐藏 Qt 行号 |
 | 上一版 | 双定时器（时长+fps tick） |
 
 ---

@@ -19,7 +19,7 @@ alwaysApply: false
 ## 存图入队流程
 
 ```
-copyLatestImage → SaveTask → trySubmit → m_taskQueue → run() dequeue → save BMP
+copyLatestImage（深拷贝一次）→ SaveTask move 入队 → m_taskQueue → run() → writeBmpFile
 ```
 
 队列满时 `trySubmit` 返回 false，由 `queueFull` 告警；不静默丢帧。

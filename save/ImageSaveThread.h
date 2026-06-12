@@ -6,7 +6,7 @@
 #include <QThread>
 #include <QWaitCondition>
 
-// ImageSaveThread：后台 BMP 写盘线程，内部以有界 QQueue 作为存图任务队列
+// ImageSaveThread：后台 BMP 写盘线程；run() 内 writeBmpFile 直写 24 位未压缩 BMP
 class ImageSaveThread : public QThread
 {
     Q_OBJECT

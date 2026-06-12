@@ -82,6 +82,7 @@ private:
     void stopCaptureAndWaitSave(bool userStop);
     void shutdownAll();              // 退出清理：停采、排空队列、关相机、终止 Pylon
     void insertStageRow(int row, const QString &name);
+    void refreshStageTableSerialNumbers(); // 按行刷新「序号」列（1-based）
 
     Ui::QtProject_1Class ui;
     CameraController m_camera;
