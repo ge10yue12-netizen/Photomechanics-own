@@ -13,7 +13,7 @@
 | **相机** | `CameraController` — 唯一包含 Pylon 头的模块 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 内有界队列（48 帧）+ `trySubmit` 非阻塞入队，单线程写 BMP |
-| **配置** | `AppConfig` — QSettings 持久化阶段表与存图选项 |
+| **配置** | 主窗口 `loadDefaultUiValues` — 启动固定默认参数（不持久化 QSettings） |
 
 ---
 
@@ -120,7 +120,7 @@ QtProject_1/
 │   └── DEVELOPER_GUIDE.md    ← 唯一详细开发者手册
 ├── main.cpp
 ├── QtProject_1.h/cpp/ui
-├── core/     AppTypes.h, AppConfig
+├── core/     AppTypes.h
 ├── camera/   CameraController
 ├── stage/    StageManager
 └── save/     SavePathHelper, ImageSaveThread
@@ -132,7 +132,7 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | 阶段目标帧数驱动；`trySubmit` 入队成功才计数；有界队列 48 帧、积压告警 36；单写盘线程；写盘对齐后切阶段与打日志 |
+| **当前** | 阶段目标帧数驱动；`trySubmit` 有界队列；启动默认参数由主窗口 `loadDefaultUiValues` 设置（不持久化） |
 | 上一版 | 双定时器（时长+fps tick） |
 
 ---

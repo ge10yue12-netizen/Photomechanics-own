@@ -113,8 +113,6 @@
     <ClCompile Include="camera\CameraController.cpp">
       <DisableSpecificWarnings>26812;26495;26451;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
-    <ClCompile Include="core\AppConfig.cpp"/>
-    <ClInclude Include="core\AppConfig.h"/>
     <ClInclude Include="core\AppTypes.h"/>
     <ClCompile Include="save\ImageSaveThread.cpp"/>
     <ClCompile Include="save\SavePathHelper.cpp"/>

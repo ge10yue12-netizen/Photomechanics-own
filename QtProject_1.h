@@ -67,13 +67,15 @@ private:
     void setStageStatus(const QString &text);
     void setupStageTable();
     void refreshButtonState();       // 按相机/采集/阶段状态统一 enable 控件
-    void updateActionButtonStyles(); // 六个主操作按钮蓝/红样式角色
+    void loadDefaultUiValues();      // 启动时将存图路径与参数控件恢复为固定默认值
     void updateParamSpinLimits();
     bool applyCamParams();
     void syncSavePath();             // 将界面存图配置同步至 m_savePath
     bool validateStageTable();
     QList<StageItem> readStageListFromTable() const;
     bool enqueueCurrentFrame();    // 复制最新帧并提交存图任务
+    void waitSaveQueueDrained(bool warnIfTimeout = false); // 阻塞等待存图队列排空
+    void resetEnqueueFrameSeqFromCamera(); // 从当前最新帧初始化阶段入队序号基准
     void startLiveView();          // 启动 grab 与预览定时器
     void ensureLiveView();         // 确保 grab 与预览定时器处于运行状态
     void stopLiveView();           // 关闭 grab 与预览定时器

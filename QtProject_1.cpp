@@ -1,7 +1,6 @@
 // QtProject_1.cpp：主窗口信号槽、预览定时器、按钮状态与阶段/存图调度
 
 #include "QtProject_1.h"
-#include "core/AppConfig.h"
 
 #include <QCloseEvent>
 #include <QPushButton>
@@ -86,7 +85,15 @@ QtProject_1::QtProject_1(QWidget *parent)
     connect(&m_saveThread, &ImageSaveThread::queueFull, this, &QtProject_1::onSaveQueueFull);
     connect(&m_camera, &CameraController::errorOccurred, this, &QtProject_1::onCameraError);
 
-    AppConfig::loadUi(ui);
+    // 六个主操作按钮样式固定：正向 primary=蓝，停止/关闭 danger=红
+    applyButtonRole(ui.openCameraBtn, "primary");
+    applyButtonRole(ui.startGrabBtn, "primary");
+    applyButtonRole(ui.startStageBtn, "primary");
+    applyButtonRole(ui.closeCameraBtn, "danger");
+    applyButtonRole(ui.stopGrabBtn, "danger");
+    applyButtonRole(ui.stopStageBtn, "danger");
+
+    loadDefaultUiValues();
     updateSaveModeUi();
     syncSavePath();
     m_savePath.resumeFromDisk(); // 启动时根据磁盘已有文件续接 Pic 序号
@@ -129,8 +136,7 @@ void QtProject_1::shutdownAll()
     disconnect(&m_saveThread, nullptr, this, nullptr);
     disconnect(&m_stageMgr, nullptr, this, nullptr);
 
-    if (m_saveThread.queueSize() > 0)
-        m_saveThread.waitUntilEmpty(60000);
+    waitSaveQueueDrained();
     stopLiveView();
     m_saveThread.requestStopAndWait(30000);
 
@@ -138,6 +144,38 @@ void QtProject_1::shutdownAll()
         m_camera.close();
     if (m_camera.isPylonInitialized())
         m_camera.shutdownPylon();
+}
+
+void QtProject_1::loadDefaultUiValues()
+{
+    // 每次启动恢复固定默认值，不读写 QSettings
+    ui.savePathEdit->setText(SavePathHelper::defaultRootPath());
+    ui.saveModeCombo->setCurrentIndex(0);
+    ui.picsPerFolderSpin->setValue(100);
+    ui.secondsPerFolderSpin->setValue(10);
+    ui.maxSaveCountSpin->setValue(0);
+    ui.loopCountSpin->setValue(1);
+    ui.exposureSpin->setValue(10000.0);
+    ui.gainSpin->setValue(0.0);
+    ui.fpsSpin->setValue(20.0);
+}
+
+void QtProject_1::waitSaveQueueDrained(bool warnIfTimeout)
+{
+    if (m_saveThread.queueSize() <= 0)
+        return;
+    m_saveThread.waitUntilEmpty(60000);
+    if (warnIfTimeout && m_saveThread.queueSize() > 0 && !m_shutdownDone)
+        log(QStringLiteral("[警告] 仍有图片未保存完成。"));
+}
+
+void QtProject_1::resetEnqueueFrameSeqFromCamera()
+{
+    m_lastEnqueuedFrameSeq = 0;
+    QImage warmFrame;
+    quint64 warmSeq = 0;
+    if (m_camera.copyLatestImage(warmFrame, &warmSeq))
+        m_lastEnqueuedFrameSeq = warmSeq;
 }
 
 void QtProject_1::log(const QString &msg)
@@ -254,19 +292,6 @@ void QtProject_1::refreshButtonState()
     ui.deleteStageBtn->setEnabled(idle);
     ui.clearStageBtn->setEnabled(idle);
     ui.loopCountSpin->setEnabled(idle);
-
-    updateActionButtonStyles();
-}
-
-void QtProject_1::updateActionButtonStyles()
-{
-    // 正向操作：蓝色；停止/关闭：红色（可执行时由 refreshButtonState 控制 enabled）
-    applyButtonRole(ui.openCameraBtn, "primary");
-    applyButtonRole(ui.startGrabBtn, "primary");
-    applyButtonRole(ui.startStageBtn, "primary");
-    applyButtonRole(ui.closeCameraBtn, "danger");
-    applyButtonRole(ui.stopGrabBtn, "danger");
-    applyButtonRole(ui.stopStageBtn, "danger");
 }
 
 // 打开相机后启动 grab 与预览定时器
@@ -331,12 +356,7 @@ void QtProject_1::stopCaptureAndWaitSave(bool userStop)
     if (userStop)
         log(QStringLiteral("用户停止，等待存图队列..."));
 
-    if (m_saveThread.queueSize() > 0)
-    {
-        m_saveThread.waitUntilEmpty(60000);
-        if (m_saveThread.queueSize() > 0)
-            log(QStringLiteral("[警告] 仍有图片未保存完成。"));
-    }
+    waitSaveQueueDrained(true);
 
     if (m_shutdownDone)
         return;
@@ -393,8 +413,7 @@ void QtProject_1::onCloseCamera()
     if (m_stageRunning)
         m_stageMgr.stop();
     m_stageRunning = false;
-    if (m_saveThread.queueSize() > 0)
-        m_saveThread.waitUntilEmpty(60000);
+    waitSaveQueueDrained();
     m_acquisitionActive = false;
     stopLiveView();
     m_camera.close();
@@ -424,8 +443,7 @@ void QtProject_1::onStartGrab()
 void QtProject_1::onStopGrab()
 {
     m_acquisitionActive = false;
-    if (m_saveThread.queueSize() > 0)
-        m_saveThread.waitUntilEmpty(60000);
+    waitSaveQueueDrained();
     ensureLiveView(); // 停止采集会话，预览继续实时刷新
     if (!m_shutdownDone)
         log(QStringLiteral("停止采集，预览继续。"));
@@ -527,13 +545,7 @@ void QtProject_1::onStartStageCapture()
         return;
     }
 
-    m_lastEnqueuedFrameSeq = 0;
-    {
-        QImage warmFrame;
-        quint64 warmSeq = 0;
-        if (m_camera.copyLatestImage(warmFrame, &warmSeq))
-            m_lastEnqueuedFrameSeq = warmSeq;
-    }
+    resetEnqueueFrameSeqFromCamera();
 
     m_stageRunning = true;
     m_displayTimer.setInterval(33);
@@ -585,14 +597,7 @@ void QtProject_1::onStageSaveFrame()
 void QtProject_1::onStageStarted(const QString &name, const QDateTime &startTime, int loopIndex)
 {
     m_savePath.setStageContext(loopIndex, name);
-    // 每阶段重置帧序号基准，防止沿用上一阶段序号导致入队失败
-    m_lastEnqueuedFrameSeq = 0;
-    {
-        QImage warmFrame;
-        quint64 warmSeq = 0;
-        if (m_camera.copyLatestImage(warmFrame, &warmSeq))
-            m_lastEnqueuedFrameSeq = warmSeq;
-    }
+    resetEnqueueFrameSeqFromCamera();
     log(QStringLiteral("阶段开始: 第%1轮 %2 → %3/")
             .arg(loopIndex)
             .arg(name)

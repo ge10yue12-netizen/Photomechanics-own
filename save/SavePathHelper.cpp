@@ -46,6 +46,29 @@ int countSavedBmpUnderRoot(const QDir &root)
     }
     return total;
 }
+
+// 在 root 下查找编号最大的 CAMERA 子目录；找到时写入 outIndex/outDir 并返回 true
+bool findLatestCameraDir(const QDir &root, int &outIndex, QString &outDir)
+{
+    outIndex = 0;
+    outDir.clear();
+    const QStringList subs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &name : subs)
+    {
+        if (name.length() < 7 || !name.startsWith(QStringLiteral("CAMERA"), Qt::CaseInsensitive))
+            continue;
+        bool ok = false;
+        const int idx = name.mid(6).toInt(&ok);
+        if (!ok || idx <= 0)
+            continue;
+        if (idx >= outIndex)
+        {
+            outIndex = idx;
+            outDir = root.filePath(name);
+        }
+    }
+    return outIndex > 0 && !outDir.isEmpty();
+}
 }
 
 // 默认 Images 目录：可执行文件上两级（Debug 构建下为项目根/Images）
@@ -95,23 +118,7 @@ void SavePathHelper::resumeFromDisk()
 
     int maxCameraIndex = 0;
     QString latestCameraDir;
-    const QStringList subs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const QString &name : subs)
-    {
-        if (name.length() < 7 || !name.startsWith(QStringLiteral("CAMERA"), Qt::CaseInsensitive))
-            continue;
-        bool ok = false;
-        const int idx = name.mid(6).toInt(&ok);
-        if (!ok || idx <= 0)
-            continue;
-        if (idx >= maxCameraIndex)
-        {
-            maxCameraIndex = idx;
-            latestCameraDir = root.filePath(name);
-        }
-    }
-
-    if (maxCameraIndex <= 0 || latestCameraDir.isEmpty())
+    if (!findLatestCameraDir(root, maxCameraIndex, latestCameraDir))
     {
         resetSession();
         return;
@@ -134,63 +141,6 @@ void SavePathHelper::resumeFromDisk()
     m_picsInCurrentFolder = maxPic;
     m_cameraFolderIndex = maxCameraIndex + 1;
     m_folderStartTime = QDateTime::currentDateTime();
-}
-
-// 仅当内存序号落后于磁盘时上调，防止 Pic 序号回退导致覆盖
-void SavePathHelper::syncIndexWithDisk()
-{
-    if (m_rootPath.isEmpty())
-        return;
-
-    QDir root(m_rootPath);
-    if (!root.exists())
-        return;
-
-    const int diskTotal = countSavedBmpUnderRoot(root);
-    if (diskTotal > m_totalSaved)
-        m_totalSaved = diskTotal;
-
-    if (m_mode == SaveFolderMode::SingleFolder)
-    {
-        m_currentFolder = m_rootPath;
-        const int diskMax = maxPicInDir(root);
-        if (m_picIndex <= diskMax)
-            m_picIndex = diskMax + 1;
-        if (m_picsInCurrentFolder < diskMax)
-            m_picsInCurrentFolder = diskMax;
-        return;
-    }
-
-    int maxCameraIndex = 0;
-    QString latestCameraDir;
-    const QStringList subs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const QString &name : subs)
-    {
-        if (name.length() < 7 || !name.startsWith(QStringLiteral("CAMERA"), Qt::CaseInsensitive))
-            continue;
-        bool ok = false;
-        const int idx = name.mid(6).toInt(&ok);
-        if (!ok || idx <= 0)
-            continue;
-        if (idx >= maxCameraIndex)
-        {
-            maxCameraIndex = idx;
-            latestCameraDir = root.filePath(name);
-        }
-    }
-
-    if (maxCameraIndex <= 0 || latestCameraDir.isEmpty())
-        return;
-
-    const int diskMaxPic = maxPicInDir(QDir(latestCameraDir));
-    if (m_currentFolder.isEmpty())
-        m_currentFolder = latestCameraDir;
-    if (m_picIndex <= diskMaxPic)
-        m_picIndex = diskMaxPic + 1;
-    if (m_picsInCurrentFolder < diskMaxPic)
-        m_picsInCurrentFolder = diskMaxPic;
-    if (m_cameraFolderIndex <= maxCameraIndex)
-        m_cameraFolderIndex = maxCameraIndex + 1;
 }
 
 // 过滤阶段名中的 Windows 非法路径字符
