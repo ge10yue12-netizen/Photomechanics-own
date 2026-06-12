@@ -12,7 +12,7 @@
 | **主窗口** | `QtProject_1` — 连接 UI 与各模块，不直接调用 Pylon |
 | **相机** | `CameraController` — 唯一包含 Pylon 头的模块 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
-| **存图** | `SavePathHelper` 定路径 + `ImageSaveThread` 后台写盘 |
+| **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 内有界队列（48 帧）+ `trySubmit` 非阻塞入队，单线程写 BMP |
 | **配置** | `AppConfig` — QSettings 持久化阶段表与存图选项 |
 
 ---
@@ -40,15 +40,15 @@ flowchart TB
 
     subgraph SAVE["存图"]
         PATH[SavePathHelper]
-        Q[(队列)]
-        IO[ImageSaveThread QThread]
+        Q[(m_taskQueue 有界 48)]
+        IO[ImageSaveThread 单线程写 BMP]
     end
 
     BTN --> COORD
     COORD --> STAGE
     COORD --> CAM
     COORD --> PATH
-    COORD --> Q
+    COORD -->|trySubmit| Q
     STAGE -->|saveFrameRequested| COORD
     STAGE -->|applyFps| CAM
     FSM --> TICK
@@ -78,12 +78,13 @@ flowchart TB
 |----------|----------|------|
 | 打开相机 | `onOpenCamera` | `QtProject_1.cpp` |
 | 开始预览 | `onStartGrab` | `QtProject_1.cpp` |
-| 手动存一张 | `onSaveOneBmp` → `enqueueCurrentFrame` | `QtProject_1.cpp` |
+| 手动存一张 | `onSaveOneBmp` → `enqueueCurrentFrame` → `trySubmit` | `QtProject_1.cpp` / `save/ImageSaveThread.cpp` |
 | **开始阶段采集** | `onStartStageCapture` → `m_stageMgr.start()` | `QtProject_1.cpp` |
 | 阶段存图节拍 | `StageManager::onFrameTickTimer` | `stage/StageManager.cpp` |
 | 目标张数计算 | `enterCurrentStage` 内 `qRound(duration×fps)` | `stage/StageManager.cpp` L61 |
 | 阶段结束日志 | `onStageFinished` | `QtProject_1.cpp` L490 |
-| 写 BMP | `ImageSaveThread::run` | `save/ImageSaveThread.cpp` |
+| 非阻塞入队 | `ImageSaveThread::trySubmit` | `save/ImageSaveThread.cpp` |
+| 写 BMP | `ImageSaveThread::run`（出队 `m_taskQueue`） | `save/ImageSaveThread.cpp` |
 
 ---
 
@@ -131,7 +132,7 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | 阶段目标帧数驱动；入队成功才计数；写盘对齐后切阶段与打日志 |
+| **当前** | 阶段目标帧数驱动；`trySubmit` 入队成功才计数；有界队列 48 帧、积压告警 36；单写盘线程；写盘对齐后切阶段与打日志 |
 | 上一版 | 双定时器（时长+fps tick） |
 
 ---
