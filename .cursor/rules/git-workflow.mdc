@@ -10,7 +10,21 @@ alwaysApply: true
 - 远程：`https://github.com/ge10yue12-netizen/Photomechanics-own.git`
 - 默认分支：`master`
 - 作者：`ge10yue12-netizen <ge10yue12-netizen@users.noreply.github.com>`
-- 代理（推送用）：`http://127.0.0.1:7890`（Clash；端口变更时更新 `.git/config`）
+
+## 网络与代理（不绑定固定端口）
+
+- Git **不要求**在规则或仓库里写死 `http.proxy` / `https.proxy` 端口
+- **推荐**：Clash 开 TUN / 系统代理，Git 不设 proxy，改代理端口后仍可直接 push/pull
+- 若本机 `.git/config` 或全局仍留有旧 proxy（如 `127.0.0.1:7890`），端口变更会导致失败；可在本机执行 unset，勿由 Agent 修改 git config：
+
+```powershell
+git config --unset http.proxy
+git config --unset https.proxy
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+```
+
+- 仅在使用 HTTP 代理模式、且不用 TUN 时，才需用户自行按当前 Clash 端口配置 Git proxy
 
 ## 何时执行 Git
 
@@ -22,7 +36,7 @@ alwaysApply: true
 ## 提交步骤（用户要求提交时）
 
 1. `git status` / `git diff` — 确认范围
-2. `git add` — 仅本次相关文件；不含 `.env`、密钥、构建产物
+2. `git add` — 仅本次相关文件；不含 `.env`、密钥、构建产物、本地测试大图
 3. `git commit -m "..."` — 1～2 句，说明「为什么改」
 4. 用户要求 push 时：`git push origin master`
 
@@ -31,10 +45,12 @@ alwaysApply: true
 - `--force`、改写历史（除非用户明确要求）
 - 未询问用户而主动 commit/push
 - 提交含密码、Token 的文件
+- Agent 修改 `git config`（含 proxy、user 等）
 
 ## 推送失败
 
-- 网络/代理：保留本地 commit，提示开 Clash 后手动 push
+- 网络不可达：保留本地 commit，提示检查 Clash TUN/系统代理或网络后重试 `git push`
+- 若报错 `127.0.0.1:xxxx` 连接失败：多为 Git 内残留 proxy，提示用户 unset 或对齐当前代理端口
 - 认证失败：提示 GitHub Token，勿用登录密码
 
 ## 换新项目时
