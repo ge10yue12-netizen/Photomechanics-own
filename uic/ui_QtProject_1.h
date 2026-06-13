@@ -47,7 +47,16 @@ public:
     QTabWidget *rightTabWidget;
     QWidget *captureTab;
     QVBoxLayout *captureTabLayout;
+    QGroupBox *cameraConnectGroup;
+    QVBoxLayout *cameraConnectLayout;
+    QGridLayout *cameraConnectGrid;
+    QLabel *cameraSelectLabel;
+    QComboBox *cameraSelectCombo;
+    QPushButton *openCameraBtn;
+    QPushButton *closeCameraBtn;
+    QLabel *cameraStatusLabel;
     QGroupBox *cameraParamGroup;
+    QVBoxLayout *cameraParamLayout;
     QFormLayout *cameraParamForm;
     QLabel *exposureLabel;
     QDoubleSpinBox *exposureSpin;
@@ -55,18 +64,14 @@ public:
     QDoubleSpinBox *gainSpin;
     QLabel *fpsLabel;
     QDoubleSpinBox *fpsSpin;
+    QPushButton *applyParamBtn;
     QLabel *paramRangeLabel;
-    QGroupBox *cameraActionGroup;
-    QGridLayout *cameraActionGrid;
-    QLabel *cameraSelectLabel;
-    QComboBox *cameraSelectCombo;
-    QPushButton *openCameraBtn;
-    QPushButton *closeCameraBtn;
+    QGroupBox *cameraCaptureGroup;
+    QVBoxLayout *cameraCaptureLayout;
+    QGridLayout *cameraCaptureGrid;
     QPushButton *startGrabBtn;
     QPushButton *stopGrabBtn;
-    QPushButton *applyParamBtn;
     QPushButton *saveOneBmpBtn;
-    QLabel *cameraStatusLabel;
     QSpacerItem *captureTabSpacer;
     QWidget *stageSaveTab;
     QVBoxLayout *stageSaveTabLayout;
@@ -149,9 +154,52 @@ public:
         captureTabLayout = new QVBoxLayout(captureTab);
         captureTabLayout->setSpacing(8);
         captureTabLayout->setObjectName(QString::fromUtf8("captureTabLayout"));
+        cameraConnectGroup = new QGroupBox(captureTab);
+        cameraConnectGroup->setObjectName(QString::fromUtf8("cameraConnectGroup"));
+        cameraConnectLayout = new QVBoxLayout(cameraConnectGroup);
+        cameraConnectLayout->setSpacing(6);
+        cameraConnectLayout->setObjectName(QString::fromUtf8("cameraConnectLayout"));
+        cameraConnectGrid = new QGridLayout();
+        cameraConnectGrid->setObjectName(QString::fromUtf8("cameraConnectGrid"));
+        cameraSelectLabel = new QLabel(cameraConnectGroup);
+        cameraSelectLabel->setObjectName(QString::fromUtf8("cameraSelectLabel"));
+
+        cameraConnectGrid->addWidget(cameraSelectLabel, 0, 0, 1, 1);
+
+        cameraSelectCombo = new QComboBox(cameraConnectGroup);
+        cameraSelectCombo->setObjectName(QString::fromUtf8("cameraSelectCombo"));
+
+        cameraConnectGrid->addWidget(cameraSelectCombo, 0, 1, 1, 1);
+
+        openCameraBtn = new QPushButton(cameraConnectGroup);
+        openCameraBtn->setObjectName(QString::fromUtf8("openCameraBtn"));
+
+        cameraConnectGrid->addWidget(openCameraBtn, 1, 0, 1, 1);
+
+        closeCameraBtn = new QPushButton(cameraConnectGroup);
+        closeCameraBtn->setObjectName(QString::fromUtf8("closeCameraBtn"));
+        closeCameraBtn->setEnabled(false);
+
+        cameraConnectGrid->addWidget(closeCameraBtn, 1, 1, 1, 1);
+
+
+        cameraConnectLayout->addLayout(cameraConnectGrid);
+
+        cameraStatusLabel = new QLabel(cameraConnectGroup);
+        cameraStatusLabel->setObjectName(QString::fromUtf8("cameraStatusLabel"));
+        cameraStatusLabel->setWordWrap(true);
+
+        cameraConnectLayout->addWidget(cameraStatusLabel);
+
+
+        captureTabLayout->addWidget(cameraConnectGroup);
+
         cameraParamGroup = new QGroupBox(captureTab);
         cameraParamGroup->setObjectName(QString::fromUtf8("cameraParamGroup"));
-        cameraParamForm = new QFormLayout(cameraParamGroup);
+        cameraParamLayout = new QVBoxLayout(cameraParamGroup);
+        cameraParamLayout->setSpacing(6);
+        cameraParamLayout->setObjectName(QString::fromUtf8("cameraParamLayout"));
+        cameraParamForm = new QFormLayout();
         cameraParamForm->setObjectName(QString::fromUtf8("cameraParamForm"));
         exposureLabel = new QLabel(cameraParamGroup);
         exposureLabel->setObjectName(QString::fromUtf8("exposureLabel"));
@@ -192,72 +240,54 @@ public:
 
         cameraParamForm->setWidget(2, QFormLayout::FieldRole, fpsSpin);
 
+
+        cameraParamLayout->addLayout(cameraParamForm);
+
+        applyParamBtn = new QPushButton(cameraParamGroup);
+        applyParamBtn->setObjectName(QString::fromUtf8("applyParamBtn"));
+        applyParamBtn->setEnabled(false);
+
+        cameraParamLayout->addWidget(applyParamBtn);
+
         paramRangeLabel = new QLabel(cameraParamGroup);
         paramRangeLabel->setObjectName(QString::fromUtf8("paramRangeLabel"));
         paramRangeLabel->setWordWrap(true);
 
-        cameraParamForm->setWidget(3, QFormLayout::SpanningRole, paramRangeLabel);
+        cameraParamLayout->addWidget(paramRangeLabel);
 
 
         captureTabLayout->addWidget(cameraParamGroup);
 
-        cameraActionGroup = new QGroupBox(captureTab);
-        cameraActionGroup->setObjectName(QString::fromUtf8("cameraActionGroup"));
-        cameraActionGrid = new QGridLayout(cameraActionGroup);
-        cameraActionGrid->setObjectName(QString::fromUtf8("cameraActionGrid"));
-        cameraSelectLabel = new QLabel(cameraActionGroup);
-        cameraSelectLabel->setObjectName(QString::fromUtf8("cameraSelectLabel"));
-
-        cameraActionGrid->addWidget(cameraSelectLabel, 0, 0, 1, 1);
-
-        cameraSelectCombo = new QComboBox(cameraActionGroup);
-        cameraSelectCombo->setObjectName(QString::fromUtf8("cameraSelectCombo"));
-
-        cameraActionGrid->addWidget(cameraSelectCombo, 0, 1, 1, 1);
-
-        openCameraBtn = new QPushButton(cameraActionGroup);
-        openCameraBtn->setObjectName(QString::fromUtf8("openCameraBtn"));
-
-        cameraActionGrid->addWidget(openCameraBtn, 1, 0, 1, 1);
-
-        closeCameraBtn = new QPushButton(cameraActionGroup);
-        closeCameraBtn->setObjectName(QString::fromUtf8("closeCameraBtn"));
-        closeCameraBtn->setEnabled(false);
-
-        cameraActionGrid->addWidget(closeCameraBtn, 1, 1, 1, 1);
-
-        startGrabBtn = new QPushButton(cameraActionGroup);
+        cameraCaptureGroup = new QGroupBox(captureTab);
+        cameraCaptureGroup->setObjectName(QString::fromUtf8("cameraCaptureGroup"));
+        cameraCaptureLayout = new QVBoxLayout(cameraCaptureGroup);
+        cameraCaptureLayout->setSpacing(6);
+        cameraCaptureLayout->setObjectName(QString::fromUtf8("cameraCaptureLayout"));
+        cameraCaptureGrid = new QGridLayout();
+        cameraCaptureGrid->setObjectName(QString::fromUtf8("cameraCaptureGrid"));
+        startGrabBtn = new QPushButton(cameraCaptureGroup);
         startGrabBtn->setObjectName(QString::fromUtf8("startGrabBtn"));
         startGrabBtn->setEnabled(false);
 
-        cameraActionGrid->addWidget(startGrabBtn, 2, 0, 1, 1);
+        cameraCaptureGrid->addWidget(startGrabBtn, 0, 0, 1, 1);
 
-        stopGrabBtn = new QPushButton(cameraActionGroup);
+        stopGrabBtn = new QPushButton(cameraCaptureGroup);
         stopGrabBtn->setObjectName(QString::fromUtf8("stopGrabBtn"));
         stopGrabBtn->setEnabled(false);
 
-        cameraActionGrid->addWidget(stopGrabBtn, 2, 1, 1, 1);
+        cameraCaptureGrid->addWidget(stopGrabBtn, 0, 1, 1, 1);
 
-        applyParamBtn = new QPushButton(cameraActionGroup);
-        applyParamBtn->setObjectName(QString::fromUtf8("applyParamBtn"));
-        applyParamBtn->setEnabled(false);
 
-        cameraActionGrid->addWidget(applyParamBtn, 3, 0, 1, 1);
+        cameraCaptureLayout->addLayout(cameraCaptureGrid);
 
-        saveOneBmpBtn = new QPushButton(cameraActionGroup);
+        saveOneBmpBtn = new QPushButton(cameraCaptureGroup);
         saveOneBmpBtn->setObjectName(QString::fromUtf8("saveOneBmpBtn"));
         saveOneBmpBtn->setEnabled(false);
 
-        cameraActionGrid->addWidget(saveOneBmpBtn, 3, 1, 1, 1);
-
-        cameraStatusLabel = new QLabel(cameraActionGroup);
-        cameraStatusLabel->setObjectName(QString::fromUtf8("cameraStatusLabel"));
-        cameraStatusLabel->setWordWrap(true);
-
-        cameraActionGrid->addWidget(cameraStatusLabel, 4, 0, 1, 2);
+        cameraCaptureLayout->addWidget(saveOneBmpBtn);
 
 
-        captureTabLayout->addWidget(cameraActionGroup);
+        captureTabLayout->addWidget(cameraCaptureGroup);
 
         captureTabSpacer = new QSpacerItem(20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
 
@@ -475,20 +505,21 @@ public:
         QtProject_1Class->setWindowTitle(QCoreApplication::translate("QtProject_1Class", "Basler \347\233\270\346\234\272\351\207\207\351\233\206", nullptr));
         previewGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\345\233\276\345\203\217\351\242\204\350\247\210 (2592 x 2048)", nullptr));
         previewInfoLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\230\276\347\244\272\345\210\267\346\226\260: 50ms", nullptr));
-        cameraParamGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\347\233\270\346\234\272\345\217\202\346\225\260", nullptr));
-        exposureLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\233\235\345\205\211 (us)", nullptr));
-        gainLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\242\236\347\233\212 (dB)", nullptr));
-        fpsLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\270\247\347\216\207 (fps)", nullptr));
-        paramRangeLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\217\202\346\225\260\350\214\203\345\233\264: \350\277\236\346\216\245\347\233\270\346\234\272\345\220\216\346\233\264\346\226\260", nullptr));
-        cameraActionGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\347\233\270\346\234\272\346\223\215\344\275\234", nullptr));
+        cameraConnectGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\350\277\236\346\216\245\347\233\270\346\234\272", nullptr));
         cameraSelectLabel->setText(QCoreApplication::translate("QtProject_1Class", "\347\233\270\346\234\272\350\256\276\345\244\207", nullptr));
         openCameraBtn->setText(QCoreApplication::translate("QtProject_1Class", "\346\211\223\345\274\200\347\233\270\346\234\272", nullptr));
         closeCameraBtn->setText(QCoreApplication::translate("QtProject_1Class", "\345\205\263\351\227\255\347\233\270\346\234\272", nullptr));
+        cameraStatusLabel->setText(QCoreApplication::translate("QtProject_1Class", "\347\212\266\346\200\201: \346\234\252\350\277\236\346\216\245", nullptr));
+        cameraParamGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\350\260\203\350\212\202\345\217\202\346\225\260", nullptr));
+        exposureLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\233\235\345\205\211 (us)", nullptr));
+        gainLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\242\236\347\233\212 (dB)", nullptr));
+        fpsLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\270\247\347\216\207 (fps)", nullptr));
+        applyParamBtn->setText(QCoreApplication::translate("QtProject_1Class", "\345\272\224\347\224\250\345\217\202\346\225\260", nullptr));
+        paramRangeLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\217\202\346\225\260\350\214\203\345\233\264: \350\277\236\346\216\245\347\233\270\346\234\272\345\220\216\346\233\264\346\226\260", nullptr));
+        cameraCaptureGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\351\207\207\351\233\206\344\270\216\345\255\230\345\233\276", nullptr));
         startGrabBtn->setText(QCoreApplication::translate("QtProject_1Class", "\345\274\200\345\247\213\351\207\207\351\233\206", nullptr));
         stopGrabBtn->setText(QCoreApplication::translate("QtProject_1Class", "\345\201\234\346\255\242\351\207\207\351\233\206", nullptr));
-        applyParamBtn->setText(QCoreApplication::translate("QtProject_1Class", "\345\272\224\347\224\250\345\217\202\346\225\260", nullptr));
         saveOneBmpBtn->setText(QCoreApplication::translate("QtProject_1Class", "\344\277\235\345\255\230\345\215\225\345\274\240 BMP", nullptr));
-        cameraStatusLabel->setText(QCoreApplication::translate("QtProject_1Class", "\347\212\266\346\200\201: \346\234\252\350\277\236\346\216\245", nullptr));
         rightTabWidget->setTabText(rightTabWidget->indexOf(captureTab), QCoreApplication::translate("QtProject_1Class", "\351\207\207\351\233\206\346\216\247\345\210\266", nullptr));
         stageGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\351\230\266\346\256\265\351\207\207\351\233\206", nullptr));
         stageStatusLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\275\223\345\211\215\346\227\240\350\277\220\350\241\214\344\270\255\347\232\204\351\230\266\346\256\265", nullptr));

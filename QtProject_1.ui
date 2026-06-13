@@ -89,72 +89,142 @@
             <number>8</number>
            </property>
            <item>
+            <widget class="QGroupBox" name="cameraConnectGroup">
+             <property name="title">
+              <string>连接相机</string>
+             </property>
+             <layout class="QVBoxLayout" name="cameraConnectLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <item>
+               <layout class="QGridLayout" name="cameraConnectGrid">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="cameraSelectLabel">
+                  <property name="text">
+                   <string>相机设备</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QComboBox" name="cameraSelectCombo"/>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QPushButton" name="openCameraBtn">
+                  <property name="text">
+                   <string>打开相机</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QPushButton" name="closeCameraBtn">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="text">
+                   <string>关闭相机</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QLabel" name="cameraStatusLabel">
+                <property name="text">
+                 <string>状态: 未连接</string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
             <widget class="QGroupBox" name="cameraParamGroup">
              <property name="title">
-              <string>相机参数</string>
+              <string>调节参数</string>
              </property>
-             <layout class="QFormLayout" name="cameraParamForm">
-              <item row="0" column="0">
-               <widget class="QLabel" name="exposureLabel">
+             <layout class="QVBoxLayout" name="cameraParamLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <item>
+               <layout class="QFormLayout" name="cameraParamForm">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="exposureLabel">
+                  <property name="text">
+                   <string>曝光 (us)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QDoubleSpinBox" name="exposureSpin">
+                  <property name="decimals">
+                   <number>0</number>
+                  </property>
+                  <property name="maximum">
+                   <double>1000000.000000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>10000.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="gainLabel">
+                  <property name="text">
+                   <string>增益 (dB)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QDoubleSpinBox" name="gainSpin">
+                  <property name="decimals">
+                   <number>1</number>
+                  </property>
+                  <property name="maximum">
+                   <double>24.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="fpsLabel">
+                  <property name="text">
+                   <string>帧率 (fps)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="QDoubleSpinBox" name="fpsSpin">
+                  <property name="decimals">
+                   <number>1</number>
+                  </property>
+                  <property name="minimum">
+                   <double>1.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>120.000000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>20.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="applyParamBtn">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
                 <property name="text">
-                 <string>曝光 (us)</string>
+                 <string>应用参数</string>
                 </property>
                </widget>
               </item>
-              <item row="0" column="1">
-               <widget class="QDoubleSpinBox" name="exposureSpin">
-                <property name="decimals">
-                 <number>0</number>
-                </property>
-                <property name="maximum">
-                 <double>1000000.000000000000000</double>
-                </property>
-                <property name="value">
-                 <double>10000.000000000000000</double>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="gainLabel">
-                <property name="text">
-                 <string>增益 (dB)</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QDoubleSpinBox" name="gainSpin">
-                <property name="decimals">
-                 <number>1</number>
-                </property>
-                <property name="maximum">
-                 <double>24.000000000000000</double>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="fpsLabel">
-                <property name="text">
-                 <string>帧率 (fps)</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QDoubleSpinBox" name="fpsSpin">
-                <property name="decimals">
-                 <number>1</number>
-                </property>
-                <property name="minimum">
-                 <double>1.000000000000000</double>
-                </property>
-                <property name="maximum">
-                 <double>120.000000000000000</double>
-                </property>
-                <property name="value">
-                 <double>20.000000000000000</double>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0" colspan="2">
+              <item>
                <widget class="QLabel" name="paramRangeLabel">
                 <property name="text">
                  <string>参数范围: 连接相机后更新</string>
@@ -168,85 +238,45 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="cameraActionGroup">
+            <widget class="QGroupBox" name="cameraCaptureGroup">
              <property name="title">
-              <string>相机操作</string>
+              <string>采集与存图</string>
              </property>
-             <layout class="QGridLayout" name="cameraActionGrid">
-              <item row="0" column="0">
-               <widget class="QLabel" name="cameraSelectLabel">
-                <property name="text">
-                 <string>相机设备</string>
-                </property>
-               </widget>
+             <layout class="QVBoxLayout" name="cameraCaptureLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <item>
+               <layout class="QGridLayout" name="cameraCaptureGrid">
+                <item row="0" column="0">
+                 <widget class="QPushButton" name="startGrabBtn">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="text">
+                   <string>开始采集</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QPushButton" name="stopGrabBtn">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="text">
+                   <string>停止采集</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
               </item>
-              <item row="0" column="1">
-               <widget class="QComboBox" name="cameraSelectCombo"/>
-              </item>
-              <item row="1" column="0">
-               <widget class="QPushButton" name="openCameraBtn">
-                <property name="text">
-                 <string>打开相机</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QPushButton" name="closeCameraBtn">
-                <property name="enabled">
-                 <bool>false</bool>
-                </property>
-                <property name="text">
-                 <string>关闭相机</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QPushButton" name="startGrabBtn">
-                <property name="enabled">
-                 <bool>false</bool>
-                </property>
-                <property name="text">
-                 <string>开始采集</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QPushButton" name="stopGrabBtn">
-                <property name="enabled">
-                 <bool>false</bool>
-                </property>
-                <property name="text">
-                 <string>停止采集</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QPushButton" name="applyParamBtn">
-                <property name="enabled">
-                 <bool>false</bool>
-                </property>
-                <property name="text">
-                 <string>应用参数</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
+              <item>
                <widget class="QPushButton" name="saveOneBmpBtn">
                 <property name="enabled">
                  <bool>false</bool>
                 </property>
                 <property name="text">
                  <string>保存单张 BMP</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0" colspan="2">
-               <widget class="QLabel" name="cameraStatusLabel">
-                <property name="text">
-                 <string>状态: 未连接</string>
-                </property>
-                <property name="wordWrap">
-                 <bool>true</bool>
                 </property>
                </widget>
               </item>

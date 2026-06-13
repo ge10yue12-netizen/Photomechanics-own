@@ -204,9 +204,13 @@ QString SavePathHelper::stageFolderPath() const
 void SavePathHelper::onFileSaved()
 {
     ++m_totalSaved;
-    // 阶段采集不计入 CAMERA 分文件夹逻辑
-    if (!m_stageCaptureActive)
+    if (m_stageCaptureActive)
+        ++m_stagePicIndex;
+    else
+    {
         ++m_picsInCurrentFolder;
+        ++m_picIndex;
+    }
 }
 
 // 按张数或按时间判断是否需要新建 CAMERA 子目录
@@ -271,8 +275,9 @@ QString SavePathHelper::nextFilePath(bool *ok)
         if (!ensureFolderExists(dir))
             return QString();
 
+        // 使用当前序号预分配路径；写盘成功后在 onFileSaved 递增，入队失败可重试同一路径
         const QString path = QDir(dir).filePath(
-            QStringLiteral("Pic%1.bmp").arg(m_stagePicIndex++, 3, 10, QChar('0')));
+            QStringLiteral("Pic%1.bmp").arg(m_stagePicIndex, 3, 10, QChar('0')));
         if (ok)
             *ok = true;
         return path;
@@ -283,8 +288,9 @@ QString SavePathHelper::nextFilePath(bool *ok)
     if (dir.isEmpty())
         return QString();
 
+    // 使用当前序号预分配路径；写盘成功后在 onFileSaved 递增
     const QString path = QDir(dir).filePath(
-        QStringLiteral("Pic%1.bmp").arg(m_picIndex++, 3, 10, QChar('0')));
+        QStringLiteral("Pic%1.bmp").arg(m_picIndex, 3, 10, QChar('0')));
     if (ok)
         *ok = true;
     return path;

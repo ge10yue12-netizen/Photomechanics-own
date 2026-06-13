@@ -24,7 +24,7 @@
 flowchart TB
     subgraph UI["主线程 · QtProject_1"]
         BTN[按钮 / 表格 / 日志]
-        DT[m_displayTimer 50ms 预览]
+        DT[m_displayTimer 33ms 预览约30Hz]
         COORD[协调：enqueue / syncSavePath / log]
     end
 
@@ -82,8 +82,8 @@ flowchart TB
 | 手动存一张 | `onSaveOneBmp` → `enqueueCurrentFrame` → `trySubmit` | `QtProject_1.cpp` / `save/ImageSaveThread.cpp` |
 | **开始阶段采集** | `onStartStageCapture` → `m_stageMgr.start()` | `QtProject_1.cpp` |
 | 阶段存图节拍 | `StageManager::onFrameTickTimer` | `stage/StageManager.cpp` |
-| 目标张数计算 | `enterCurrentStage` 内 `qRound(duration×fps)` | `stage/StageManager.cpp` L61 |
-| 阶段结束日志 | `onStageFinished` | `QtProject_1.cpp` L490 |
+| 目标张数计算 | `enterCurrentStage` 内 `qRound(duration×fps)` | `stage/StageManager.cpp` |
+| 阶段结束日志 | `onStageFinished` | `QtProject_1.cpp` |
 | 非阻塞入队 | `ImageSaveThread::trySubmit` | `save/ImageSaveThread.cpp` |
 | 写 BMP | `ImageSaveThread::run` → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
 
@@ -106,7 +106,8 @@ flowchart TB
 1. VS2019 打开 `QtProject_1.sln`，**Debug \| x64** 重新生成  
 2. 安装 Qt 5.15.2 msvc2019_64 + pylon 5 Runtime x64  
 3. 连接相机，运行 `x64\Debug\QtProject_1.exe`  
-4. 默认存图目录：项目根 **`Images/`**；运行日志：**`Log/run_yyyyMMdd_HHmmss.log`**
+4. 单元测试：生成 `QtProject_1_tests`，运行 `x64\Debug\QtProject_1_tests.exe`  
+5. 默认存图目录：项目根 **`Images/`**；运行日志：**`Log/run_yyyyMMdd_HHmmss.log`**
 
 完整说明 → [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)
 
@@ -128,7 +129,8 @@ QtProject_1/
 ├── camera/   CameraController
 ├── ui/       PreviewWidget（预览缩放、平移、灰度读数）
 ├── stage/    StageManager
-└── save/     SavePathHelper, ImageSaveThread
+├── save/     SavePathHelper, ImageSaveThread
+└── tests/    Qt Test 单元测试（QtProject_1_tests）
 ```
 
 ---
@@ -137,8 +139,8 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | 预览区滚轮缩放、拖拽平移、双击适应/1:1、悬停显示像素灰度值 |
-| 上一版 | Mono8 灰度采集 + 8 位 BMP 存图；启动默认「采集控制」Tab |
+| **当前** | 存图 Pic 序号改在写盘成功后递增；关相机时退出阶段存图路径模式 |
+| 上一版 | 预览区滚轮缩放、拖拽平移、双击适应/1:1、悬停显示像素灰度值 |
 
 ---
 

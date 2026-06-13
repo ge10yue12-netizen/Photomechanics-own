@@ -1,0 +1,43 @@
+---
+description: QtProject_1 Skill 覆盖与 Context7 库
+alwaysApply: true
+---
+
+# Skill 项目覆盖
+
+全局 Skill 规范见 `~/.cursor/rules/skills-workflow.mdc`。本节定义本项目路径与库名。
+
+## 项目 Skill 路径
+
+以下 Skill 使用本项目副本（覆盖全局）：
+
+| Skill | 路径 |
+|-------|------|
+| code-reviewer | `.cursor/skills/code-reviewer/SKILL.md` |
+| project-audit | `.cursor/skills/project-audit/SKILL.md` |
+| debug-helper | `.cursor/skills/debug-helper/SKILL.md` |
+| test-writer | `.cursor/skills/test-writer/SKILL.md` |
+
+## Context7 库
+
+查询 API 时优先解析以下库（按场景选用）：
+
+| 库 | 场景 |
+|----|------|
+| Qt 5.15 | 信号槽、QImage、线程、UI |
+| Basler Pylon | 相机采集、Grab、像素格式 |
+| C++ / MSVC | 语言特性、编译选项 |
+
+禁止凭记忆臆测 API 签名；查不到时明确说明并请求用户补充文档。
+
+## 改码后自检
+
+完成功能或 bug 修复后，默认执行项目 `code-reviewer` 自检（含注释规范），除非用户说「不要 review」。
+
+## 编译排错
+
+VS/Qt/Pylon 相关编译或链接错误，切换项目 `debug-helper`。
+
+## 全项目审计
+
+用户要求审计、全面检查、健康检查时，Read 项目 `project-audit` Skill；审计轮只读，修码须另发「确认修改」。

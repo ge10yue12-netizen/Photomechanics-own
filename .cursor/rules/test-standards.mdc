@@ -1,0 +1,44 @@
+---
+description: QtProject_1 Qt Test 单元测试规范
+globs: "tests/**"
+alwaysApply: false
+---
+
+# 测试规范 — QtProject_1
+
+全局见 `~/.cursor/rules/test-standards.mdc`。
+
+## 框架
+
+**Qt Test**（`QtModules`: `testlib`），工程 `tests/QtProject_1_tests.vcxproj`，已加入 `QtProject_1.sln`。
+
+## 目录
+
+```
+tests/
+├── QtProject_1_tests.vcxproj
+└── tst_core_modules.cpp    # SavePathHelper / ImageSaveThread / StageManager
+```
+
+## 覆盖模块
+
+| 模块 | 用例要点 |
+|------|----------|
+| `SavePathHelper` | Loop/阶段路径、Pic 递增、非法字符、存图上限 |
+| `ImageSaveThread` | 容量 48、队列满拒绝、`queueFull`、BMP 写入 |
+| `StageManager` | `qRound(时长×fps)`、模拟存图回调、fps=0 |
+
+## 禁止
+
+- 单元测试链接 Pylon 或打开真实相机
+- 测试写入 `Images/` 生产目录（使用 `QTemporaryDir`）
+
+## 运行
+
+1. VS：**Debug \| x64** 生成 `QtProject_1_tests`
+2. 执行：`x64\Debug\QtProject_1_tests.exe`
+3. 退出码 0 表示通过
+
+## 扩展
+
+新增模块时：在 `tst_core_modules.cpp` 增加 `Test*` 类，或新建 `tst_<模块>.cpp` 并加入 vcxproj；`main` 中 `QTest::qExec` 聚合运行。

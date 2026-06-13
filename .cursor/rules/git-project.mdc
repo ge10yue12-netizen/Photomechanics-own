@@ -1,0 +1,34 @@
+---
+description: QtProject_1 Git 仓库信息
+alwaysApply: true
+---
+
+# Git 项目信息 — Photomechanics-own
+
+通用 Git 规范见 `~/.cursor/rules/git-workflow.mdc`。本节仅提供本仓库参数。
+
+## 仓库
+
+| 项 | 值 |
+|----|-----|
+| 远程 | `https://github.com/ge10yue12-netizen/Photomechanics-own.git` |
+| 默认分支 | `master` |
+| 作者 | `ge10yue12-netizen <ge10yue12-netizen@users.noreply.github.com>` |
+
+## 推送命令
+
+```bash
+git push origin master
+```
+
+## 排除项补充
+
+除全局排除项外，本仓库提交时另排除：
+
+- `.vs/` 及 VS 本地数据库
+- `Images/` 下本地测试大图（除非用户明确要求纳入版本管理）
+- `.cursor/` 内 IDE 临时缓存（规则与 Skill 文件除外，按用户意图单独 add）
+
+## 元数据
+
+人工参考：`.cursor/project-git.json`（Agent 遵本文件与全局 `git-workflow.mdc`，不自动 commit/push）。

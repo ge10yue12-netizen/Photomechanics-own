@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# --- QtProject_1 项目专属 ---
+# 本地采集测试大图，禁止纳入版本管理
+Images/

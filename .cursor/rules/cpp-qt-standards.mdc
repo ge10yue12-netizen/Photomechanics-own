@@ -1,32 +1,32 @@
 ---
-description: C++/Qt 本仓库编码与存图模块约定
+description: C++/Qt 编码与存图约定
 globs: "**/*.{cpp,h,hpp}"
 alwaysApply: false
 ---
 
-# C++/Qt 编码约定
+# C++/Qt 约定 — QtProject_1
+
+注释遵 `~/.cursor/rules/code-comments.mdc`。
 
 ## 模块边界
 
 | 模块 | 职责 |
 |------|------|
 | `SavePathHelper` | 路径与 Pic/CAMERA 计数 |
-| `ImageSaveThread` | 存图队列 `m_taskQueue` + 后台写 BMP |
+| `ImageSaveThread` | `m_taskQueue` 后台写 BMP |
 | `QtProject_1::enqueueCurrentFrame` | 取帧、算路径、入队 |
 
-存图容器 = `ImageSaveThread` 内 `QQueue<SaveTask> m_taskQueue`，不另建模板/多类封装，除非用户明确要求重构。
+存图容器 = `ImageSaveThread` 内 `QQueue<SaveTask> m_taskQueue`。不另建 `BoundedQueue`、`BufferPool` 等封装，除非用户确认架构变更。
 
-## 存图入队流程
+## 入队流程
 
 ```
-copyLatestImage（Grayscale8 深拷贝一次）→ SaveTask move 入队 → m_taskQueue → run() → writeBmpFile（8 位灰度 BMP）
+copyLatestImage（Grayscale8 深拷贝）→ SaveTask move 入队 → m_taskQueue → run() → writeBmpFile
 ```
 
-队列满时 `trySubmit` 返回 false，由 `queueFull` 告警；不静默丢帧。
+队列满时 `trySubmit` 返回 false，触发 `queueFull`；禁止静默丢帧。`nextFilePath` 预分配路径，Pic 序号在 `onFileSaved` 成功后递增。
 
-## 注释
-
-新增或修改注释时遵循 **`~/.cursor/rules/code-comments.mdc`**。
+## 注释示例
 
 ```cpp
 // 非阻塞入队；队列已满时返回 false，且不移动 task
@@ -35,12 +35,6 @@ bool trySubmit(SaveTask &task);
 QQueue<SaveTask> m_taskQueue; // 存图任务队列，上限 48，由 ImageSaveThread::run 消费
 ```
 
-```cpp
-// ❌ 禁止：打日志 / 就这三样 / 队列空了再等
-// ✅ 应写：写入运行日志；存图队列排空后返回
-```
+## 格式禁止
 
-## 禁止
-
-- 整文件「每行后空一行」的异常格式
-- 为存图单独增加 `BoundedQueue`、`BufferPool` 等层，除非用户确认架构变更
+整文件「每行后空一行」的异常排版。

@@ -260,7 +260,7 @@ flowchart LR
 
 | 定时器 | 所属 | 间隔 | 用途 |
 |--------|------|------|------|
-| `m_displayTimer` | `QtProject_1` | **50 ms** | 仅刷新 `imageLabel` |
+| `m_displayTimer` | `QtProject_1` | **33 ms** | 仅刷新 `imageLabel` |
 | `m_frameTickTimer` | `StageManager` | **1000/fps ms** | 阶段存图节拍 |
 
 > 已删除 `m_stageTimer`。阶段不再「跑满 N 秒」，而按 **目标张数** 结束。
@@ -355,7 +355,7 @@ sequenceDiagram
 | 3 | `setupStageTable` | L50 |
 | 4 | connect 按钮 + 模块信号 | L53–77 |
 | 5 | `AppConfig::loadUi` | L79 |
-| 6 | `m_displayTimer` 50ms | L84–85 |
+| 6 | `m_displayTimer` 33ms | L84–85 |
 | 7 | `m_saveThread.start()` | L86 |
 | 8 | `initPylon()` | L88 |
 | 9 | `refreshButtonState()` | L91 |
@@ -654,9 +654,9 @@ sequenceDiagram
 
     U->>MW: startGrabBtn
     MW->>CAM: startGrab()
-    MW->>DT: start 50ms
+    MW->>DT: start 33ms
 
-    loop 每 50ms
+    loop 每 33ms
         DT->>MW: onDisplayTimer
         MW->>CAM: copyLatestImage
         MW->>MW: scaled → imageLabel
@@ -665,7 +665,7 @@ sequenceDiagram
 
 | 项目 | 预览 | 阶段存图 |
 |------|------|----------|
-| 定时器 | 50ms 固定 | 1000/fps ms |
+| 定时器 | 33ms 固定 | 1000/fps ms |
 | 目的 | 显示画面 | 触发存图请求 |
 | 是否写盘 | 否 | 勾存图则是 |
 

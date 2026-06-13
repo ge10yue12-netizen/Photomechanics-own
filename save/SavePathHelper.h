@@ -24,8 +24,8 @@ public:
     void setStageContext(int loopIndex, const QString &stageName); // 新阶段/新轮：切换子目录，Pic 从 001 续接
     bool isStageCaptureActive() const { return m_stageCaptureActive; }
     bool isSaveLimitReached() const { return m_maxSaveCount > 0 && m_totalSaved >= m_maxSaveCount; }
-    QString nextFilePath(bool *ok = nullptr); // 分配下一张 BMP 路径（尚未写盘）
-    void onFileSaved();               // 写盘成功后更新计数
+    QString nextFilePath(bool *ok = nullptr); // 预分配 BMP 路径；Pic 序号在 onFileSaved 成功后递增
+    void onFileSaved();               // 写盘成功后递增 totalSaved 与 Pic 序号
 
 private:
     QString activeFolderPath();       // 手动存图：当前应写入的目录（必要时新建 CAMERA 文件夹）

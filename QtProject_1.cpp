@@ -458,6 +458,9 @@ void QtProject_1::onCloseCamera()
     if (m_stageRunning)
         m_stageMgr.stop();
     m_stageRunning = false;
+    // 关相机时退出阶段存图路径模式，避免 SavePathHelper 仍按 Loop/阶段 分目录
+    if (m_savePath.isStageCaptureActive())
+        m_savePath.endStageCapture();
     waitSaveQueueDrained();
     m_acquisitionActive = false;
     stopLiveView();

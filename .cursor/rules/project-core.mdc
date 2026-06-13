@@ -1,0 +1,53 @@
+---
+description: QtProject_1 项目补充规则（Photomechanics 相机采集）
+alwaysApply: true
+---
+
+# 项目总则 — QtProject_1
+
+全局规则已由 `~/.cursor/rules/` 自动加载。本节仅定义本项目增量。
+
+## 项目标识
+
+| 项 | 值 |
+|----|-----|
+| 项目名 | QtProject_1 |
+| 产品 | Photomechanics 相机采集测试软件 |
+| 技术栈 | VS2019、Qt 5.15.2、Basler Pylon 5 |
+| 采集 | 2592×2048 Mono8；存图 8 位灰度 BMP |
+
+## 代码入口
+
+| 模块 | 职责 |
+|------|------|
+| `QtProject_1` | 主窗口；协调 UI、预览、存图入队 |
+| `CameraController` | Pylon 采集；`Grayscale8` QImage |
+| `StageManager` | 阶段状态机；帧数驱动 |
+| `SavePathHelper` | 路径与 Pic/CAMERA 计数 |
+| `ImageSaveThread` | 有界队列 + 后台写 BMP |
+| `AppLogger` | `Log/run_*.log` 落盘 |
+
+## 专项规则
+
+| 场景 | 须读规则 |
+|------|----------|
+| 编辑 `*.cpp` / `*.h` / `*.hpp` | `cpp-qt-standards.mdc` |
+| 编写 `tests/**` | `test-standards.mdc` |
+| Git 仓库信息 | `git-project.mdc` |
+| Skill 与 Context7 库 | `skills-project.mdc` |
+
+## README 章节
+
+行为或架构变更时，同步根目录 `README.md` 以下章节：
+
+- 一分钟了解
+- 架构一览
+- 快速操作 → 代码入口
+- 目录结构
+- 版本
+
+详细时序与排错见 `docs/DEVELOPER_GUIDE.md`。架构级大改时在回复中说明是否需同步该文档。
+
+## 面向用户文案
+
+日志与 UI 文案使用中文；代码标识符保持项目既有英文命名。
