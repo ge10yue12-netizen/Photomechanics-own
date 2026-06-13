@@ -40,21 +40,12 @@
       </property>
       <layout class="QVBoxLayout" name="previewLayout" stretch="3,0">
        <item>
-        <widget class="QLabel" name="imageLabel">
+        <widget class="PreviewWidget" name="imageLabel" native="true">
          <property name="minimumSize">
           <size>
            <width>640</width>
            <height>512</height>
           </size>
-         </property>
-         <property name="styleSheet">
-          <string>background-color: rgb(26, 26, 26); color: rgb(136, 136, 136);</string>
-         </property>
-         <property name="text">
-          <string>未连接相机</string>
-         </property>
-         <property name="alignment">
-          <set>Qt::AlignCenter</set>
          </property>
         </widget>
        </item>
@@ -560,4 +551,11 @@
   <include location="QtProject_1.qrc"/>
  </resources>
  <connections/>
+ <customwidgets>
+  <customwidget>
+   <class>PreviewWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">ui/PreviewWidget.h</header>
+  </customwidget>
+ </customwidgets>
 </ui>

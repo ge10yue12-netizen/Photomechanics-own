@@ -31,6 +31,7 @@ private slots:
     void onSaveOneBmp();
     void onBrowseSavePath();
     void onDisplayTimer();
+    void onPreviewPixelInfo(int x, int y, int gray, bool valid); // 预览区悬停像素读数
     void onCameraError(const QString &message);
 
     // 阶段表编辑
@@ -85,6 +86,7 @@ private:
     void shutdownAll();              // 退出清理：停采、排空队列、关相机、终止 Pylon
     void insertStageRow(int row, const QString &name);
     void refreshStageTableSerialNumbers(); // 按行刷新「序号」列（1-based）
+    void updatePreviewInfoLabel();         // 合并状态行与悬停像素信息
 
     Ui::QtProject_1Class ui;
     CameraController m_camera;
@@ -98,6 +100,8 @@ private:
     bool m_stageRunning = false;     // StageManager 正在执行阶段表
     bool m_shutdownDone = false;     // 退出标志；为 true 时禁止回调访问 UI 控件
     QString m_stageStatusText;       // 阶段状态栏文本缓存，用于附加队列长度
+    QString m_previewBaseInfo;       // 预览区底部状态行（分辨率、模式、队列等）
+    QString m_previewPixelInfo;      // 悬停像素坐标与灰度值片段
     quint64 m_lastEnqueuedFrameSeq = 0; // 阶段存图已入队的最新帧序号，用于去重
     quint64 m_lastDisplayFrameSeq = 0;  // 预览已显示的最新帧序号，用于跳过重复绘制
     QSize m_lastDisplayLabelSize;       // 预览区上次尺寸，尺寸变化时需重绘

@@ -9,7 +9,7 @@
 
 | 项目 | 说明 |
 |------|------|
-| **主窗口** | `QtProject_1` — 连接 UI 与各模块，不直接调用 Pylon |
+| **主窗口** | `QtProject_1` — 连接 UI 与各模块；预览区 `PreviewWidget` 支持缩放/平移/像素读数 |
 | **相机** | `CameraController` — Mono8 采集、`Grayscale8` QImage；不支持时回退 RGB888 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit`；`writeBmpFile` 写入 8 位灰度或 24 位 RGB BMP |
@@ -126,6 +126,7 @@ QtProject_1/
 ├── main.cpp
 ├── QtProject_1.h/cpp/ui
 ├── camera/   CameraController
+├── ui/       PreviewWidget（预览缩放、平移、灰度读数）
 ├── stage/    StageManager
 └── save/     SavePathHelper, ImageSaveThread
 ```
@@ -136,8 +137,8 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | Mono8 灰度采集 + 8 位 BMP 存图（约 1/3 内存与写盘量）；Mono8 不可用时回退 RGB888 |
-| 上一版 | AppLogger、阶段写盘对齐、注释规范 |
+| **当前** | 预览区滚轮缩放、拖拽平移、双击适应/1:1、悬停显示像素灰度值 |
+| 上一版 | Mono8 灰度采集 + 8 位 BMP 存图；启动默认「采集控制」Tab |
 
 ---
 

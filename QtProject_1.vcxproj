@@ -108,6 +108,8 @@
     <QtMoc Include="camera\CameraController.h"/>
     <QtMoc Include="save\ImageSaveThread.h"/>
     <QtMoc Include="stage\StageManager.h"/>
+    <QtMoc Include="ui\PreviewWidget.h"/>
+    <ClCompile Include="ui\PreviewWidget.cpp"/>
     <ClCompile Include="QtProject_1.cpp"/>
     <ClCompile Include="main.cpp"/>
     <ClCompile Include="camera\CameraController.cpp">

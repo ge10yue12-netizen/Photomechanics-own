@@ -29,6 +29,7 @@
 #include <QtWidgets/QTableWidget>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QWidget>
+#include <ui/PreviewWidget.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -39,7 +40,7 @@ public:
     QSplitter *mainSplitter;
     QGroupBox *previewGroup;
     QVBoxLayout *previewLayout;
-    QLabel *imageLabel;
+    PreviewWidget *imageLabel;
     QLabel *previewInfoLabel;
     QWidget *rightPanel;
     QVBoxLayout *rightLayout;
@@ -122,10 +123,9 @@ public:
         previewGroup->setObjectName(QString::fromUtf8("previewGroup"));
         previewLayout = new QVBoxLayout(previewGroup);
         previewLayout->setObjectName(QString::fromUtf8("previewLayout"));
-        imageLabel = new QLabel(previewGroup);
+        imageLabel = new PreviewWidget(previewGroup);
         imageLabel->setObjectName(QString::fromUtf8("imageLabel"));
         imageLabel->setMinimumSize(QSize(640, 512));
-        imageLabel->setAlignment(Qt::AlignCenter);
 
         previewLayout->addWidget(imageLabel);
 
@@ -474,8 +474,6 @@ public:
     {
         QtProject_1Class->setWindowTitle(QCoreApplication::translate("QtProject_1Class", "Basler \347\233\270\346\234\272\351\207\207\351\233\206", nullptr));
         previewGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\345\233\276\345\203\217\351\242\204\350\247\210 (2592 x 2048)", nullptr));
-        imageLabel->setStyleSheet(QCoreApplication::translate("QtProject_1Class", "background-color: rgb(26, 26, 26); color: rgb(136, 136, 136);", nullptr));
-        imageLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\234\252\350\277\236\346\216\245\347\233\270\346\234\272", nullptr));
         previewInfoLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\230\276\347\244\272\345\210\267\346\226\260: 50ms", nullptr));
         cameraParamGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\347\233\270\346\234\272\345\217\202\346\225\260", nullptr));
         exposureLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\233\235\345\205\211 (us)", nullptr));

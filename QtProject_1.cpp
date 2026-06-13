@@ -2,6 +2,8 @@
 
 #include "QtProject_1.h"
 
+#include "ui/PreviewWidget.h"
+
 #include <QCloseEvent>
 #include <QPushButton>
 #include <QStyle>
@@ -52,6 +54,8 @@ QtProject_1::QtProject_1(QWidget *parent)
     ui.mainSplitter->setStretchFactor(0, 3);
     ui.mainSplitter->setStretchFactor(1, 2);
     ui.imageLabel->setMinimumSize(640, 512);
+    ui.imageLabel->setPlaceholderText(QStringLiteral("未连接相机"));
+    connect(ui.imageLabel, &PreviewWidget::pixelInfoChanged, this, &QtProject_1::onPreviewPixelInfo);
     ui.logTextEdit->setMaximumBlockCount(2000);
     // 六个主操作按钮通过 btnRole 区分蓝(primary)/红(danger)；禁用为灰
     setStyleSheet(QStringLiteral(
@@ -458,8 +462,11 @@ void QtProject_1::onCloseCamera()
     m_acquisitionActive = false;
     stopLiveView();
     m_camera.close();
-    ui.imageLabel->clear();
-    ui.imageLabel->setText(QStringLiteral("未连接相机"));
+    ui.imageLabel->clearImage();
+    ui.imageLabel->setPlaceholderText(QStringLiteral("未连接相机"));
+    m_previewBaseInfo.clear();
+    m_previewPixelInfo.clear();
+    updatePreviewInfoLabel();
     setCamStatus(QStringLiteral("状态: 未连接"), QStringLiteral("rgb(102, 102, 102)"));
     log(QStringLiteral("相机关闭。"));
     refreshButtonState();
@@ -503,27 +510,44 @@ void QtProject_1::onDisplayTimer()
     if (!m_camera.copyLatestImage(frame, &frameSeq) || frame.isNull())
         return;
 
-    const QSize labelSize = ui.imageLabel->size();
+    const QSize viewSize = ui.imageLabel->size();
     // 帧序号与预览区尺寸均未变化时跳过重绘，以降低界面刷新开销
-    if (frameSeq == m_lastDisplayFrameSeq && labelSize == m_lastDisplayLabelSize)
+    if (frameSeq == m_lastDisplayFrameSeq && viewSize == m_lastDisplayLabelSize)
         return;
 
     m_lastDisplayFrameSeq = frameSeq;
-    m_lastDisplayLabelSize = labelSize;
-    ui.imageLabel->setPixmap(QPixmap::fromImage(frame).scaled(
-        labelSize, Qt::KeepAspectRatio, Qt::FastTransformation));
+    m_lastDisplayLabelSize = viewSize;
+    ui.imageLabel->setImage(frame);
 
-    QString info = QStringLiteral("%1×%2").arg(frame.width()).arg(frame.height());
+    m_previewBaseInfo = QStringLiteral("%1×%2").arg(frame.width()).arg(frame.height());
     if (m_stageRunning)
-        info += QStringLiteral(" | 阶段");
+        m_previewBaseInfo += QStringLiteral(" | 阶段");
     else if (m_acquisitionActive)
-        info += QStringLiteral(" | 采集");
+        m_previewBaseInfo += QStringLiteral(" | 采集");
     else if (m_liveViewActive)
-        info += QStringLiteral(" | 预览");
+        m_previewBaseInfo += QStringLiteral(" | 预览");
     const int q = m_saveThread.queueSize();
     if (q > 0)
-        info += QStringLiteral(" | 队列%1").arg(q);
-    ui.previewInfoLabel->setText(info);
+        m_previewBaseInfo += QStringLiteral(" | 队列%1").arg(q);
+    updatePreviewInfoLabel();
+}
+
+void QtProject_1::onPreviewPixelInfo(int x, int y, int gray, bool valid)
+{
+    if (valid)
+    {
+        m_previewPixelInfo = QStringLiteral(" | 像素(%1,%2)=%3").arg(x).arg(y).arg(gray);
+    }
+    else
+    {
+        m_previewPixelInfo.clear();
+    }
+    updatePreviewInfoLabel();
+}
+
+void QtProject_1::updatePreviewInfoLabel()
+{
+    ui.previewInfoLabel->setText(m_previewBaseInfo + m_previewPixelInfo);
 }
 
 void QtProject_1::onSaveOneBmp()

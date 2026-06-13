@@ -25,6 +25,9 @@
     <Filter Include="stage">
       <UniqueIdentifier>{D4E5F6A7-B8C9-0123-DEF0-234567890123}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ui">
+      <UniqueIdentifier>{E5F6A7B8-C9D0-1234-EF01-234567890124}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtRcc Include="QtProject_1.qrc"><Filter>Resource Files</Filter></QtRcc>
@@ -41,6 +44,8 @@
     <ClCompile Include="save\SavePathHelper.cpp"><Filter>save</Filter></ClCompile>
     <ClInclude Include="save\SavePathHelper.h"><Filter>save</Filter></ClInclude>
     <ClCompile Include="stage\StageManager.cpp"><Filter>stage</Filter></ClCompile>
+    <QtMoc Include="ui\PreviewWidget.h"><Filter>ui</Filter></QtMoc>
+    <ClCompile Include="ui\PreviewWidget.cpp"><Filter>ui</Filter></ClCompile>
     <QtMoc Include="save\ImageSaveThread.h"><Filter>save</Filter></QtMoc>
     <QtMoc Include="stage\StageManager.h"><Filter>stage</Filter></QtMoc>
   </ItemGroup>
