@@ -5,6 +5,9 @@
 #include "ui/PreviewWidget.h"
 
 #include <QCloseEvent>
+#include <QShowEvent>
+#include <QEvent>
+#include <QDir>
 #include <QPushButton>
 #include <QStyle>
 #include <QDateTime>
@@ -50,14 +53,22 @@ QtProject_1::QtProject_1(QWidget *parent)
     : QWidget(parent)
 {
     ui.setupUi(this);
-    // 左右分栏比例：预览区 3，右侧控制 2
-    ui.mainSplitter->setStretchFactor(0, 3);
-    ui.mainSplitter->setStretchFactor(1, 2);
-    ui.imageLabel->setMinimumSize(640, 512);
+    // 上半左右栏比例：预览 5，工作流栏 4，工作流栏可拖动但不可折叠到 0
+    ui.mainSplitter->setStretchFactor(0, 5);
+    ui.mainSplitter->setStretchFactor(1, 4);
+    ui.mainSplitter->setCollapsible(0, false);
+    ui.mainSplitter->setCollapsible(1, false);
+    // 外层上下分栏：上半（预览+工作流）5，下半（日志）2，日志栏可拖到 0 完全收起
+    ui.outerSplitter->setStretchFactor(0, 5);
+    ui.outerSplitter->setStretchFactor(1, 2);
+    ui.outerSplitter->setCollapsible(0, false);
+    ui.outerSplitter->setCollapsible(1, true);
+    ui.imageLabel->setMinimumSize(640, 400);
     ui.imageLabel->setPlaceholderText(QStringLiteral("未连接相机"));
     connect(ui.imageLabel, &PreviewWidget::pixelInfoChanged, this, &QtProject_1::onPreviewPixelInfo);
     ui.logTextEdit->setMaximumBlockCount(2000);
     // 六个主操作按钮通过 btnRole 区分蓝(primary)/红(danger)；禁用为灰
+    // 底部状态条用浅灰底 + 顶部分隔线，区别于普通区域
     setStyleSheet(QStringLiteral(
         "QPushButton[btnRole=\"primary\"]{background-color:rgb(0,120,212);color:white;border:none;min-height:28px;}"
         "QPushButton[btnRole=\"primary\"]:hover{background-color:rgb(0,100,180);}"
@@ -67,7 +78,10 @@ QtProject_1::QtProject_1(QWidget *parent)
         "QPushButton[btnRole=\"danger\"]:pressed{background-color:rgb(130,28,18);}"
         "QPushButton[btnRole=\"primary\"]:disabled,QPushButton[btnRole=\"danger\"]:disabled"
         "{background-color:rgb(200,200,200);color:rgb(240,240,240);}"
-        "QPlainTextEdit#logTextEdit{font-family:Consolas,monospace;}"));
+        "QPlainTextEdit#logTextEdit{font-family:Consolas,monospace;}"
+        "QFrame#statusBarFrame{background-color:rgb(245,245,245);border-top:1px solid rgb(200,200,200);}"
+        "QFrame#statusBarFrame QLabel{color:rgb(64,64,64);}"));
+    m_statusCameraSummary = QStringLiteral("未连接");
     setCamStatus(QStringLiteral("状态: 未连接"), QStringLiteral("rgb(102, 102, 102)"));
 
     setupStageTable();
@@ -82,6 +96,12 @@ QtProject_1::QtProject_1(QWidget *parent)
     connect(ui.saveOneBmpBtn, &QPushButton::clicked, this, &QtProject_1::onSaveOneBmp);
     connect(ui.browsePathBtn, &QPushButton::clicked, this, &QtProject_1::onBrowseSavePath);
     connect(ui.clearLogBtn, &QPushButton::clicked, ui.logTextEdit, &QPlainTextEdit::clear);
+    connect(ui.savePathEdit, &QLineEdit::editingFinished, this, [this]() {
+        syncSavePath();
+        updateSaveDirWatcher();
+        if (!m_stageRunning && !m_acquisitionActive)
+            resyncSavePathFromDisk();
+    });
     connect(ui.saveModeCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, &QtProject_1::updateSaveModeUi);
     connect(ui.addStageBtn, &QPushButton::clicked, this, &QtProject_1::onAddStage);
     connect(ui.deleteStageBtn, &QPushButton::clicked, this, &QtProject_1::onDeleteStage);
@@ -112,9 +132,23 @@ QtProject_1::QtProject_1(QWidget *parent)
     updateSaveModeUi();
     syncSavePath();
     m_savePath.resumeFromDisk(); // 启动时根据磁盘已有文件续接 Pic 序号
+    updateSaveDirWatcher();
 
     m_displayTimer.setInterval(33); // 预览约 30Hz，打开相机后持续刷新
     connect(&m_displayTimer, &QTimer::timeout, this, &QtProject_1::onDisplayTimer);
+    // 保存目录监视：外部删改文件后 resync；空闲时定时刷新总保存显示
+    m_saveDirResyncTimer.setSingleShot(true);
+    m_saveDirResyncTimer.setInterval(400);
+    connect(&m_saveDirWatcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString &) {
+        m_saveDirResyncTimer.start();
+    });
+    connect(&m_saveDirResyncTimer, &QTimer::timeout, this, &QtProject_1::resyncSavePathFromDisk);
+    m_saveCountPollTimer.setInterval(2000);
+    connect(&m_saveCountPollTimer, &QTimer::timeout, this, [this]() {
+        if (!m_shutdownDone && !m_stageRunning)
+            refreshQueueDependentUi();
+    });
+    m_saveCountPollTimer.start();
     m_saveThread.start();
 
     m_logger.openRunLog();
@@ -123,6 +157,7 @@ QtProject_1::QtProject_1(QWidget *parent)
                               : QStringLiteral("[警告] Pylon 初始化失败。"));
     log(QStringLiteral("软件启动。"));
     refreshButtonState();
+    updateGlobalStatus();
 }
 
 QtProject_1::~QtProject_1()
@@ -134,6 +169,37 @@ void QtProject_1::closeEvent(QCloseEvent *event)
 {
     shutdownAll();
     QWidget::closeEvent(event);
+}
+
+// 首次显示时按 5:2 / 5:4 比例设置 Splitter 初始尺寸，避免首次打开分栏过窄或过宽
+void QtProject_1::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (m_initialLayoutApplied)
+        return;
+    m_initialLayoutApplied = true;
+
+    const int outerH = ui.outerSplitter->height();
+    if (outerH > 0)
+    {
+        const int topH = outerH * 5 / 7;
+        ui.outerSplitter->setSizes({topH, outerH - topH});
+    }
+
+    const int mainW = ui.mainSplitter->width();
+    if (mainW > 0)
+    {
+        const int previewW = mainW * 5 / 9;
+        ui.mainSplitter->setSizes({previewW, mainW - previewW});
+    }
+}
+
+void QtProject_1::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    // 从资源管理器切回软件时 resync，覆盖子目录内删文件 watcher 未触达的情况
+    if (event->type() == QEvent::ActivationChange && isActiveWindow())
+        resyncSavePathFromDisk();
 }
 
 // 退出清理（幂等）：停止阶段、断开信号、停止采集、等待写盘队列、关闭相机、终止 Pylon
@@ -209,18 +275,32 @@ void QtProject_1::log(const QString &msg)
     ui.logTextEdit->appendPlainText(line);
 }
 
-// 更新相机连接状态标签的文本与颜色样式
+// 更新相机连接状态标签的文本与颜色样式，同时同步底部状态栏「相机」摘要
 void QtProject_1::setCamStatus(const QString &text, const QString &color)
 {
     ui.cameraStatusLabel->setText(text);
     ui.cameraStatusLabel->setStyleSheet(
         QStringLiteral("color:%1;font-weight:bold;padding:4px 0;").arg(color));
+    // 状态栏摘要去掉「状态: 」前缀，留下纯短描述
+    QString summary = text;
+    const QString prefix = QStringLiteral("状态: ");
+    if (summary.startsWith(prefix))
+        summary = summary.mid(prefix.size());
+    m_statusCameraSummary = summary;
+    if (!m_shutdownDone)
+        updateGlobalStatus();
 }
 
-// 更新阶段状态栏；阶段运行中且存图队列非空时附加队列长度
+// 更新阶段状态文本，并刷新依赖队列长度的 UI
 void QtProject_1::setStageStatus(const QString &text)
 {
     m_stageStatusText = text;
+    refreshQueueDependentUi();
+}
+
+// 仅刷新工作流栏 stageStatusLabel（阶段运行中且队列非空时附加「| 队列 N」）
+void QtProject_1::refreshStageStatusLabel()
+{
     QString label = m_stageStatusText.isEmpty() ? QStringLiteral("当前无运行中的阶段") : m_stageStatusText;
     if (m_stageRunning)
     {
@@ -229,6 +309,39 @@ void QtProject_1::setStageStatus(const QString &text)
             label += QStringLiteral(" | 队列 %1").arg(pending);
     }
     ui.stageStatusLabel->setText(label);
+}
+
+// 队列长度或总保存变化时统一刷新：工作流阶段栏 + 底部状态条
+void QtProject_1::refreshQueueDependentUi()
+{
+    if (m_shutdownDone)
+        return;
+    refreshStageStatusLabel();
+    updateGlobalStatus();
+}
+
+// 刷新底部状态栏 4 段：相机、阶段、队列(满 80% 红字)、总保存
+void QtProject_1::updateGlobalStatus()
+{
+    if (m_shutdownDone)
+        return;
+
+    ui.statusCamera->setText(QStringLiteral("相机: %1").arg(m_statusCameraSummary));
+
+    QString stageText = m_stageRunning && !m_stageStatusText.isEmpty()
+                            ? m_stageStatusText
+                            : (m_stageRunning ? QStringLiteral("运行中") : QStringLiteral("空闲"));
+    ui.statusStage->setText(QStringLiteral("阶段: %1").arg(stageText));
+
+    const int qSize = m_saveThread.queueSize();
+    const int qCap = m_saveThread.capacity();
+    ui.statusQueue->setText(QStringLiteral("队列: %1/%2").arg(qSize).arg(qCap));
+    // 队列占比 ≥ 80% 时切红字告警，恢复后回灰
+    const bool warn = qCap > 0 && qSize * 5 >= qCap * 4;
+    ui.statusQueue->setStyleSheet(warn ? QStringLiteral("color:rgb(196,43,28);font-weight:bold;")
+                                       : QString());
+
+    ui.statusTotal->setText(QStringLiteral("总保存: %1").arg(m_savePath.totalSaved())); // 实时扫盘，非内存累计
 }
 
 void QtProject_1::insertStageRow(int row, const QString &name)
@@ -266,6 +379,7 @@ void QtProject_1::setupStageTable()
                                   QStringLiteral("时长(s)"), QStringLiteral("帧率(fps)"),
                                   QStringLiteral("存图")});
     t->verticalHeader()->setVisible(false); // 隐藏 Qt 垂直表头行号，避免清空表格后表头布局异常
+    t->verticalHeader()->setDefaultSectionSize(22); // 紧凑行高，适配工作流栏纵向空间
     t->horizontalHeader()->setSectionResizeMode(ColSerial, QHeaderView::ResizeToContents);
     t->horizontalHeader()->setSectionResizeMode(ColName, QHeaderView::Stretch);
     t->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -305,6 +419,26 @@ void QtProject_1::syncSavePath()
     m_savePath.setMaxSaveCount(ui.maxSaveCountSpin->value());
 }
 
+// 扫描磁盘同步 Pic 序号与总保存；阶段/采集中跳过，避免打断进行中的路径上下文
+void QtProject_1::resyncSavePathFromDisk()
+{
+    if (m_shutdownDone || m_stageRunning || m_acquisitionActive)
+        return;
+    syncSavePath();
+    m_savePath.resumeFromDisk();
+    refreshQueueDependentUi();
+}
+
+void QtProject_1::updateSaveDirWatcher()
+{
+    const QString path = ui.savePathEdit->text().trimmed();
+    const QStringList watched = m_saveDirWatcher.directories();
+    for (const QString &p : watched)
+        m_saveDirWatcher.removePath(p);
+    if (!path.isEmpty() && QDir(path).exists())
+        m_saveDirWatcher.addPath(path);
+}
+
 void QtProject_1::updateSaveModeUi()
 {
     const auto mode = static_cast<SaveFolderMode>(ui.saveModeCombo->currentIndex());
@@ -335,6 +469,20 @@ void QtProject_1::refreshButtonState()
     ui.deleteStageBtn->setEnabled(idle);
     ui.clearStageBtn->setEnabled(idle);
     ui.loopCountSpin->setEnabled(idle);
+    // 阶段或手动采集中禁止改存图路径/模式，避免打断阶段存图上下文
+    ui.savePathEdit->setEnabled(idle);
+    ui.browsePathBtn->setEnabled(idle);
+    ui.saveModeCombo->setEnabled(idle);
+    ui.maxSaveCountSpin->setEnabled(idle);
+    if (idle)
+        updateSaveModeUi();
+    else
+    {
+        ui.picsPerFolderLabel->setEnabled(false);
+        ui.picsPerFolderSpin->setEnabled(false);
+        ui.secondsPerFolderLabel->setEnabled(false);
+        ui.secondsPerFolderSpin->setEnabled(false);
+    }
 }
 
 // 打开相机后启动 grab 与预览定时器
@@ -409,6 +557,7 @@ void QtProject_1::stopCaptureAndWaitSave(bool userStop)
     refreshButtonState();
 }
 
+// 复制最新帧、生成路径并非阻塞入队；阶段模式下按 frameSeq 去重，避免同一帧重复保存
 bool QtProject_1::enqueueCurrentFrame()
 {
     QImage frame;
@@ -433,6 +582,8 @@ bool QtProject_1::enqueueCurrentFrame()
         return false;
     if (m_stageRunning)
         m_lastEnqueuedFrameSeq = frameSeq;
+    if (!m_shutdownDone)
+        refreshQueueDependentUi();
     return true;
 }
 
@@ -458,7 +609,7 @@ void QtProject_1::onCloseCamera()
     if (m_stageRunning)
         m_stageMgr.stop();
     m_stageRunning = false;
-    // 关相机时退出阶段存图路径模式，避免 SavePathHelper 仍按 Loop/阶段 分目录
+    // 关相机时退出阶段存图路径模式，避免 SavePathHelper 仍按阶段名分目录
     if (m_savePath.isStageCaptureActive())
         m_savePath.endStageCapture();
     waitSaveQueueDrained();
@@ -564,6 +715,9 @@ void QtProject_1::onSaveOneBmp()
 
 void QtProject_1::onBrowseSavePath()
 {
+    if (m_stageRunning || m_acquisitionActive)
+        return;
+
     const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("选择保存目录"),
                                                           ui.savePathEdit->text());
     if (!dir.isEmpty())
@@ -572,6 +726,8 @@ void QtProject_1::onBrowseSavePath()
         syncSavePath();
         m_savePath.resetSession();
         m_savePath.resumeFromDisk(); // 切换目录后根据磁盘续接 Pic 序号
+        updateSaveDirWatcher();
+        refreshQueueDependentUi();
     }
 }
 
@@ -599,7 +755,7 @@ void QtProject_1::onStartStageCapture()
     }
 
     syncSavePath();
-    m_savePath.beginStageCapture(); // 阶段存图：{保存路径}/Loop001/阶段名/Pic001.bmp
+    m_savePath.beginStageCapture(); // 阶段存图：{保存路径}/阶段名/Pic001.bmp
     const QList<StageItem> stages = readStageListFromTable();
     m_stageMgr.setStages(stages);
     const int loopCount = ui.loopCountSpin->value();
@@ -612,8 +768,6 @@ void QtProject_1::onStartStageCapture()
         log(QStringLiteral("[警告] 阶段采集启动失败：预览未就绪。"));
         return;
     }
-
-    resetEnqueueFrameSeqFromCamera();
 
     m_stageRunning = true;
     m_displayTimer.setInterval(33);
@@ -632,7 +786,6 @@ void QtProject_1::onStartStageCapture()
                 .arg(qRound(st.durationSec * st.fps))
                 .arg(st.saveImage ? QStringLiteral("，存图") : QStringLiteral("，仅计时")));
     }
-    ui.rightTabWidget->setCurrentWidget(ui.stageSaveTab);
     m_stageMgr.start();
     refreshButtonState();
 }
@@ -669,7 +822,7 @@ void QtProject_1::onStageStarted(const QString &name, const QDateTime &startTime
     log(QStringLiteral("阶段开始: 第%1轮 %2 → %3/")
             .arg(loopIndex)
             .arg(name)
-            .arg(QStringLiteral("Loop%1").arg(loopIndex, 3, 10, QChar('0'))));
+            .arg(name + QStringLiteral("/")));
     setStageStatus(QStringLiteral("第%1轮 运行中: %2").arg(loopIndex).arg(name));
     Q_UNUSED(startTime);
 }
@@ -705,10 +858,9 @@ void QtProject_1::onStageFinished(const QString &name,
 
 void QtProject_1::onStageLoopStarted(int loopIndex, int totalLoops)
 {
-    log(QStringLiteral("第 %1/%2 轮开始（存图目录 Loop%3/阶段名/）。")
+    log(QStringLiteral("第 %1/%2 轮开始（存图目录 {保存路径}/阶段名/）。")
             .arg(loopIndex)
-            .arg(totalLoops)
-            .arg(loopIndex, 3, 10, QChar('0')));
+            .arg(totalLoops));
     setStageStatus(QStringLiteral("第 %1/%2 轮").arg(loopIndex).arg(totalLoops));
 }
 
@@ -739,14 +891,9 @@ void QtProject_1::onSaveThreadFinished(const QString &path, bool ok, const QStri
     {
         m_savePath.onFileSaved();
         if (ackStage)
-        {
             m_stageMgr.notifySaveWriteFinished(true);
-            setStageStatus(m_stageStatusText);
-        }
         else if (!inStageCapture)
-        {
             log(QStringLiteral("已保存: %1").arg(path));
-        }
     }
     else
     {
@@ -758,26 +905,28 @@ void QtProject_1::onSaveThreadFinished(const QString &path, bool ok, const QStri
     // 存图队列排空后再次尝试完成本阶段（含超时强制完成）
     if (inStageCapture && m_saveThread.queueSize() == 0)
         m_stageMgr.onSaveQueueDrained();
+
+    refreshQueueDependentUi();
+}
+
+void QtProject_1::logSaveQueueWarn(const QString &msg)
+{
+    if (m_shutdownDone)
+        return;
+    log(msg);
+    refreshQueueDependentUi();
 }
 
 void QtProject_1::onSaveQueueBacklog(int queueSize)
 {
-    if (!m_shutdownDone)
-    {
-        log(QStringLiteral("[警告] 存图队列积压 %1 张。").arg(queueSize));
-        setStageStatus(m_stageStatusText);
-    }
+    logSaveQueueWarn(QStringLiteral("[警告] 存图队列积压 %1 张。").arg(queueSize));
 }
 
 void QtProject_1::onSaveQueueFull(int queueSize)
 {
-    if (!m_shutdownDone)
-    {
-        log(QStringLiteral("[警告] 存图队列已满(%1/%2)，本帧已拒绝入队。")
-                .arg(queueSize)
-                .arg(m_saveThread.capacity()));
-        setStageStatus(m_stageStatusText);
-    }
+    logSaveQueueWarn(QStringLiteral("[警告] 存图队列已满(%1/%2)，本帧已拒绝入队。")
+                         .arg(queueSize)
+                         .arg(m_saveThread.capacity()));
 }
 
 void QtProject_1::onAddStage()
@@ -803,7 +952,7 @@ bool QtProject_1::validateStageTable()
         auto *nameItem = ui.stageTable->item(r, ColName);
         auto *durItem = ui.stageTable->item(r, ColDuration);
         auto *fpsItem = ui.stageTable->item(r, ColFps);
-        // 列 1：阶段名
+        // ColName 列：阶段名称非空
         if (!nameItem || nameItem->text().trimmed().isEmpty())
         {
             QMessageBox::warning(this, QStringLiteral("阶段采集"),

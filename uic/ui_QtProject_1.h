@@ -14,6 +14,7 @@
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QFormLayout>
+#include <QtWidgets/QFrame>
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QHBoxLayout>
@@ -22,10 +23,10 @@
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QPlainTextEdit>
 #include <QtWidgets/QPushButton>
+#include <QtWidgets/QScrollArea>
 #include <QtWidgets/QSpacerItem>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QSplitter>
-#include <QtWidgets/QTabWidget>
 #include <QtWidgets/QTableWidget>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QWidget>
@@ -36,17 +37,18 @@ QT_BEGIN_NAMESPACE
 class Ui_QtProject_1Class
 {
 public:
-    QHBoxLayout *mainLayout;
+    QVBoxLayout *mainLayout;
+    QSplitter *outerSplitter;
+    QWidget *topPanel;
+    QVBoxLayout *topPanelLayout;
     QSplitter *mainSplitter;
     QGroupBox *previewGroup;
     QVBoxLayout *previewLayout;
     PreviewWidget *imageLabel;
     QLabel *previewInfoLabel;
-    QWidget *rightPanel;
-    QVBoxLayout *rightLayout;
-    QTabWidget *rightTabWidget;
-    QWidget *captureTab;
-    QVBoxLayout *captureTabLayout;
+    QScrollArea *workflowScroll;
+    QWidget *workflowContainer;
+    QVBoxLayout *workflowLayout;
     QGroupBox *cameraConnectGroup;
     QVBoxLayout *cameraConnectLayout;
     QGridLayout *cameraConnectGrid;
@@ -72,9 +74,6 @@ public:
     QPushButton *startGrabBtn;
     QPushButton *stopGrabBtn;
     QPushButton *saveOneBmpBtn;
-    QSpacerItem *captureTabSpacer;
-    QWidget *stageSaveTab;
-    QVBoxLayout *stageSaveTabLayout;
     QGroupBox *stageGroup;
     QVBoxLayout *stageLayout;
     QLabel *stageStatusLabel;
@@ -105,23 +104,37 @@ public:
     QSpinBox *secondsPerFolderSpin;
     QLabel *maxSaveCountLabel;
     QSpinBox *maxSaveCountSpin;
-    QWidget *logTab;
-    QVBoxLayout *logTabLayout;
     QGroupBox *logGroup;
     QVBoxLayout *logLayout;
     QPlainTextEdit *logTextEdit;
     QPushButton *clearLogBtn;
+    QFrame *statusBarFrame;
+    QHBoxLayout *statusBarLayout;
+    QLabel *statusCamera;
+    QLabel *statusStage;
+    QLabel *statusQueue;
+    QLabel *statusTotal;
+    QSpacerItem *statusBarSpacer;
 
     void setupUi(QWidget *QtProject_1Class)
     {
         if (QtProject_1Class->objectName().isEmpty())
             QtProject_1Class->setObjectName(QString::fromUtf8("QtProject_1Class"));
         QtProject_1Class->resize(1280, 800);
-        mainLayout = new QHBoxLayout(QtProject_1Class);
-        mainLayout->setSpacing(8);
+        mainLayout = new QVBoxLayout(QtProject_1Class);
+        mainLayout->setSpacing(6);
         mainLayout->setObjectName(QString::fromUtf8("mainLayout"));
         mainLayout->setContentsMargins(8, 8, 8, 8);
-        mainSplitter = new QSplitter(QtProject_1Class);
+        outerSplitter = new QSplitter(QtProject_1Class);
+        outerSplitter->setObjectName(QString::fromUtf8("outerSplitter"));
+        outerSplitter->setOrientation(Qt::Vertical);
+        topPanel = new QWidget(outerSplitter);
+        topPanel->setObjectName(QString::fromUtf8("topPanel"));
+        topPanelLayout = new QVBoxLayout(topPanel);
+        topPanelLayout->setSpacing(0);
+        topPanelLayout->setObjectName(QString::fromUtf8("topPanelLayout"));
+        topPanelLayout->setContentsMargins(0, 0, 0, 0);
+        mainSplitter = new QSplitter(topPanel);
         mainSplitter->setObjectName(QString::fromUtf8("mainSplitter"));
         mainSplitter->setOrientation(Qt::Horizontal);
         previewGroup = new QGroupBox(mainSplitter);
@@ -130,7 +143,7 @@ public:
         previewLayout->setObjectName(QString::fromUtf8("previewLayout"));
         imageLabel = new PreviewWidget(previewGroup);
         imageLabel->setObjectName(QString::fromUtf8("imageLabel"));
-        imageLabel->setMinimumSize(QSize(640, 512));
+        imageLabel->setMinimumSize(QSize(640, 400));
 
         previewLayout->addWidget(imageLabel);
 
@@ -141,20 +154,19 @@ public:
 
         previewLayout->setStretch(0, 3);
         mainSplitter->addWidget(previewGroup);
-        rightPanel = new QWidget(mainSplitter);
-        rightPanel->setObjectName(QString::fromUtf8("rightPanel"));
-        rightLayout = new QVBoxLayout(rightPanel);
-        rightLayout->setObjectName(QString::fromUtf8("rightLayout"));
-        rightLayout->setContentsMargins(0, 0, 0, 0);
-        rightTabWidget = new QTabWidget(rightPanel);
-        rightTabWidget->setObjectName(QString::fromUtf8("rightTabWidget"));
-        rightTabWidget->setDocumentMode(true);
-        captureTab = new QWidget();
-        captureTab->setObjectName(QString::fromUtf8("captureTab"));
-        captureTabLayout = new QVBoxLayout(captureTab);
-        captureTabLayout->setSpacing(8);
-        captureTabLayout->setObjectName(QString::fromUtf8("captureTabLayout"));
-        cameraConnectGroup = new QGroupBox(captureTab);
+        workflowScroll = new QScrollArea(mainSplitter);
+        workflowScroll->setObjectName(QString::fromUtf8("workflowScroll"));
+        workflowScroll->setFrameShape(QFrame::NoFrame);
+        workflowScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        workflowScroll->setWidgetResizable(true);
+        workflowContainer = new QWidget();
+        workflowContainer->setObjectName(QString::fromUtf8("workflowContainer"));
+        workflowContainer->setGeometry(QRect(0, 0, 520, 720));
+        workflowLayout = new QVBoxLayout(workflowContainer);
+        workflowLayout->setSpacing(8);
+        workflowLayout->setObjectName(QString::fromUtf8("workflowLayout"));
+        workflowLayout->setContentsMargins(4, 4, 4, 4);
+        cameraConnectGroup = new QGroupBox(workflowContainer);
         cameraConnectGroup->setObjectName(QString::fromUtf8("cameraConnectGroup"));
         cameraConnectLayout = new QVBoxLayout(cameraConnectGroup);
         cameraConnectLayout->setSpacing(6);
@@ -192,9 +204,9 @@ public:
         cameraConnectLayout->addWidget(cameraStatusLabel);
 
 
-        captureTabLayout->addWidget(cameraConnectGroup);
+        workflowLayout->addWidget(cameraConnectGroup);
 
-        cameraParamGroup = new QGroupBox(captureTab);
+        cameraParamGroup = new QGroupBox(workflowContainer);
         cameraParamGroup->setObjectName(QString::fromUtf8("cameraParamGroup"));
         cameraParamLayout = new QVBoxLayout(cameraParamGroup);
         cameraParamLayout->setSpacing(6);
@@ -256,9 +268,9 @@ public:
         cameraParamLayout->addWidget(paramRangeLabel);
 
 
-        captureTabLayout->addWidget(cameraParamGroup);
+        workflowLayout->addWidget(cameraParamGroup);
 
-        cameraCaptureGroup = new QGroupBox(captureTab);
+        cameraCaptureGroup = new QGroupBox(workflowContainer);
         cameraCaptureGroup->setObjectName(QString::fromUtf8("cameraCaptureGroup"));
         cameraCaptureLayout = new QVBoxLayout(cameraCaptureGroup);
         cameraCaptureLayout->setSpacing(6);
@@ -287,19 +299,9 @@ public:
         cameraCaptureLayout->addWidget(saveOneBmpBtn);
 
 
-        captureTabLayout->addWidget(cameraCaptureGroup);
+        workflowLayout->addWidget(cameraCaptureGroup);
 
-        captureTabSpacer = new QSpacerItem(20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
-
-        captureTabLayout->addItem(captureTabSpacer);
-
-        rightTabWidget->addTab(captureTab, QString());
-        stageSaveTab = new QWidget();
-        stageSaveTab->setObjectName(QString::fromUtf8("stageSaveTab"));
-        stageSaveTabLayout = new QVBoxLayout(stageSaveTab);
-        stageSaveTabLayout->setSpacing(8);
-        stageSaveTabLayout->setObjectName(QString::fromUtf8("stageSaveTabLayout"));
-        stageGroup = new QGroupBox(stageSaveTab);
+        stageGroup = new QGroupBox(workflowContainer);
         stageGroup->setObjectName(QString::fromUtf8("stageGroup"));
         stageLayout = new QVBoxLayout(stageGroup);
         stageLayout->setObjectName(QString::fromUtf8("stageLayout"));
@@ -311,6 +313,7 @@ public:
 
         stageTable = new QTableWidget(stageGroup);
         stageTable->setObjectName(QString::fromUtf8("stageTable"));
+        stageTable->setMinimumSize(QSize(0, 120));
 
         stageLayout->addWidget(stageTable);
 
@@ -381,9 +384,9 @@ public:
         stageLayout->addLayout(stageBtnOuterLayout);
 
 
-        stageSaveTabLayout->addWidget(stageGroup);
+        workflowLayout->addWidget(stageGroup);
 
-        saveSettingGroup = new QGroupBox(stageSaveTab);
+        saveSettingGroup = new QGroupBox(workflowContainer);
         saveSettingGroup->setObjectName(QString::fromUtf8("saveSettingGroup"));
         saveSettingForm = new QFormLayout(saveSettingGroup);
         saveSettingForm->setObjectName(QString::fromUtf8("saveSettingForm"));
@@ -457,14 +460,15 @@ public:
         saveSettingForm->setWidget(4, QFormLayout::FieldRole, maxSaveCountSpin);
 
 
-        stageSaveTabLayout->addWidget(saveSettingGroup);
+        workflowLayout->addWidget(saveSettingGroup);
 
-        rightTabWidget->addTab(stageSaveTab, QString());
-        logTab = new QWidget();
-        logTab->setObjectName(QString::fromUtf8("logTab"));
-        logTabLayout = new QVBoxLayout(logTab);
-        logTabLayout->setObjectName(QString::fromUtf8("logTabLayout"));
-        logGroup = new QGroupBox(logTab);
+        workflowScroll->setWidget(workflowContainer);
+        mainSplitter->addWidget(workflowScroll);
+
+        topPanelLayout->addWidget(mainSplitter);
+
+        outerSplitter->addWidget(topPanel);
+        logGroup = new QGroupBox(outerSplitter);
         logGroup->setObjectName(QString::fromUtf8("logGroup"));
         logLayout = new QVBoxLayout(logGroup);
         logLayout->setObjectName(QString::fromUtf8("logLayout"));
@@ -472,6 +476,7 @@ public:
         logTextEdit->setObjectName(QString::fromUtf8("logTextEdit"));
         logTextEdit->setReadOnly(true);
         logTextEdit->setMaximumBlockCount(2000);
+        logTextEdit->setMinimumSize(QSize(0, 120));
 
         logLayout->addWidget(logTextEdit);
 
@@ -480,22 +485,48 @@ public:
 
         logLayout->addWidget(clearLogBtn);
 
+        outerSplitter->addWidget(logGroup);
 
-        logTabLayout->addWidget(logGroup);
+        mainLayout->addWidget(outerSplitter);
 
-        rightTabWidget->addTab(logTab, QString());
+        statusBarFrame = new QFrame(QtProject_1Class);
+        statusBarFrame->setObjectName(QString::fromUtf8("statusBarFrame"));
+        statusBarFrame->setFrameShape(QFrame::StyledPanel);
+        statusBarFrame->setMinimumSize(QSize(0, 24));
+        statusBarFrame->setMaximumSize(QSize(16777215, 24));
+        statusBarLayout = new QHBoxLayout(statusBarFrame);
+        statusBarLayout->setSpacing(12);
+        statusBarLayout->setObjectName(QString::fromUtf8("statusBarLayout"));
+        statusBarLayout->setContentsMargins(8, 2, 8, 2);
+        statusCamera = new QLabel(statusBarFrame);
+        statusCamera->setObjectName(QString::fromUtf8("statusCamera"));
 
-        rightLayout->addWidget(rightTabWidget);
+        statusBarLayout->addWidget(statusCamera);
 
-        mainSplitter->addWidget(rightPanel);
+        statusStage = new QLabel(statusBarFrame);
+        statusStage->setObjectName(QString::fromUtf8("statusStage"));
 
-        mainLayout->addWidget(mainSplitter);
+        statusBarLayout->addWidget(statusStage);
+
+        statusQueue = new QLabel(statusBarFrame);
+        statusQueue->setObjectName(QString::fromUtf8("statusQueue"));
+
+        statusBarLayout->addWidget(statusQueue);
+
+        statusTotal = new QLabel(statusBarFrame);
+        statusTotal->setObjectName(QString::fromUtf8("statusTotal"));
+
+        statusBarLayout->addWidget(statusTotal);
+
+        statusBarSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+
+        statusBarLayout->addItem(statusBarSpacer);
+
+
+        mainLayout->addWidget(statusBarFrame);
 
 
         retranslateUi(QtProject_1Class);
-
-        rightTabWidget->setCurrentIndex(0);
-
 
         QMetaObject::connectSlotsByName(QtProject_1Class);
     } // setupUi
@@ -504,7 +535,7 @@ public:
     {
         QtProject_1Class->setWindowTitle(QCoreApplication::translate("QtProject_1Class", "Basler \347\233\270\346\234\272\351\207\207\351\233\206", nullptr));
         previewGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\345\233\276\345\203\217\351\242\204\350\247\210 (2592 x 2048)", nullptr));
-        previewInfoLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\230\276\347\244\272\345\210\267\346\226\260: 50ms", nullptr));
+        previewInfoLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\230\276\347\244\272\345\210\267\346\226\260: 33ms", nullptr));
         cameraConnectGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\350\277\236\346\216\245\347\233\270\346\234\272", nullptr));
         cameraSelectLabel->setText(QCoreApplication::translate("QtProject_1Class", "\347\233\270\346\234\272\350\256\276\345\244\207", nullptr));
         openCameraBtn->setText(QCoreApplication::translate("QtProject_1Class", "\346\211\223\345\274\200\347\233\270\346\234\272", nullptr));
@@ -520,7 +551,6 @@ public:
         startGrabBtn->setText(QCoreApplication::translate("QtProject_1Class", "\345\274\200\345\247\213\351\207\207\351\233\206", nullptr));
         stopGrabBtn->setText(QCoreApplication::translate("QtProject_1Class", "\345\201\234\346\255\242\351\207\207\351\233\206", nullptr));
         saveOneBmpBtn->setText(QCoreApplication::translate("QtProject_1Class", "\344\277\235\345\255\230\345\215\225\345\274\240 BMP", nullptr));
-        rightTabWidget->setTabText(rightTabWidget->indexOf(captureTab), QCoreApplication::translate("QtProject_1Class", "\351\207\207\351\233\206\346\216\247\345\210\266", nullptr));
         stageGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\351\230\266\346\256\265\351\207\207\351\233\206", nullptr));
         stageStatusLabel->setText(QCoreApplication::translate("QtProject_1Class", "\345\275\223\345\211\215\346\227\240\350\277\220\350\241\214\344\270\255\347\232\204\351\230\266\346\256\265", nullptr));
         addStageBtn->setText(QCoreApplication::translate("QtProject_1Class", "\346\226\260\345\242\236", nullptr));
@@ -540,10 +570,12 @@ public:
         picsPerFolderLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\257\217\346\226\207\344\273\266\345\244\271\345\274\240\346\225\260", nullptr));
         secondsPerFolderLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\257\217\346\226\207\344\273\266\345\244\271\347\247\222\346\225\260", nullptr));
         maxSaveCountLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\200\273\344\277\235\345\255\230\344\270\212\351\231\220(0\344\270\215\351\231\220)", nullptr));
-        rightTabWidget->setTabText(rightTabWidget->indexOf(stageSaveTab), QCoreApplication::translate("QtProject_1Class", "\351\230\266\346\256\265\344\270\216\345\255\230\345\233\276", nullptr));
         logGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\350\277\220\350\241\214\346\227\245\345\277\227", nullptr));
         clearLogBtn->setText(QCoreApplication::translate("QtProject_1Class", "\346\270\205\347\251\272\346\227\245\345\277\227", nullptr));
-        rightTabWidget->setTabText(rightTabWidget->indexOf(logTab), QCoreApplication::translate("QtProject_1Class", "\346\227\245\345\277\227", nullptr));
+        statusCamera->setText(QCoreApplication::translate("QtProject_1Class", "\347\233\270\346\234\272: \346\234\252\350\277\236\346\216\245", nullptr));
+        statusStage->setText(QCoreApplication::translate("QtProject_1Class", "\351\230\266\346\256\265: \347\251\272\351\227\262", nullptr));
+        statusQueue->setText(QCoreApplication::translate("QtProject_1Class", "\351\230\237\345\210\227: 0/48", nullptr));
+        statusTotal->setText(QCoreApplication::translate("QtProject_1Class", "\346\200\273\344\277\235\345\255\230: 0", nullptr));
     } // retranslateUi
 
 };

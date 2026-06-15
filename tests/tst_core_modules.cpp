@@ -17,10 +17,12 @@ class TestSavePathHelper : public QObject
     Q_OBJECT
 private slots:
     void stageFolderPathFormat();
+    void stagePicContinuesAcrossLoops();
     void stagePicIncrement();
     void picPathRetryBeforeSave();
     void sanitizeIllegalChars();
     void saveLimitReached();
+    void resumeCountsLoopDirs();
 };
 
 void TestSavePathHelper::stageFolderPathFormat()
@@ -35,8 +37,28 @@ void TestSavePathHelper::stageFolderPathFormat()
     const QString path = helper.nextFilePath(&ok);
     QVERIFY(ok);
     QVERIFY(path.endsWith(QStringLiteral("Pic001.bmp")));
-    QVERIFY(path.contains(QStringLiteral("Loop001")));
+    QVERIFY(!path.contains(QStringLiteral("Loop")));
     QVERIFY(path.contains(QStringLiteral("阶段1")));
+}
+
+void TestSavePathHelper::stagePicContinuesAcrossLoops()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    SavePathHelper helper;
+    helper.setRootPath(temp.path());
+    helper.beginStageCapture();
+    helper.setStageContext(1, QStringLiteral("阶段1"));
+    bool ok = false;
+    const QString p1 = helper.nextFilePath(&ok);
+    QVERIFY(ok);
+    QVERIFY(p1.contains(QStringLiteral("Pic001.bmp")));
+    helper.onFileSaved();
+    helper.setStageContext(2, QStringLiteral("阶段1"));
+    bool ok2 = false;
+    const QString p2 = helper.nextFilePath(&ok2);
+    QVERIFY(ok2);
+    QVERIFY(p2.contains(QStringLiteral("Pic002.bmp")));
 }
 
 void TestSavePathHelper::stagePicIncrement()
@@ -101,13 +123,34 @@ void TestSavePathHelper::saveLimitReached()
     helper.beginStageCapture();
     helper.setStageContext(1, QStringLiteral("lim"));
     bool ok = false;
-    helper.nextFilePath(&ok);
+    const QString path = helper.nextFilePath(&ok);
     QVERIFY(ok);
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("x");
+    file.close();
     helper.onFileSaved();
     QVERIFY(helper.isSaveLimitReached());
     bool ok2 = false;
     QVERIFY(helper.nextFilePath(&ok2) == QString());
     QVERIFY(!ok2);
+}
+
+void TestSavePathHelper::resumeCountsLoopDirs()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString stageDir = temp.path() + QStringLiteral("/阶段1");
+    QVERIFY(QDir().mkpath(stageDir));
+    QFile file(stageDir + QStringLiteral("/Pic001.bmp"));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("x");
+    file.close();
+
+    SavePathHelper helper;
+    helper.setRootPath(temp.path());
+    helper.resumeFromDisk();
+    QCOMPARE(helper.totalSaved(), 1);
 }
 
 // --- ImageSaveThread ---

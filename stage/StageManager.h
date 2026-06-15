@@ -62,7 +62,7 @@ private:
     bool m_running = false;
     bool m_userStop = false;     // stop() 置位，advance 时不再进入下一阶段
     QTimer m_frameTickTimer;     // 周期：存图/计帧节拍（间隔 1000/fps ms）
-    int m_targetFrameCount = 0;  // 本阶段目标帧数 = round(时长 × 帧率)
+    int m_targetFrameCount = 0;  // 本阶段目标帧数 = round(时长×fps)；fps≤0 时为 0，立即跳过本阶段
     int m_frameCount = 0;        // 本阶段已过帧数
     int m_saveRequestCount = 0;  // 本阶段实际入队成功次数
     bool m_awaitingEnqueueAck = false; // 已 emit 存图请求、尚未收到入队结果

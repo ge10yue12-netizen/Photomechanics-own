@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QtWidgets/QWidget>
+#include <QFileSystemWatcher>
 #include <QTimer>
 #include "camera/CameraController.h"
 #include "core/AppLogger.h"
@@ -20,6 +21,8 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private slots:
     // 相机连接与预览
@@ -61,6 +64,7 @@ private slots:
     void onSaveThreadFinished(const QString &path, bool ok, const QString &errorMsg);
     void onSaveQueueBacklog(int queueSize);
     void onSaveQueueFull(int queueSize);
+    void logSaveQueueWarn(const QString &msg); // 队列积压/已满：写日志并刷新队列相关 UI
 
     void updateSaveModeUi();
 
@@ -68,12 +72,16 @@ private:
     void log(const QString &msg);
     void setCamStatus(const QString &text, const QString &color);
     void setStageStatus(const QString &text);
+    void refreshStageStatusLabel();      // 按 m_stageStatusText 刷新工作流栏阶段标签（含队列后缀）
+    void refreshQueueDependentUi();      // 队列/总保存变化时统一刷新阶段栏 + 底部状态条
     void setupStageTable();
     void refreshButtonState();       // 按相机/采集/阶段状态统一 enable 控件
     void loadDefaultUiValues();      // 启动时将存图路径与参数控件恢复为固定默认值
     void updateParamSpinLimits();
     bool applyCamParams();
     void syncSavePath();             // 将界面存图配置同步至 m_savePath
+    void resyncSavePathFromDisk();   // 扫描磁盘同步 Pic 序号与总保存显示（外部删改文件后）
+    void updateSaveDirWatcher();     // 监视保存根目录，目录变化时触发 resync
     bool validateStageTable();
     QList<StageItem> readStageListFromTable() const;
     bool enqueueCurrentFrame();    // 复制最新帧并提交存图任务
@@ -87,6 +95,7 @@ private:
     void insertStageRow(int row, const QString &name);
     void refreshStageTableSerialNumbers(); // 按行刷新「序号」列（1-based）
     void updatePreviewInfoLabel();         // 合并状态行与悬停像素信息
+    void updateGlobalStatus();             // 刷新底部状态栏四段摘要
 
     Ui::QtProject_1Class ui;
     CameraController m_camera;
@@ -95,6 +104,9 @@ private:
     SavePathHelper m_savePath;
     AppLogger m_logger;              // 运行日志写入 Log/run_*.log；log() 同步写入文件与界面控件
     QTimer m_displayTimer;           // 预览刷新定时器，间隔约 33 ms（约 30 Hz）
+    QFileSystemWatcher m_saveDirWatcher; // 监视保存根目录，外部删改文件时 resync
+    QTimer m_saveDirResyncTimer;     // 目录变化防抖，避免连续 resync
+    QTimer m_saveCountPollTimer;     // 空闲时周期刷新总保存（子目录删文件 watcher 可能漏报）
     bool m_liveViewActive = false;   // 连续 grab 与预览定时器已启动（打开相机后常开）
     bool m_acquisitionActive = false; // 用户已点击「开始采集」，处于采集业务会话
     bool m_stageRunning = false;     // StageManager 正在执行阶段表
@@ -102,6 +114,8 @@ private:
     QString m_stageStatusText;       // 阶段状态栏文本缓存，用于附加队列长度
     QString m_previewBaseInfo;       // 预览区底部状态行（分辨率、模式、队列等）
     QString m_previewPixelInfo;      // 悬停像素坐标与灰度值片段
+    QString m_statusCameraSummary;   // 底部状态栏「相机」段摘要
+    bool m_initialLayoutApplied = false; // showEvent 首次按比例设置 Splitter 尺寸
     quint64 m_lastEnqueuedFrameSeq = 0; // 阶段存图已入队的最新帧序号，用于去重
     quint64 m_lastDisplayFrameSeq = 0;  // 预览已显示的最新帧序号，用于跳过重复绘制
     QSize m_lastDisplayLabelSize;       // 预览区上次尺寸，尺寸变化时需重绘

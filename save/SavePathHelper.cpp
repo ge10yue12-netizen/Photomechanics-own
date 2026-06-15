@@ -33,16 +33,34 @@ int maxPicInDir(const QDir &dir)
     return maxN;
 }
 
-// 统计根目录及所有 CAMERA 子目录中的 BMP 文件总数（用于 maxSaveCount）
+// 统计目录内 Pic*.bmp 文件数
+int countBmpFilesInDir(const QDir &dir)
+{
+    return dir.entryList(QStringList() << QStringLiteral("Pic*.bmp"), QDir::Files).size();
+}
+
+// 统计 root 下全部 Pic*.bmp：根目录、CAMERA*、阶段子目录、旧版 Loop*/阶段子目录
 int countSavedBmpUnderRoot(const QDir &root)
 {
-    int total = root.entryList(QStringList() << QStringLiteral("Pic*.bmp"), QDir::Files).size();
+    int total = countBmpFilesInDir(root);
     const QStringList subs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QString &name : subs)
     {
-        if (!name.startsWith(QStringLiteral("CAMERA"), Qt::CaseInsensitive))
+        if (name.startsWith(QStringLiteral("CAMERA"), Qt::CaseInsensitive))
+        {
+            total += countBmpFilesInDir(QDir(root.filePath(name)));
             continue;
-        total += QDir(root.filePath(name)).entryList(QStringList() << QStringLiteral("Pic*.bmp"), QDir::Files).size();
+        }
+        // 旧版阶段采集：Loop001/阶段名/Pic*.bmp（兼容历史数据）
+        if (name.length() >= 4 && name.startsWith(QStringLiteral("Loop"), Qt::CaseInsensitive))
+        {
+            const QDir loopDir(root.filePath(name));
+            for (const QString &stageDir : loopDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+                total += countBmpFilesInDir(QDir(loopDir.filePath(stageDir)));
+            continue;
+        }
+        // 阶段采集：{root}/阶段名/Pic*.bmp
+        total += countBmpFilesInDir(QDir(root.filePath(name)));
     }
     return total;
 }
@@ -78,6 +96,23 @@ QString SavePathHelper::defaultRootPath()
     d.cdUp();
     d.cdUp();
     return d.absoluteFilePath(QStringLiteral("Images"));
+}
+
+int SavePathHelper::savedCountOnDisk() const
+{
+    if (m_rootPath.isEmpty())
+        return 0;
+    const QDir root(m_rootPath);
+    if (!root.exists())
+        return 0;
+    return countSavedBmpUnderRoot(root);
+}
+
+bool SavePathHelper::isSaveLimitReached() const
+{
+    if (m_maxSaveCount <= 0)
+        return false;
+    return savedCountOnDisk() >= m_maxSaveCount;
 }
 
 void SavePathHelper::resetSession()
@@ -180,7 +215,7 @@ void SavePathHelper::endStageCapture()
     m_stagePicIndex = 1;
 }
 
-// 每阶段/每轮切换独立子目录，Pic 序号在该目录内从 001 续接
+// 切换阶段子目录；目录为空 Pic 从 001，已有 Pic*.bmp 则从 max+1 续接（多轮同阶段连续编号）
 void SavePathHelper::setStageContext(int loopIndex, const QString &stageName)
 {
     m_loopIndex = loopIndex < 1 ? 1 : loopIndex;
@@ -194,11 +229,9 @@ void SavePathHelper::setStageContext(int loopIndex, const QString &stageName)
     if (QDir(dir).exists())
         m_stagePicIndex = maxPicInDir(QDir(dir)) + 1;
 }
-
 QString SavePathHelper::stageFolderPath() const
 {
-    const QString loopDir = QStringLiteral("Loop%1").arg(m_loopIndex, 3, 10, QChar('0'));
-    return QDir(m_rootPath).filePath(loopDir + QLatin1Char('/') + sanitizeFolderName(m_stageName));
+    return QDir(m_rootPath).filePath(sanitizeFolderName(m_stageName));
 }
 
 void SavePathHelper::onFileSaved()
@@ -265,7 +298,7 @@ QString SavePathHelper::nextFilePath(bool *ok)
     if (m_rootPath.isEmpty() || isSaveLimitReached())
         return QString();
 
-    // 阶段采集：{root}/Loop001/阶段名/Pic001.bmp，每阶段独立目录、Pic 从 001 起
+    // 阶段采集：{root}/阶段名/Pic001.bmp，每阶段独立目录、多轮同阶段 Pic 连续编号
     if (m_stageCaptureActive)
     {
         if (m_loopIndex < 1 || m_stageName.isEmpty())

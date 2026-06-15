@@ -733,7 +733,7 @@ sequenceDiagram
 3. 点 **开始阶段采集**
 4. 软件按表 **顺序** 执行：阶段1 → 阶段2 → … → 若有多轮则重复
 5. 每个勾了存图的阶段，按公式保存固定张数 BMP
-6. 日志 Tab 输出「阶段开始 / 阶段结束（入队、已写）」
+6. 日志栏输出「阶段开始 / 阶段结束（入队、已写）」
 
 ---
 
@@ -1256,21 +1256,36 @@ sequenceDiagram
 
 ```
 QtProject_1 (QWidget)
-└── mainSplitter [左3 : 右2]
-    ├── previewGroup
-    │   ├── imageLabel          ← 相机画面
-    │   └── previewInfoLabel    ← 分辨率 / 模式 / 队列
-    └── rightTabWidget
-        ├── captureTab          ← 采集控制
-        ├── stageSaveTab        ← 阶段与存图
-        └── logTab              ← 日志
+├── outerSplitter [上5 : 下2，下半可拖到 0 收起]
+│   ├── topPanel
+│   │   └── mainSplitter [左5 : 右4]
+│   │       ├── previewGroup
+│   │       │   ├── imageLabel          ← 相机画面
+│   │       │   └── previewInfoLabel    ← 分辨率 / 模式 / 队列 / 像素灰度
+│   │       └── workflowScroll (QScrollArea)
+│   │           └── workflowContainer (5 个 GroupBox 自顶向下)
+│   │               ├── cameraConnectGroup   ← ① 连接相机
+│   │               ├── cameraParamGroup     ← ② 调节参数
+│   │               ├── cameraCaptureGroup   ← ③ 采集 / 单张存图
+│   │               ├── stageGroup           ← ④ 阶段表 + 循环 + 启停
+│   │               └── saveSettingGroup     ← ⑤ 存图设置
+│   └── logGroup (横贯下半)
+│       ├── logTextEdit
+│       └── clearLogBtn
+└── statusBarFrame (底部 24 px 状态条)
+    ├── statusCamera   ← 相机摘要
+    ├── statusStage    ← 阶段摘要
+    ├── statusQueue    ← 队列 N/48（≥80% 红字告警）
+    └── statusTotal    ← 总保存累计
 ```
 
-**样式**：构造函数内 `setStyleSheet` — 蓝 primary / 红 danger 按钮。
+**布局原则**：单一界面工作流——5 个 GroupBox 自顶向下即操作流程；预览与日志同屏可见；底部状态条常驻全局摘要。
+
+**样式**：构造函数内 `setStyleSheet` — 蓝 primary / 红 danger 按钮；状态条浅灰底加顶部分隔线。
 
 ---
 
-## 2. Tab「采集控制」控件表
+## 2. 工作流栏「① 连接相机 + ② 调节参数 + ③ 采集」控件表
 
 | objectName | 类型 | 槽 / 作用 |
 |------------|------|-----------|
@@ -1289,11 +1304,11 @@ QtProject_1 (QWidget)
 
 ---
 
-## 3. Tab「阶段与存图」控件表
+## 3. 工作流栏「④ 阶段表 + ⑤ 存图设置」控件表
 
 | objectName | 类型 | 槽 / 作用 |
 |------------|------|-----------|
-| `stageTable` | QTableWidget | 4 列：名称/时长/fps/存图 |
+| `stageTable` | QTableWidget | 5 列：序号/名称/时长/fps/存图 |
 | `loopCountSpin` | QSpinBox | 循环次数 → `setLoopCount` |
 | `addStageBtn` | QPushButton | → `onAddStage` |
 | `deleteStageBtn` | QPushButton | → `onDeleteStage` |
@@ -1308,7 +1323,7 @@ QtProject_1 (QWidget)
 | `secondsPerFolderSpin` | QSpinBox | 按时间分夹 T 秒 |
 | `maxSaveCountSpin` | QSpinBox | 总上限 0=不限 |
 
-**阶段表默认**：`setupStageTable` 插入一行「阶段1」，1.0s，20fps，未勾存图。
+**阶段表默认**：`setupStageTable` 插入一行「阶段1」，1.0s，20fps，默认勾选存图。
 
 ---
 
@@ -1573,7 +1588,7 @@ flowchart TD
 
 ### 4.3 建议调试手段
 
-1. 看 **日志 Tab** 全文  
+1. 看 **日志栏** 全文  
 2. 数 **Images/** 下 Pic 数量  
 3. 对照 **docs/STAGE_CAPTURE.md** 时序图  
 4. 在 `onStageFinished` / `notifySaveEnqueued` 打断点  
