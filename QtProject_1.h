@@ -2,8 +2,13 @@
 
 #include <QtWidgets/QWidget>
 #include <QFileSystemWatcher>
+#include <QJsonObject>
 #include <QTimer>
+#include <QLabel>
 #include "camera/CameraController.h"
+#include "remote/ble/BleControlServer.h"
+#include "remote/RemoteControlServer.h"
+#include "remote/NetConfigHelper.h"
 #include "core/AppLogger.h"
 #include "stage/StageManager.h"
 #include "save/ImageSaveThread.h"
@@ -36,6 +41,7 @@ private slots:
     void onDisplayTimer();
     void onPreviewPixelInfo(int x, int y, int gray, bool valid); // 预览区悬停像素读数
     void onCameraError(const QString &message);
+    void onRemoteCommand(const QString &cmd);
 
     // 阶段表编辑
     void onAddStage();
@@ -96,6 +102,11 @@ private:
     void refreshStageTableSerialNumbers(); // 按行刷新「序号」列（1-based）
     void updatePreviewInfoLabel();         // 合并状态行与悬停像素信息
     void updateGlobalStatus();             // 刷新底部状态栏四段摘要
+    QJsonObject buildRemoteStatusJson() const;
+    QString remoteCommandText(const QString &cmd) const;
+    void refreshBleStatusLabel();
+    void refreshHttpStatusLabel();
+    void pushRemoteStatus();
 
     Ui::QtProject_1Class ui;
     CameraController m_camera;
@@ -103,6 +114,10 @@ private:
     ImageSaveThread m_saveThread;
     SavePathHelper m_savePath;
     AppLogger m_logger;              // 运行日志写入 Log/run_*.log；log() 同步写入文件与界面控件
+    BleControlServer m_bleServer;    // 微信小程序 BLE 遥控 GATT 服务
+    RemoteControlServer m_httpServer; // 局域网 HTTP 遥控（与 BLE 并存）
+    QLabel *m_bleStatusLabel = nullptr;
+    QLabel *m_httpStatusLabel = nullptr;
     QTimer m_displayTimer;           // 预览刷新定时器，间隔约 33 ms（约 30 Hz）
     QFileSystemWatcher m_saveDirWatcher; // 监视保存根目录，外部删改文件时 resync
     QTimer m_saveDirResyncTimer;     // 目录变化防抖，避免连续 resync

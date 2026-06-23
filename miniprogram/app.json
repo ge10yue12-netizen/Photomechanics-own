@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "pages/control/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "采集控制程序",
+    "navigationBarBackgroundColor": "#0078d4",
+    "navigationBarTextStyle": "white"
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "Android 扫描 BLE 设备需要定位权限"
+    }
+  },
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,4 +1,4 @@
----
+﻿---
 description: QtProject_1 Skill 覆盖与 Context7 库
 alwaysApply: true
 ---
@@ -18,15 +18,25 @@ alwaysApply: true
 | debug-helper | `.cursor/skills/debug-helper/SKILL.md` |
 | test-writer | `.cursor/skills/test-writer/SKILL.md` |
 
+## Context7 MCP
+
+查库、查 API、框架用法、第三方 SDK 时优先 MCP `user-context7`：
+
+1. `resolve-library-id` — 按库名解析 ID（每问最多 3 次）
+2. `query-docs` — 用 ID + 具体问题查文档（每问最多 3 次）
+
+下表 ID 已解析，可直接 `query-docs`；未命中时再 `resolve-library-id`。
+
 ## Context7 库
 
-查询 API 时优先解析以下库（按场景选用）：
-
-| 库 | 场景 |
-|----|------|
-| Qt 5.15 | 信号槽、QImage、线程、UI |
-| Basler Pylon | 相机采集、Grab、像素格式 |
-| C++ / MSVC | 语言特性、编译选项 |
+| 库 | Library ID | 场景 |
+|----|------------|------|
+| Qt 5.15 | `/websites/doc_qt_io_archives_qt-5_15` | 信号槽、QImage、线程、UI |
+| Basler Pylon | `/basler/pypylon` | 相机采集、Grab、像素格式（C++ 无专库，API 概念可参考） |
+| C++ / MSVC | `/microsoftdocs/cpp-docs` | 语言特性、编译选项、STL |
+| Windows WinRT / UWP | `/websites/learn_microsoft_en-us_uwp_api` | BLE GATT、`BluetoothAdapter`、`GattServiceProvider` |
+| WinRT 补充 | `/microsoftdocs/winrt-related` | C++/WinRT 绑定、外设角色检测 |
+| 微信小程序 | `/websites/developers_weixin_qq_miniprogram_dev` | BLE Central、写入/订阅特征 |
 
 禁止凭记忆臆测 API 签名；查不到时明确说明并请求用户补充文档。
 

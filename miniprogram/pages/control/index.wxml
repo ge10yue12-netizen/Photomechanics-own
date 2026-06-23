@@ -1,0 +1,70 @@
+<view class="container">
+  <view class="mode-tabs">
+    <view class="mode-tab {{mode === 'wifi' ? 'active' : ''}} {{uiLocked ? 'mode-tab--locked' : ''}}" data-mode="wifi" bindtap="onModeChange">WiFi</view>
+    <view class="mode-tab {{mode === 'ble' ? 'active' : ''}} {{uiLocked ? 'mode-tab--locked' : ''}}" data-mode="ble" bindtap="onModeChange">蓝牙 BLE</view>
+  </view>
+
+  <view class="status-card {{connState}}">
+    <view class="status-title">{{statusTitle}}</view>
+    <view class="status-detail">{{statusDetail}}</view>
+    <view class="error-slot">{{errorHint}}</view>
+    <view class="link-row" wx:if="{{connected}}">
+      <view class="link-dot {{linkLive ? 'live' : ''}}"></view>
+      <text class="link-text">{{linkLive ? '实时连接' : '等待响应…'}}</text>
+    </view>
+    <view class="status-metrics" wx:if="{{connected}}">
+      <view class="metric-row">
+        <text class="label">状态</text>
+        <text class="value">{{statusText}}</text>
+      </view>
+      <view class="metric-row">
+        <text class="label">队列</text>
+        <text class="value">{{queueText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <block wx:if="{{mode === 'wifi'}}">
+    <view class="section-title">WiFi 连接</view>
+    <input class="field-input" disabled="{{uiLocked}}" placeholder="192.168.x.x:18765 " value="{{host}}" bindinput="onHostInput" />
+    <input class="field-input" disabled="{{uiLocked}}" placeholder="口令" value="{{token}}" bindinput="onTokenInput" />
+    <view class="btn-group">
+      <view class="tap-btn tap-btn--primary {{pendingAction === 'connect' ? 'tap-btn--pending' : ''}} {{connConnectDisabled ? 'tap-btn--disabled' : ''}}" hover-class="{{connConnectDisabled ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onConnect">连接 PC</view>
+      <view class="tap-btn tap-btn--secondary {{pendingAction === 'disconnect' ? 'tap-btn--pending' : ''}} {{connDisconnectDisabled ? 'tap-btn--disabled' : ''}}" hover-class="{{connDisconnectDisabled ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onDisconnect">断开连接</view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="btn-group">
+      <view class="tap-btn tap-btn--primary {{pendingAction === 'scan' ? 'tap-btn--pending' : ''}} {{(uiLocked && pendingAction !== 'scan') || connected ? 'tap-btn--disabled' : ''}}" hover-class="{{(uiLocked && pendingAction !== 'scan') || connected ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onRefresh">刷新设备列表</view>
+      <view class="tap-btn tap-btn--secondary {{pendingAction === 'disconnect' ? 'tap-btn--pending' : ''}} {{connDisconnectDisabled ? 'tap-btn--disabled' : ''}}" hover-class="{{connDisconnectDisabled ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onDisconnect">断开连接</view>
+    </view>
+    <view class="device-section">
+      <view class="section-title">附近蓝牙设备</view>
+      <view class="empty" wx:if="{{devices.length === 0}}">扫不到电脑时请改用 WiFi 模式</view>
+      <view wx:for="{{devices}}" wx:key="deviceId" class="device-row {{item.deviceId === selectedDeviceId ? 'selected' : ''}} {{uiLocked ? 'device-row--locked' : ''}}" hover-class="{{uiLocked ? 'none' : 'device-row--down'}}" hover-stay-time="120" bindtap="onSelectDevice" data-id="{{item.deviceId}}" data-name="{{item.name}}">
+        <view class="device-main"><text class="device-name">{{item.name}}</text></view>
+        <text class="device-rssi">{{item.rssi}} dBm</text>
+      </view>
+    </view>
+  </block>
+
+  <view class="section-title">连接相机</view>
+  <view class="btn-grid">
+    <view class="tap-btn tap-btn--primary {{pendingAction === 'open_camera' ? 'tap-btn--pending' : ''}} {{btnState.open_camera ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.open_camera ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="open_camera">打开相机</view>
+    <view class="tap-btn tap-btn--danger {{pendingAction === 'close_camera' ? 'tap-btn--pending' : ''}} {{btnState.close_camera ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.close_camera ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="close_camera">关闭相机</view>
+  </view>
+
+  <view class="section-title">采集与存图</view>
+  <view class="btn-grid">
+    <view class="tap-btn tap-btn--primary {{pendingAction === 'start_capture' ? 'tap-btn--pending' : ''}} {{btnState.start_capture ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.start_capture ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="start_capture">开始采集</view>
+    <view class="tap-btn tap-btn--danger {{pendingAction === 'stop_capture' ? 'tap-btn--pending' : ''}} {{btnState.stop_capture ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.stop_capture ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="stop_capture">停止采集</view>
+    <view class="tap-btn tap-btn--primary {{pendingAction === 'save_one' ? 'tap-btn--pending' : ''}} {{btnState.save_one ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.save_one ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="save_one">保存单张 BMP</view>
+  </view>
+
+  <view class="section-title">阶段采集</view>
+  <view class="btn-grid">
+    <view class="tap-btn tap-btn--primary {{pendingAction === 'start_stage' ? 'tap-btn--pending' : ''}} {{btnState.start_stage ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.start_stage ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="start_stage">开始阶段采集</view>
+    <view class="tap-btn tap-btn--danger {{pendingAction === 'stop_stage' ? 'tap-btn--pending' : ''}} {{btnState.stop_stage ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.stop_stage ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="stop_stage">停止阶段</view>
+  </view>
+</view>

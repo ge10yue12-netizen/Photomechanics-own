@@ -38,12 +38,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;network</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;network</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound"
@@ -69,11 +69,12 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ClCompile>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <!-- /wd26812 /wd26495：Pylon SDK 头；/wd26451：含 CameraController 编译单元 -->
-      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 /await %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)uic;$(ProjectDir)x64\Debug\uic;$(ProjectDir)x64\Debug\moc;$(IntDir)uic;$(IntDir)moc;$(ProjectDir);$(PYLON_DEV)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -81,16 +82,17 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
     <ClCompile>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 /await %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)uic;$(ProjectDir)x64\Release\uic;$(ProjectDir)x64\Release\moc;$(IntDir)uic;$(IntDir)moc;$(ProjectDir);$(PYLON_DEV)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -98,7 +100,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -121,6 +123,31 @@
     <ClCompile Include="save\ImageSaveThread.cpp"/>
     <ClCompile Include="save\SavePathHelper.cpp"/>
     <ClInclude Include="save\SavePathHelper.h"/>
+        <QtMoc Include="remote\ble\BleControlServer.h"/>
+    <QtMoc Include="remote\ble\BleWinRtWorker.h"/>
+    <QtMoc Include="remote\RemoteControlServer.h"/>
+    <ClInclude Include="remote\NetConfigHelper.h"/>
+    <ClInclude Include="remote\RemoteCommandList.h"/>
+    <ClInclude Include="remote\ble\BleProtocol.h"/>
+    <ClInclude Include="remote\ble\BleCommandProtocol.h"/>
+    <ClInclude Include="remote\ble\BleAdapterChecker.h"/>
+    <ClInclude Include="remote\ble\BleGattServerWin.h"/>
+    <ClInclude Include="remote\ble\BleConfigHelper.h"/>
+    <ClInclude Include="remote\ble\WinRtBootstrap.h"/>
+    <ClCompile Include="remote\ble\BleCommandProtocol.cpp"/>
+    <ClCompile Include="remote\ble\BleAdapterChecker.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/await %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+        <ClCompile Include="remote\ble\BleGattServerWin.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/await %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="remote\ble\BleConfigHelper.cpp"/>
+    <ClCompile Include="remote\ble\BleControlServer.cpp"/>
+    <ClCompile Include="remote\ble\BleWinRtWorker.cpp"/>
+    <ClCompile Include="remote\NetConfigHelper.cpp"/>
+    <ClCompile Include="remote\RemoteControlServer.cpp"/>
     <ClCompile Include="stage\StageManager.cpp"/>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
@@ -139,4 +166,5 @@
     <Exec Condition="!Exists('$(ProjectDir)uic\ui_QtProject_1.h')"
           Command="&quot;$(QT_BIN)\uic.exe&quot; &quot;$(ProjectDir)QtProject_1.ui&quot; -o &quot;$(ProjectDir)uic\ui_QtProject_1.h&quot;" />
   </Target>
+
 </Project>

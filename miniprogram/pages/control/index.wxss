@@ -1,0 +1,63 @@
+/* ========== 调色板（改颜色只改这里，单位 rgb） ========== */
+/* 主色:     rgb(0, 120, 212)    主色深:   rgb(0, 90, 158)     */
+/* 成功:     rgb(16, 124, 16)    成功底:   rgb(238, 248, 238)  */
+/* 危险:     rgb(196, 43, 28)    危险深:   rgb(148, 30, 20)    */
+/* 危险底:   rgb(253, 242, 241)  警告:     rgb(202, 80, 16)     */
+/* 警告底:   rgb(253, 246, 239)  信息底:   rgb(238, 246, 252)  */
+/* 主文字:   rgb(34, 34, 34)     次文字:   rgb(85, 85, 85)     */
+/* 灰文字:   rgb(102, 102, 102)  提示:     rgb(136, 136, 136)  */
+/* 标题:     rgb(68, 68, 68)     页面底:   rgb(245, 245, 245)  */
+/* 卡片白:   rgb(255, 255, 255)  次要底:   rgb(236, 236, 236)  */
+/* 按下灰:   rgb(232, 232, 232)  边框灰:   rgb(153, 153, 153)  */
+/* 浅边框:   rgb(200, 200, 200)  灰点:     rgb(187, 187, 187)  */
+/* ================================================== */
+
+.container { padding: 24rpx; }
+
+.status-card { border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx; background: rgb(245, 245, 245); border-left: 8rpx solid rgb(153, 153, 153); }
+.status-card.scanning { border-color: rgb(0, 120, 212); background: rgb(238, 246, 252); }
+.status-card.connecting { border-color: rgb(202, 80, 16); background: rgb(253, 246, 239); }
+.status-card.connected { border-color: rgb(16, 124, 16); background: rgb(238, 248, 238); }
+.status-card.error { border-color: rgb(196, 43, 28); background: rgb(253, 242, 241); }
+
+.status-title { font-size: 32rpx; font-weight: 700; color: rgb(34, 34, 34); margin-bottom: 8rpx; }
+.status-detail { font-size: 26rpx; color: rgb(85, 85, 85); line-height: 1.5; }
+.error-slot { min-height: 32rpx; margin-top: 8rpx; font-size: 24rpx; color: rgb(196, 43, 28); line-height: 1.5; }
+
+.status-metrics { margin-top: 12rpx; }
+.metric-row { display: flex; justify-content: space-between; margin-top: 8rpx; }
+.label { color: rgb(102, 102, 102); font-size: 26rpx; }
+.value { color: rgb(34, 34, 34); font-weight: 600; font-size: 26rpx; }
+
+.btn-group, .btn-grid { display: flex; flex-wrap: wrap; gap: 16rpx; margin-bottom: 24rpx; }
+.section-title { font-size: 28rpx; color: rgb(68, 68, 68); margin: 8rpx 0 16rpx; font-weight: 600; }
+
+.device-section { margin-bottom: 24rpx; }
+.empty { color: rgb(136, 136, 136); font-size: 24rpx; line-height: 1.6; padding: 16rpx; background: rgb(255, 255, 255); border-radius: 12rpx; }
+.device-row { display: flex; justify-content: space-between; align-items: center; padding: 24rpx; margin-bottom: 12rpx; background: rgb(255, 255, 255); border-radius: 12rpx; box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04); }
+.device-row.selected { outline: 2rpx solid rgb(0, 120, 212); }
+.device-row--locked { opacity: 0.5; }
+.device-row--down { background: rgb(232, 232, 232); }
+.device-main { display: flex; align-items: center; gap: 12rpx; }
+.device-name { font-size: 28rpx; color: rgb(34, 34, 34); }
+.device-rssi { font-size: 24rpx; color: rgb(136, 136, 136); }
+
+.mode-tabs { display: flex; gap: 12rpx; margin-bottom: 24rpx; }
+.mode-tab { flex: 1; text-align: center; padding: 20rpx; background: rgb(255, 255, 255); border-radius: 12rpx; color: rgb(102, 102, 102); font-size: 28rpx; }
+.mode-tab.active { background: rgb(0, 120, 212); color: rgb(255, 255, 255); font-weight: 600; }
+.mode-tab--locked { opacity: 0.55; }
+
+.field-input { background: rgb(255, 255, 255); padding: 16rpx; border-radius: 8rpx; margin-bottom: 16rpx; }
+
+.link-row { display: flex; align-items: center; gap: 12rpx; margin-top: 12rpx; }
+.link-dot { width: 14rpx; height: 14rpx; border-radius: 50%; background: rgb(187, 187, 187); flex-shrink: 0; }
+.link-dot.live { background: rgb(16, 124, 16); }
+.link-text { font-size: 24rpx; color: rgb(16, 124, 16); }
+
+.tap-btn { flex: 1 1 45%; box-sizing: border-box; text-align: center; padding: 22rpx 12rpx; border-radius: 12rpx; font-size: 28rpx; font-weight: 500; line-height: 1.35; user-select: none; }
+.tap-btn--primary { background: rgb(0, 120, 212); color: rgb(255, 255, 255); box-shadow: 0 6rpx 0 rgb(0, 90, 158); }
+.tap-btn--danger { background: rgb(196, 43, 28); color: rgb(255, 255, 255); box-shadow: 0 6rpx 0 rgb(148, 30, 20); }
+.tap-btn--secondary { background: rgb(236, 236, 236); color: rgb(51, 51, 51); box-shadow: 0 6rpx 0 rgb(200, 200, 200); }
+.tap-btn--down { transform: translateY(6rpx); box-shadow: none; filter: brightness(0.86); }
+.tap-btn--pending { transform: translateY(6rpx); box-shadow: inset 0 6rpx 14rpx rgba(0, 0, 0, 0.28); filter: brightness(0.78); }
+.tap-btn--disabled { opacity: 0.42; box-shadow: none; transform: none; filter: none; pointer-events: none; }
