@@ -7,6 +7,8 @@
 #include <QLabel>
 #include "camera/CameraController.h"
 #include "remote/RemoteHost.h"
+#include "remote-qr/MobileHost.h"
+#include "remote-qr/RemoteControlDialog.h"
 #include "core/AppLogger.h"
 #include "stage/StageManager.h"
 #include "save/ImageSaveThread.h"
@@ -43,6 +45,7 @@ private slots:
     void onCameraError(const QString &message);
     // HTTP/BLE 遥控命令入口，与主界面按钮共用同一套业务槽。
     void onRemoteCommand(const QString &cmd);
+    void onMobileRemoteControl();
 
     // 阶段表编辑
     void onAddStage();
@@ -108,6 +111,7 @@ private:
     // 组装遥控状态 JSON，供 HTTP 响应与 BLE Notify 共用。
     QJsonObject buildRemoteStatusJson() const;
     void pushRemoteStatus();
+    void refreshMobileStatusLabel();
 
     Ui::QtProject_1Class ui;
     CameraController m_camera;
@@ -116,8 +120,11 @@ private:
     SavePathHelper m_savePath;
     AppLogger m_logger;              // 运行日志写入 Log/run_*.log；log() 同步写入文件与界面控件
     RemoteHost m_remoteHost;
+    MobileHost m_mobileHost;
+    RemoteControlDialog *m_mobileDialog = nullptr;
     QLabel *m_bleStatusLabel = nullptr;
     QLabel *m_httpStatusLabel = nullptr;
+    QLabel *m_mobileStatusLabel = nullptr;
     GuideManager *m_startupGuide = nullptr;       // GuideKit 实例
     bool m_startupGuideScheduled = false;         // showEvent 中仅调度一次 startIfNeeded
     QTimer m_displayTimer;           // 预览刷新定时器，间隔约 33 ms（约 30 Hz）

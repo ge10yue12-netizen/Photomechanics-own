@@ -145,6 +145,25 @@ QtProject_1::QtProject_1(QWidget *parent)
     httpLayout->addWidget(m_httpStatusLabel, 1);
     ui.logLayout->insertWidget(1, httpRow);
 
+    auto *mobileRow = new QWidget(this);
+    auto *mobileLayout = new QHBoxLayout(mobileRow);
+    mobileLayout->setContentsMargins(0, 0, 0, 0);
+    mobileLayout->addWidget(new QLabel(QStringLiteral("扫码遥控"), mobileRow));
+    auto *mobileBtn = new QPushButton(QStringLiteral("手机扫码控制"), mobileRow);
+    mobileLayout->addWidget(mobileBtn);
+    m_mobileStatusLabel = new QLabel(QStringLiteral("未启动"), mobileRow);
+    m_mobileStatusLabel->setMinimumWidth(160);
+    mobileLayout->addWidget(m_mobileStatusLabel, 1);
+    ui.logLayout->insertWidget(2, mobileRow);
+    connect(mobileBtn, &QPushButton::clicked, this, &QtProject_1::onMobileRemoteControl);
+
+    m_mobileHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
+    connect(&m_mobileHost, &MobileHost::commandReceived, this, &QtProject_1::onRemoteCommand);
+    connect(&m_mobileHost, &MobileHost::sessionStarted, this, &QtProject_1::refreshMobileStatusLabel);
+    connect(&m_mobileHost, &MobileHost::sessionStopped, this, &QtProject_1::refreshMobileStatusLabel);
+    connect(&m_mobileHost, &MobileHost::phoneConnected, this, &QtProject_1::refreshMobileStatusLabel);
+    connect(&m_mobileHost, &MobileHost::phoneDisconnected, this, &QtProject_1::refreshMobileStatusLabel);
+
     m_remoteHost.setStatusLabels(m_bleStatusLabel, m_httpStatusLabel);
     m_remoteHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
     connect(&m_remoteHost, &RemoteHost::commandReceived, this, &QtProject_1::onRemoteCommand);
@@ -266,6 +285,14 @@ void QtProject_1::shutdownAll()
     if (m_shutdownDone)
         return;
     m_shutdownDone = true;
+
+    m_mobileHost.stopSession();
+    if (m_mobileDialog)
+    {
+        m_mobileDialog->hide();
+        delete m_mobileDialog;
+        m_mobileDialog = nullptr;
+    }
 
     m_remoteHost.shutdown();
 
@@ -783,6 +810,7 @@ void QtProject_1::onCloseCamera()
     m_camera.close();
     ui.imageLabel->clearImage();
     ui.imageLabel->setPlaceholderText(QStringLiteral("未连接相机"));
+    m_mobileHost.clearPreviewFrame();
     m_previewBaseInfo.clear();
     m_previewPixelInfo.clear();
     updatePreviewInfoLabel();
@@ -826,10 +854,15 @@ void QtProject_1::onApplyParams()
 
 void QtProject_1::onDisplayTimer()
 {
+    if (!m_camera.isOpen())
+        return;
+
     QImage frame;
     quint64 frameSeq = 0;
     if (!m_camera.copyLatestImage(frame, &frameSeq) || frame.isNull())
         return;
+
+    m_mobileHost.previewCache().updateFrame(frame, frameSeq);
 
     const QSize viewSize = ui.imageLabel->size();
     // 帧序号与预览区尺寸均未变化时跳过重绘，以降低界面刷新开销
@@ -1311,4 +1344,30 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
 
     // log(QStringLiteral("[警告] 未知远程命令：%1").arg(cmd));
     pushRemoteStatus();
+}
+
+void QtProject_1::onMobileRemoteControl()
+{
+    if (m_shutdownDone)
+        return;
+    if (!m_mobileDialog)
+        m_mobileDialog = new RemoteControlDialog(&m_mobileHost, this);
+    m_mobileDialog->show();
+    m_mobileDialog->raise();
+    m_mobileDialog->activateWindow();
+}
+
+void QtProject_1::refreshMobileStatusLabel()
+{
+    if (!m_mobileStatusLabel)
+        return;
+    if (!m_mobileHost.isSessionActive())
+    {
+        m_mobileStatusLabel->setText(QStringLiteral("未启动"));
+        return;
+    }
+    if (m_mobileHost.isPhoneConnected())
+        m_mobileStatusLabel->setText(QStringLiteral("运行中 · 已连接"));
+    else
+        m_mobileStatusLabel->setText(QStringLiteral("运行中 · 等待手机"));
 }

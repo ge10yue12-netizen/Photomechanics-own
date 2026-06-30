@@ -34,12 +34,19 @@
     <Filter Include="remote\ble">
       <UniqueIdentifier>{F2B3C4D5-E6F7-8901-BCDE-234567890ABC}</UniqueIdentifier>
     </Filter>
+    <Filter Include="remote-qr">
+      <UniqueIdentifier>{A1QR0001-B2C3-4D5E-9012-345678901234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="remote-qr\thirdparty">
+      <UniqueIdentifier>{A1QR0002-B2C3-4D5E-9012-345678901235}</UniqueIdentifier>
+    </Filter>
     <Filter Include="guide">
       <UniqueIdentifier>{A9D35C7A-1D5A-4B53-AE16-4E6A04A8D1D4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtRcc Include="QtProject_1.qrc"><Filter>Resource Files</Filter></QtRcc>
+    <QtRcc Include="remote-qr\remote-qr.qrc"><Filter>remote-qr</Filter></QtRcc>
     <QtUic Include="QtProject_1.ui"><Filter>Form Files</Filter></QtUic>
     <QtMoc Include="QtProject_1.h"><Filter>Header Files</Filter></QtMoc>
     <ClCompile Include="QtProject_1.cpp"><Filter>Source Files</Filter></ClCompile>
@@ -88,5 +95,23 @@
     <ClCompile Include="remote\ble\BleWinRtWorker.cpp"><Filter>remote\ble</Filter></ClCompile>
     <QtMoc Include="remote\ble\BleControlServer.h"><Filter>remote\ble</Filter></QtMoc>
     <QtMoc Include="remote\ble\BleWinRtWorker.h"><Filter>remote\ble</Filter></QtMoc>
+    <QtMoc Include="remote-qr\MobileWebServer.h"><Filter>remote-qr</Filter></QtMoc>
+    <QtMoc Include="remote-qr\MobileHost.h"><Filter>remote-qr</Filter></QtMoc>
+    <QtMoc Include="remote-qr\RemoteControlDialog.h"><Filter>remote-qr</Filter></QtMoc>
+    <ClInclude Include="remote-qr\MobileConfig.h"><Filter>remote-qr</Filter></ClInclude>
+    <ClInclude Include="remote-qr\MobileCommands.h"><Filter>remote-qr</Filter></ClInclude>
+    <ClInclude Include="remote-qr\NetworkHelper.h"><Filter>remote-qr</Filter></ClInclude>
+    <ClInclude Include="remote-qr\TokenManager.h"><Filter>remote-qr</Filter></ClInclude>
+    <ClInclude Include="remote-qr\QrCodeHelper.h"><Filter>remote-qr</Filter></ClInclude>
+    <ClInclude Include="remote-qr\PreviewFrameCache.h"><Filter>remote-qr</Filter></ClInclude>
+    <ClCompile Include="remote-qr\MobileConfig.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\NetworkHelper.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\TokenManager.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\QrCodeHelper.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\PreviewFrameCache.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\MobileWebServer.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\MobileHost.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\RemoteControlDialog.cpp"><Filter>remote-qr</Filter></ClCompile>
+    <ClCompile Include="remote-qr\thirdparty\qrcodegen.cpp"><Filter>remote-qr\thirdparty</Filter></ClCompile>
   </ItemGroup>
 </Project>

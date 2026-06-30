@@ -101,6 +101,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <QtRcc Include="QtProject_1.qrc" />
+    <QtRcc Include="remote-qr\remote-qr.qrc" />
     <QtUic Include="QtProject_1.ui" />
     <QtMoc Include="QtProject_1.h" />
     <QtMoc Include="camera\CameraController.h" />
@@ -157,6 +158,24 @@
     <ClCompile Include="remote\RemoteKit.cpp" />
     <ClCompile Include="remote\RemoteHost.cpp" />
     <ClCompile Include="remote\RemoteControlServer.cpp" />
+    <QtMoc Include="remote-qr\MobileWebServer.h" />
+    <QtMoc Include="remote-qr\MobileHost.h" />
+    <QtMoc Include="remote-qr\RemoteControlDialog.h" />
+    <ClInclude Include="remote-qr\MobileConfig.h" />
+    <ClInclude Include="remote-qr\MobileCommands.h" />
+    <ClInclude Include="remote-qr\NetworkHelper.h" />
+    <ClInclude Include="remote-qr\TokenManager.h" />
+    <ClInclude Include="remote-qr\QrCodeHelper.h" />
+    <ClInclude Include="remote-qr\PreviewFrameCache.h" />
+    <ClCompile Include="remote-qr\MobileConfig.cpp" />
+    <ClCompile Include="remote-qr\NetworkHelper.cpp" />
+    <ClCompile Include="remote-qr\TokenManager.cpp" />
+    <ClCompile Include="remote-qr\QrCodeHelper.cpp" />
+    <ClCompile Include="remote-qr\PreviewFrameCache.cpp" />
+    <ClCompile Include="remote-qr\MobileWebServer.cpp" />
+    <ClCompile Include="remote-qr\MobileHost.cpp" />
+    <ClCompile Include="remote-qr\RemoteControlDialog.cpp" />
+    <ClCompile Include="remote-qr\thirdparty\qrcodegen.cpp" />
     <ClCompile Include="stage\StageManager.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
