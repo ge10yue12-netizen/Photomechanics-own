@@ -15,8 +15,7 @@
     <Keyword>QtVS_v304</Keyword>
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">10.0.19041.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">10.0.19041.0</WindowsTargetPlatformVersion>
-    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')"
-      >$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
   </PropertyGroup>
   <PropertyGroup Label="Pylon">
     <PYLON_DEV>C:\Program Files\Basler\pylon 5\Development</PYLON_DEV>
@@ -46,11 +45,8 @@
     <QtModules>core;gui;widgets;network</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
-  <Target Name="QtMsBuildNotFound"
-    BeforeTargets="CustomBuild;ClCompile"
-    Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
-    <Message Importance="High"
-      Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
+  <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
+    <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
   </Target>
   <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="Shared" />
@@ -69,12 +65,12 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ClCompile>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp14</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <!-- /wd26812 /wd26495：Pylon SDK 头；/wd26451：含 CameraController 编译单元 -->
-      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 /await %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)uic;$(ProjectDir)x64\Debug\uic;$(ProjectDir)x64\Debug\moc;$(IntDir)uic;$(IntDir)moc;$(ProjectDir);$(PYLON_DEV)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -88,11 +84,11 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
     <ClCompile>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp14</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 /await %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /wd26812 /wd26495 /wd26451 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir)uic;$(ProjectDir)x64\Release\uic;$(ProjectDir)x64\Release\moc;$(IntDir)uic;$(IntDir)moc;$(ProjectDir);$(PYLON_DEV)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -104,51 +100,64 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <QtRcc Include="QtProject_1.qrc"/>
-    <QtUic Include="QtProject_1.ui"/>
-    <QtMoc Include="QtProject_1.h"/>
-    <QtMoc Include="camera\CameraController.h"/>
-    <QtMoc Include="save\ImageSaveThread.h"/>
-    <QtMoc Include="stage\StageManager.h"/>
-    <QtMoc Include="ui\PreviewWidget.h"/>
-    <ClCompile Include="ui\PreviewWidget.cpp"/>
-    <ClCompile Include="QtProject_1.cpp"/>
-    <ClCompile Include="main.cpp"/>
+    <QtRcc Include="QtProject_1.qrc" />
+    <QtUic Include="QtProject_1.ui" />
+    <QtMoc Include="QtProject_1.h" />
+    <QtMoc Include="camera\CameraController.h" />
+    <QtMoc Include="save\ImageSaveThread.h" />
+    <QtMoc Include="stage\StageManager.h" />
+    <QtMoc Include="ui\PreviewWidget.h" />
+    <QtMoc Include="guide\GuideBubbleWidget.h" />
+    <QtMoc Include="guide\GuideManager.h" />
+    <ClCompile Include="ui\PreviewWidget.cpp" />
+    <ClCompile Include="guide\GuideBubbleWidget.cpp" />
+    <ClCompile Include="guide\GuideManager.cpp" />
+    <ClCompile Include="guide\GuideOverlay.cpp" />
+    <ClCompile Include="QtProject_1.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="camera\CameraController.cpp">
       <DisableSpecificWarnings>26812;26495;26451;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
-    <ClInclude Include="core\AppTypes.h"/>
-    <ClInclude Include="core\AppLogger.h"/>
-    <ClCompile Include="core\AppLogger.cpp"/>
-    <ClCompile Include="save\ImageSaveThread.cpp"/>
-    <ClCompile Include="save\SavePathHelper.cpp"/>
-    <ClInclude Include="save\SavePathHelper.h"/>
-        <QtMoc Include="remote\ble\BleControlServer.h"/>
-    <QtMoc Include="remote\ble\BleWinRtWorker.h"/>
-    <QtMoc Include="remote\RemoteControlServer.h"/>
-    <ClInclude Include="remote\NetConfigHelper.h"/>
-    <ClInclude Include="remote\RemoteCommandList.h"/>
-    <ClInclude Include="remote\ble\BleProtocol.h"/>
-    <ClInclude Include="remote\ble\BleCommandProtocol.h"/>
-    <ClInclude Include="remote\ble\BleAdapterChecker.h"/>
-    <ClInclude Include="remote\ble\BleGattServerWin.h"/>
-    <ClInclude Include="remote\ble\BleConfigHelper.h"/>
-    <ClInclude Include="remote\ble\WinRtBootstrap.h"/>
-    <ClCompile Include="remote\ble\BleCommandProtocol.cpp"/>
+    <ClInclude Include="core\AppTypes.h" />
+    <ClInclude Include="core\AppLogger.h" />
+    <ClInclude Include="guide\GuideKit.h" />
+    <ClInclude Include="guide\GuideOverlay.h" />
+    <ClInclude Include="guide\GuideStep.h" />
+    <ClInclude Include="guide\GuideTheme.h" />
+    <ClCompile Include="core\AppLogger.cpp" />
+    <ClCompile Include="save\ImageSaveThread.cpp" />
+    <ClCompile Include="save\SavePathHelper.cpp" />
+    <ClInclude Include="save\SavePathHelper.h" />
+    <QtMoc Include="remote\ble\BleControlServer.h" />
+    <QtMoc Include="remote\ble\BleWinRtWorker.h" />
+    <QtMoc Include="remote\RemoteControlServer.h" />
+    <ClInclude Include="remote\NetConfigHelper.h" />
+    <QtMoc Include="remote\RemoteKit.h" />
+    <QtMoc Include="remote\RemoteHost.h" />
+    <ClInclude Include="remote\RemoteCommands.h" />
+    <ClInclude Include="remote\RemoteStatusText.h" />
+    <ClInclude Include="remote\ble\BleProtocol.h" />
+    <ClInclude Include="remote\ble\BleCommandProtocol.h" />
+    <ClInclude Include="remote\ble\BleAdapterChecker.h" />
+    <ClInclude Include="remote\ble\BleGattServerWin.h" />
+    <ClInclude Include="remote\ble\WinRtBootstrap.h" />
+    <ClCompile Include="remote\ble\WinRtBootstrap.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <ClCompile Include="remote\ble\BleCommandProtocol.cpp" />
     <ClCompile Include="remote\ble\BleAdapterChecker.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalOptions>/await %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
-        <ClCompile Include="remote\ble\BleGattServerWin.cpp">
+    <ClCompile Include="remote\ble\BleGattServerWin.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalOptions>/await %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
-    <ClCompile Include="remote\ble\BleConfigHelper.cpp"/>
-    <ClCompile Include="remote\ble\BleControlServer.cpp"/>
-    <ClCompile Include="remote\ble\BleWinRtWorker.cpp"/>
-    <ClCompile Include="remote\NetConfigHelper.cpp"/>
-    <ClCompile Include="remote\RemoteControlServer.cpp"/>
-    <ClCompile Include="stage\StageManager.cpp"/>
+    <ClCompile Include="remote\ble\BleControlServer.cpp" />
+    <ClCompile Include="remote\ble\BleWinRtWorker.cpp" />
+    <ClCompile Include="remote\NetConfigHelper.cpp" />
+    <ClCompile Include="remote\RemoteKit.cpp" />
+    <ClCompile Include="remote\RemoteHost.cpp" />
+    <ClCompile Include="remote\RemoteControlServer.cpp" />
+    <ClCompile Include="stage\StageManager.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
@@ -159,12 +168,7 @@
   <!-- 编译前同步 ui 头到 $(ProjectDir)uic，避免 IntelliSense 找不到 $(IntDir)uic 报 E0070 -->
   <Target Name="SyncProjectUicHeader" BeforeTargets="ClCompile">
     <MakeDir Directories="$(ProjectDir)uic" />
-    <Copy Condition="Exists('$(IntDir)uic\ui_QtProject_1.h')"
-          SourceFiles="$(IntDir)uic\ui_QtProject_1.h"
-          DestinationFiles="$(ProjectDir)uic\ui_QtProject_1.h"
-          SkipUnchangedFiles="true" />
-    <Exec Condition="!Exists('$(ProjectDir)uic\ui_QtProject_1.h')"
-          Command="&quot;$(QT_BIN)\uic.exe&quot; &quot;$(ProjectDir)QtProject_1.ui&quot; -o &quot;$(ProjectDir)uic\ui_QtProject_1.h&quot;" />
+    <Copy Condition="Exists('$(IntDir)uic\ui_QtProject_1.h')" SourceFiles="$(IntDir)uic\ui_QtProject_1.h" DestinationFiles="$(ProjectDir)uic\ui_QtProject_1.h" SkipUnchangedFiles="true" />
+    <Exec Condition="!Exists('$(ProjectDir)uic\ui_QtProject_1.h')" Command="&quot;$(QT_BIN)\uic.exe&quot; &quot;$(ProjectDir)QtProject_1.ui&quot; -o &quot;$(ProjectDir)uic\ui_QtProject_1.h&quot;" />
   </Target>
-
 </Project>

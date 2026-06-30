@@ -89,9 +89,10 @@ flowchart TD
 | **相机** | `CameraController` — Mono8 采集、`Grayscale8` QImage；不支持时回退 RGB888 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit`；`writeBmpFile` 写入 8 位灰度或 24 位 RGB BMP |
-| **远程遥控** | `RemoteControlServer`（HTTP/WiFi，推荐）+ `BleControlServer`（Windows BLE 可选）；微信小程序 WiFi 或 BLE |
+| **远程遥控** | `RemoteKit`（HTTP + BLE）；集成见 `remote/README.md` |
+| **新手引导** | 复制 `guide/` + `#include "guide/GuideKit.h"`；移植见 `guide/README.md` |
 | **日志** | `AppLogger` — `Log/run_*.log` 落盘；主窗口 `log()` 同步写文件与界面 |
-| **遥控配置** | `config/netconfig.ini`（exe 旁 `config/`，见 [remote/README.md](remote/README.md)） |
+| **遥控配置** | 项目根 `config/netconfig.ini`（见 [remote/README.md](remote/README.md)） |
 
 ---
 
@@ -147,13 +148,13 @@ flowchart TB
 
 ## 微信小程序遥控（WiFi 推荐）
 
-1. 启动 `QtProject_1`，日志出现 `HTTP 遥控已启动：http://局域网IP:18765`。
-2. 配置目录见日志「遥控配置目录」；口令改 `config/netconfig.ini` 的 `[remote] token`（HTTP/BLE 共用）。
+1. 启动 `QtProject_1`，日志出现 `HTTP 遥控已启动，手机可连接 局域网IP:18765`。
+2. 口令改项目根 `config/netconfig.ini` 的 `[remote] token`（HTTP/BLE 共用）。
 3. 微信开发者工具打开 `miniprogram/`，勾选 **不校验合法域名**。
 4. 小程序选 **WiFi 模式**，填 `IP:18765`，token 与 ini 一致，点 **连接 PC**。
 5. BLE 可选：真机预览 → 刷新设备列表 → 点选电脑。
 
-移植与排错：[remote/README.md](remote/README.md)、[miniprogram/README.md](miniprogram/README.md)、[docs/BLE_REMOTE_GUIDE.md](docs/BLE_REMOTE_GUIDE.md)。
+移植与排错：**[docs/MINIPROGRAM_REMOTE_DEV.md](docs/MINIPROGRAM_REMOTE_DEV.md)**（开发）· **[docs/BLE_REMOTE_GUIDE.md](docs/BLE_REMOTE_GUIDE.md)**（使用）· [remote/README.md](remote/README.md)（PC 套件）
 
 ## 详细文档
 
@@ -177,6 +178,7 @@ flowchart TB
 | 非阻塞入队 | `ImageSaveThread::trySubmit` | `save/ImageSaveThread.cpp` |
 | 写 BMP | `ImageSaveThread::run`
 | **BLE 遥控命令** | `onRemoteCommand` ← `BleControlServer` | `QtProject_1.cpp` / `remote/ble/` |
+| **新手引导组件** | `GuideKit.h` → `GuideManager` + `GuideStep` | `guide/README.md` |
 | **微信小程序** | `miniprogram/` — 真机 BLE 连接 | 见 `miniprogram/README.md` | → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
 
 ---
@@ -215,7 +217,10 @@ QtProject_1/
 │   └── AppLogger.h / AppLogger.cpp   ← 运行日志（Log/run_*.log）
 ├── Log/                      ← 运行日志目录（启动时自动创建）
 ├── docs/
-│   └── DEVELOPER_GUIDE.md    ← 唯一详细开发者手册
+│   ├── DEVELOPER_GUIDE.md
+│   └── GUIDEKIT_DEVELOPMENT_GUIDE.md ← 新手引导组件移植说明
+├── guide/                    ← GuideKit（复制即用，见 guide/README.md）
+│   └── GuideKit.h          ← 对外入口
 ├── main.cpp
 ├── QtProject_1.h/cpp/ui
 ├── camera/   CameraController
@@ -231,9 +236,10 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | HTTP（WiFi）+ BLE 遥控 + 微信小程序；统一 `config/netconfig.ini`；日志区上方 HTTP/BLE 状态行 |
-| 上一版 | 存图 Pic 序号改在写盘成功后递增；关相机时退出阶段存图路径模式 |
-| 上上版 | 预览区滚轮缩放、拖拽平移、双击适应/1:1、悬停显示像素灰度值 |
+| **当前** | 新增 Qt Widgets 新手引导组件库 `guide/` 与 `docs/GUIDEKIT_DEVELOPMENT_GUIDE.md` |
+| 上一版 | 微信小程序遥控开发文档 `docs/MINIPROGRAM_REMOTE_DEV.md`；HTTP/BLE 双通道 |
+| 上上版 | 存图 Pic 序号改在写盘成功后递增；关相机时退出阶段存图路径模式 |
+| 更早 | 预览区滚轮缩放、拖拽平移、双击适应/1:1、悬停显示像素灰度值 |
 
 ---
 

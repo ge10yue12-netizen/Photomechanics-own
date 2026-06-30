@@ -1,3 +1,6 @@
+/**
+ * BLE 传输层：扫描、连接、GATT 读写（不含页面逻辑）。
+ */
 const { SERVICE_UUID, CMD_UUID, STATUS_UUID, normalizeUuid, parseAdvertisData, buildCommand, parseStatus, str2ab } = require('./protocol')
 
 const SCAN_MS = 12000
@@ -21,7 +24,7 @@ function classifyBleError(err) {
     return { code: ErrorCode.ADAPTER_OFF, message: '手机蓝牙未开启或不可用' }
   }
   if (msg.indexOf('no service') >= 0 || msg.indexOf('10004') >= 0) {
-    return { code: ErrorCode.NO_SERVICE, message: '该设备没有 PhotoMech 遥控服务（可能不是目标电脑）' }
+    return { code: ErrorCode.NO_SERVICE, message: '该设备没有遥控服务（可能不是目标电脑）' }
   }
   if (msg.indexOf('no connection') >= 0 || msg.indexOf('10006') >= 0) {
     return { code: ErrorCode.NOT_CONNECTED, message: '蓝牙连接已断开' }
@@ -52,6 +55,7 @@ class BleClient {
     this._devices = new Map()
     this._lastError = null
     this._connStateHandler = null
+    this._notifyBound = false
   }
 
   _bindConnectionStateListener() {
@@ -91,8 +95,8 @@ class BleClient {
   _remember(dev) {
     if (!dev || !dev.deviceId) return
     const prev = this._devices.get(dev.deviceId) || {}
-    const name = dev.name || dev.localName || prev.name || ''
-    const merged = Object.assign({}, prev, dev, { displayName: name || '未知设备' })
+    const name = (dev.name || dev.localName || prev.name || '').trim()
+    const merged = Object.assign({}, prev, dev, { displayName: name })
     merged.serviceUuids = this._serviceUuids(merged)
     merged.isRemote = this._isPreferred(merged)
     this._devices.set(dev.deviceId, merged)
@@ -106,16 +110,33 @@ class BleClient {
     return name.indexOf('PHOTOMECH') >= 0
   }
 
+  _displayName(dev) {
+    if (dev.displayName) return dev.displayName
+    const id = dev.deviceId || ''
+    return id.length > 8 ? id.slice(-8) : id
+  }
+
+  _hasDisplayName(dev) {
+    const name = (dev.name || dev.localName || dev.displayName || '').trim()
+    if (!name) return false
+    const upper = name.toUpperCase()
+    if (upper === '未知设备' || upper === 'UNKNOWN' || upper === 'UNKNOWN DEVICE') return false
+    return true
+  }
+
+  /** 有名称的 BLE 设备均展示；遥控 PC（服务 UUID / PhotoMech 名）排在前面。 */
   getDeviceList() {
     return Array.from(this._devices.values())
+      .filter((d) => this._hasDisplayName(d))
       .sort((a, b) => {
-        if (a.isRemote !== b.isRemote) return a.isRemote ? -1 : 1
+        const pa = a.isRemote ? 1 : 0
+        const pb = b.isRemote ? 1 : 0
+        if (pa !== pb) return pb - pa
         return (b.RSSI || -100) - (a.RSSI || -100)
       })
       .map((d) => ({
         deviceId: d.deviceId,
-        name: d.displayName,
-        subtitle: d.deviceId,
+        name: this._displayName(d),
         rssi: d.RSSI,
         isRemote: !!d.isRemote
       }))
@@ -139,9 +160,7 @@ class BleClient {
       if (!setting.authSetting['scope.userLocation']) {
         await promisify(wx.authorize)({ scope: 'scope.userLocation' })
       }
-    } catch (e) {
-      // 用户拒绝定位时仍尝试扫描
-    }
+    } catch (e) {}
   }
 
   async closeAdapter() {
@@ -152,7 +171,8 @@ class BleClient {
 
   async refreshDeviceList(onProgress) {
     this._lastError = null
-    this._setState('scanning', '正在搜索附近蓝牙设备…')
+    this._devices.clear()
+    this._setState('scanning', '正在搜索…')
     await this.requestPermissions()
     await this.openAdapter()
 
@@ -169,7 +189,7 @@ class BleClient {
       const onDevice = (res) => {
         const devices = res.devices || []
         for (const dev of devices) this._remember(dev)
-        if (onProgress) onProgress(`已发现 ${this._devices.size} 个设备`)
+        if (onProgress) onProgress(this.getDeviceList().length)
       }
 
       wx.onBluetoothDeviceFound(onDevice)
@@ -195,23 +215,22 @@ class BleClient {
         const list = this.getDeviceList()
         finish(() => {
           if (list.length === 0) {
-            const err = {
+            this._lastError = {
               code: 'NO_DEVICES',
-              message: '未发现任何蓝牙设备。请打开手机蓝牙、靠近 PC（1～3 米），Android 需开启定位。'
+              message: '未发现可用蓝牙设备，请确认手机蓝牙已开且附近有已命名设备'
             }
-            this._lastError = err
-            this._setState('idle', err.message)
+            this._setState('idle', '')
             resolve(list)
             return
           }
-          this._setState('idle', `共 ${list.length} 个设备，请点选你的电脑`)
+          this._setState('idle', '')
           resolve(list)
         })
       }, SCAN_MS)
     })
   }
 
-  async connectToDevice(deviceId) {
+  async connectToDevice(deviceId, token) {
     if (!deviceId) {
       const err = { code: ErrorCode.CONNECT_FAILED, message: '未选择设备' }
       this._lastError = err
@@ -223,16 +242,15 @@ class BleClient {
     await this.openAdapter()
 
     try {
-      await this._probeAndSetup(deviceId)
+      await this._probeAndSetup(deviceId, token)
       const dev = this._devices.get(deviceId)
-      const name = dev ? dev.displayName : deviceId
-      this._setState('connected', `已连接：${name}`)
+      const name = dev ? this._displayName(dev) : deviceId
+      this._setState('connected', '')
       return { deviceId, name }
     } catch (e) {
       const err = e.code ? e : classifyBleError(e)
-      if (err.code === ErrorCode.NO_SERVICE || (err.message && err.message.indexOf('PhotoMech') >= 0)) {
-        err.message = '连接成功但未找到遥控服务。请确认 PC 端软件已启动且日志显示「BLE 遥控已启动」。'
-        err.code = ErrorCode.NO_SERVICE
+      if (err.code === ErrorCode.NO_SERVICE) {
+        err.message = '未找到遥控服务，请确认 PC 软件已启动'
       }
       this._lastError = err
       this._setState('error', err.message)
@@ -241,11 +259,11 @@ class BleClient {
     }
   }
 
-  async _probeAndSetup(deviceId) {
+  async _probeAndSetup(deviceId, token) {
     await promisify(wx.createBLEConnection)({ deviceId, timeout: 12000 })
     this.deviceId = deviceId
     this.connected = true
-    await this._setupGatt()
+    await this._setupGatt(token)
     this._bindConnectionStateListener()
   }
 
@@ -262,7 +280,7 @@ class BleClient {
     }
   }
 
-  async _setupGatt() {
+  async _setupGatt(token) {
     try {
       if (wx.setBLEMTU) {
         await promisify(wx.setBLEMTU)({ deviceId: this.deviceId, mtu: 185 })
@@ -272,8 +290,7 @@ class BleClient {
     const services = await promisify(wx.getBLEDeviceServices)({ deviceId: this.deviceId })
     const service = (services.services || []).find((s) => normalizeUuid(s.uuid) === normalizeUuid(SERVICE_UUID))
     if (!service) {
-      const err = { code: ErrorCode.NO_SERVICE, message: '该设备没有 PhotoMech 遥控服务' }
-      throw err
+      throw { code: ErrorCode.NO_SERVICE, message: '该设备没有遥控服务' }
     }
     this.serviceId = service.uuid
 
@@ -298,19 +315,22 @@ class BleClient {
       state: true
     })
 
-    wx.onBLECharacteristicValueChange((res) => {
-      if (normalizeUuid(res.characteristicId) !== normalizeUuid(STATUS_UUID)) return
-      const status = parseStatus(res.value)
-      if (this.onStatus) this.onStatus(status)
-    })
+    if (!this._notifyBound) {
+      wx.onBLECharacteristicValueChange((res) => {
+        if (normalizeUuid(res.characteristicId) !== normalizeUuid(STATUS_UUID)) return
+        const status = parseStatus(res.value)
+        if (this.onStatus) this.onStatus(status)
+      })
+      this._notifyBound = true
+    }
 
-    await this.sendCommand('status')
+    await this.sendCommand('status', token)
   }
 
   async disconnect() {
     this._unbindConnectionStateListener()
     if (!this.deviceId) {
-      this._setState('idle', '未连接')
+      this._setState('idle', '')
       return
     }
     const id = this.deviceId
@@ -322,13 +342,12 @@ class BleClient {
     this.serviceId = ''
     this.cmdCharId = ''
     this.statusCharId = ''
-    this._setState('idle', '已断开')
+    this._setState('idle', '')
   }
 
   async sendCommand(cmd, token) {
     if (!this.connected || !this.deviceId || !this.cmdCharId || !this.serviceId) {
-      const err = { code: ErrorCode.NOT_CONNECTED, message: '尚未连接设备' }
-      throw err
+      throw { code: ErrorCode.NOT_CONNECTED, message: '尚未连接设备' }
     }
     const text = buildCommand(cmd, token)
     const buffer = str2ab(text)
@@ -342,6 +361,10 @@ class BleClient {
     } catch (e) {
       throw classifyBleError(e)
     }
+  }
+
+  async fetchStatus(token) {
+    return this.sendCommand('status', token)
   }
 }
 

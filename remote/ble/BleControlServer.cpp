@@ -1,12 +1,11 @@
-#include "BleControlServer.h"
+﻿#include "BleControlServer.h"
+
+#include "../RemoteStatusText.h"
 
 #include "BleCommandProtocol.h"
-#include "BleConfigHelper.h"
 #include "BleWinRtWorker.h"
-
 #include <QJsonDocument>
 #include <QMetaType>
-
 BleControlServer::BleControlServer(QObject *parent)
     : QObject(parent)
 {
@@ -28,6 +27,7 @@ BleControlServer::~BleControlServer()
     m_worker = nullptr;
 }
 
+// 懒创建 WinRT 工作线程；GATT 操作均在 m_winRtThread 执行。
 void BleControlServer::ensureWorkerThread()
 {
     if (m_worker)
@@ -42,11 +42,12 @@ void BleControlServer::ensureWorkerThread()
     m_winRtThread.start();
 }
 
-bool BleControlServer::start()
+bool BleControlServer::start(const RemoteConfig &cfg)
 {
     stop();
     ensureWorkerThread();
 
+    // 阻塞跨线程查询适配器；须在 WinRT 线程执行。
     BleAdapterInfo adapter;
     QMetaObject::invokeMethod(m_worker, "queryAdapter", Qt::BlockingQueuedConnection,
                               Q_RETURN_ARG(BleAdapterInfo, adapter));
@@ -58,19 +59,18 @@ bool BleControlServer::start()
         return false;
     }
 
-    const BleNetConfig cfg = BleConfigHelper::load();
     m_token = cfg.token;
 
     bool ok = false;
     QMetaObject::invokeMethod(m_worker, "startServer", Qt::BlockingQueuedConnection, Q_RETURN_ARG(bool, ok),
-                              Q_ARG(QString, cfg.deviceName));
+                              Q_ARG(QString, cfg.bleDeviceName));
     if (!ok)
     {
         QString err;
         QMetaObject::invokeMethod(m_worker, "serverLastError", Qt::BlockingQueuedConnection, Q_RETURN_ARG(QString, err));
         m_lastError = err;
         if (m_lastError.isEmpty())
-            m_lastError = QStringLiteral("BLE \u670d\u52a1\u542f\u52a8\u5931\u8d25");
+            m_lastError = QStringLiteral("BLE 服务启动失败");
         emit serverError(m_lastError);
         return false;
     }
@@ -84,25 +84,26 @@ bool BleControlServer::start()
 
 QString BleControlServer::statusSummary() const
 {
-    if (m_running)
-    {
-        const QString addr = m_adapterInfo.address.isEmpty() ? QStringLiteral("?") : m_adapterInfo.address;
-        if (!m_adapterInfo.friendlyName.isEmpty())
-        {
-            return QStringLiteral("\u5df2\u5e7f\u64ad | \u624b\u673a\u641c\u300c%1\u300d| %2")
-                .arg(m_adapterInfo.friendlyName, addr);
-        }
-        return QStringLiteral("\u5df2\u5e7f\u64ad\uff0c\u7b49\u5f85\u624b\u673a\u8fde\u63a5 | %1").arg(addr);
-    }
-    if (!m_lastError.isEmpty())
-        return m_lastError;
-    return QStringLiteral("\u672a\u542f\u52a8");
+    return RemoteStatusText::bleSummary(m_running, m_lastError);
 }
 
 void BleControlServer::stop()
 {
     if (m_statusTimer)
         m_statusTimer->stop();
+
+    // 关停前推送 ok=0，让手机 Central 立即进入断开态，避免长时间假连接。
+    if (m_running && m_worker && m_winRtThread.isRunning())
+    {
+        QJsonObject offline;
+        offline.insert(QStringLiteral("ok"), false);
+        offline.insert(QStringLiteral("message"), QStringLiteral("PC已关闭"));
+        const QByteArray payload =
+            compactStatusJson(QJsonDocument(offline).toJson(QJsonDocument::Compact));
+        QMetaObject::invokeMethod(m_worker, "notifyStatus", Qt::BlockingQueuedConnection,
+                                  Q_ARG(QByteArray, payload));
+    }
+
     m_running = false;
 
     if (m_worker && m_winRtThread.isRunning())
@@ -121,6 +122,7 @@ void BleControlServer::setStatusProvider(std::function<QJsonObject()> provider)
     m_statusProvider = std::move(provider);
 }
 
+// 主线程组装 JSON → compactStatusJson → QueuedConnection 投递至 WinRT 线程 Notify。
 void BleControlServer::pushStatus()
 {
     if (!m_running || !m_worker)
@@ -148,6 +150,7 @@ void BleControlServer::reportGattError(QString message)
     emit serverError(message);
 }
 
+// 解析 cmd:token；status 命令仅推送状态，其余转发 commandReceived。
 void BleControlServer::handleRawCommand(const QByteArray &raw)
 {
     const BleCommandParseResult parsed = parseBleCommand(raw, m_token);

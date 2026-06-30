@@ -387,25 +387,28 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant MW as QtProject_1
+    participant RH as RemoteHost
+    participant BLE as BleControlServer
     participant SM as StageManager
     participant CAM as CameraController
     participant IO as ImageSaveThread
 
     MW->>MW: m_shutdownDone=true 防重入
-    MW->>MW: m_displayTimer.stop()
+    MW->>RH: shutdown()
+    RH->>BLE: stop()
+    Note over BLE: Notify ok=0「PC已关闭」后停 GATT
     alt m_stageRunning
         MW->>SM: stop()
     end
     MW->>MW: disconnect 相机/存图/阶段信号
-    MW->>MW: stopCaptureAndWaitSave()
-    Note over MW: stopGrab + waitUntilEmpty 30s
+    MW->>MW: waitSaveQueueDrained + stopLiveView
     MW->>IO: requestStopAndWait(30s)
     MW->>CAM: close()
     MW->>CAM: shutdownPylon()
     Note over CAM: PylonTerminate 前释放 Impl
 ```
 
-**代码**：`QtProject_1.cpp` `shutdownAll` L108–132
+**代码**：`QtProject_1.cpp` `shutdownAll`；遥控关停见 `RemoteHost::shutdown` → `BleControlServer::stop`
 
 ### 3.3 为什么顺序不能乱
 

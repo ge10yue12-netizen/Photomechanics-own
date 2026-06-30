@@ -50,4 +50,4 @@ VS/Qt/Pylon 相关编译或链接错误，切换项目 `debug-helper`。
 
 ## 全项目审计
 
-用户要求审计、全面检查、健康检查时，Read 项目 `project-audit` Skill；审计轮只读，修码须另发「确认修改」。
+用户要求审计、全面检查、健康检查时，Read 项目 `project-audit` Skill；审计轮只读，修码须用户消息出现连续四字「确认修改」。

@@ -17,10 +17,6 @@
         <text class="label">状态</text>
         <text class="value">{{statusText}}</text>
       </view>
-      <view class="metric-row">
-        <text class="label">队列</text>
-        <text class="value">{{queueText}}</text>
-      </view>
     </view>
   </view>
 
@@ -35,13 +31,15 @@
   </block>
 
   <block wx:else>
+    <view class="section-title">蓝牙连接</view>
+    <input class="field-input" disabled="{{uiLocked}}" placeholder="口令" value="{{token}}" bindinput="onTokenInput" />
     <view class="btn-group">
       <view class="tap-btn tap-btn--primary {{pendingAction === 'scan' ? 'tap-btn--pending' : ''}} {{(uiLocked && pendingAction !== 'scan') || connected ? 'tap-btn--disabled' : ''}}" hover-class="{{(uiLocked && pendingAction !== 'scan') || connected ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onRefresh">刷新设备列表</view>
       <view class="tap-btn tap-btn--secondary {{pendingAction === 'disconnect' ? 'tap-btn--pending' : ''}} {{connDisconnectDisabled ? 'tap-btn--disabled' : ''}}" hover-class="{{connDisconnectDisabled ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onDisconnect">断开连接</view>
     </view>
     <view class="device-section">
-      <view class="section-title">附近蓝牙设备</view>
-      <view class="empty" wx:if="{{devices.length === 0}}">扫不到电脑时请改用 WiFi 模式</view>
+      <view class="section-title">遥控设备</view>
+      <view class="empty" wx:if="{{devices.length === 0}}">搜索后在此选择设备（仅显示有名称设备）</view>
       <view wx:for="{{devices}}" wx:key="deviceId" class="device-row {{item.deviceId === selectedDeviceId ? 'selected' : ''}} {{uiLocked ? 'device-row--locked' : ''}}" hover-class="{{uiLocked ? 'none' : 'device-row--down'}}" hover-stay-time="120" bindtap="onSelectDevice" data-id="{{item.deviceId}}" data-name="{{item.name}}">
         <view class="device-main"><text class="device-name">{{item.name}}</text></view>
         <text class="device-rssi">{{item.rssi}} dBm</text>

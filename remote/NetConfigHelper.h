@@ -1,36 +1,25 @@
 #pragma once
 
-#include <QHostAddress>
+#include <QtGlobal>
 #include <QString>
-#include <QStringList>
 
-class QTcpServer;
-
-struct HttpNetConfig
+struct RemoteConfig
 {
-    quint16 port = 18765;
-    QString token = QStringLiteral("1234");
-    QHostAddress bindAddress = QHostAddress::Any;
+    QString token;
+    QString httpBind;
+    quint16 httpPort = 0;
+    QString bleDeviceName;
+
+    // 返回 netconfig.ini 中 http/bind 与 http/port，供日志与手机填写。
+    QString httpEndpoint() const;
 };
 
 class NetConfigHelper
 {
 public:
-    static QString configDirPath();
+    // 从 exe 所在目录向上查找 config/netconfig.ini，返回首个存在的绝对路径；未找到返回空字符串。
     static QString configFilePath();
-    static QString loadSharedToken();
-    static bool ensureDefaultConfigFile();
-    static HttpNetConfig loadHttpConfig();
-    static bool isLocalOnlyBind(const QHostAddress &bindAddress);
-    static QString bindAddressText(const QHostAddress &bindAddress);
-    static QString preferredLanIpv4();
-    static QStringList listLanIpv4();
-    static QString httpEndpointHint(quint16 port);
-    static bool tryListen(QTcpServer &server,
-                          const QHostAddress &bindAddress,
-                          quint16 port,
-                          QString *lastError = nullptr);
 
-private:
-    static QHostAddress parseBindAddress(const QString &bind);
+    // 读取 netconfig.ini 填入 cfg；校验必填项与 bind 格式，失败返回 false 并通过 error 说明原因。
+    static bool load(RemoteConfig &cfg, QString *error = nullptr);
 };

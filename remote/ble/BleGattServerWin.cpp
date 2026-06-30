@@ -21,6 +21,7 @@ using namespace Windows::Storage::Streams;
 
 namespace
 {
+// 将协议字符串 UUID 转为 WinRT guid。
 winrt::guid toGuid(const char *text)
 {
     const QUuid q(text);
@@ -63,6 +64,7 @@ bool BleGattServerWin::start(const QString &deviceName, CommandHandler onCommand
 
     try
     {
+        // --- WinRT GATT 服务与特征创建 ---
         const winrt::guid serviceId = toGuid(BleProtocol::serviceUuid());
         const auto providerResult = GattServiceProvider::CreateAsync(serviceId).get();
         if (providerResult.Error() != BluetoothError::Success || !providerResult.ServiceProvider())
@@ -109,6 +111,7 @@ bool BleGattServerWin::start(const QString &deviceName, CommandHandler onCommand
         }
         m_impl->statusChar = statusResult.Characteristic();
 
+        // --- 命令特征写入处理：在 WinRT 回调线程中读取载荷并转发 onCommand ---
         Impl *impl = m_impl;
         m_impl->writeToken = m_impl->cmdChar.WriteRequested(
             [impl](GattLocalCharacteristic const &, GattWriteRequestedEventArgs const &args) {
@@ -139,6 +142,7 @@ bool BleGattServerWin::start(const QString &deviceName, CommandHandler onCommand
                 deferral.Complete();
             });
 
+        // --- 开始可连接、可发现的 BLE 广播 ---
         GattServiceProviderAdvertisingParameters advParams;
         advParams.IsConnectable(true);
         advParams.IsDiscoverable(true);
@@ -203,6 +207,7 @@ QString BleGattServerWin::lastError() const
     return m_impl ? m_impl->lastError : QString();
 }
 
+// 向 STATUS 特征推送 Notify；须在 WinRT 工作线程调用。
 bool BleGattServerWin::notifyStatus(const QByteArray &payload)
 {
     if (!m_impl || !m_impl->running || !m_impl->statusChar || payload.isEmpty())

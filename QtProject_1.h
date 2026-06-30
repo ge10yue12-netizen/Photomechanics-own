@@ -6,14 +6,14 @@
 #include <QTimer>
 #include <QLabel>
 #include "camera/CameraController.h"
-#include "remote/ble/BleControlServer.h"
-#include "remote/RemoteControlServer.h"
-#include "remote/NetConfigHelper.h"
+#include "remote/RemoteHost.h"
 #include "core/AppLogger.h"
 #include "stage/StageManager.h"
 #include "save/ImageSaveThread.h"
 #include "save/SavePathHelper.h"
 #include "ui_QtProject_1.h"
+
+class GuideManager;
 
 // QtProject_1：主窗口；协调 UI、相机预览/采集、阶段调度与存图
 class QtProject_1 : public QWidget
@@ -41,6 +41,7 @@ private slots:
     void onDisplayTimer();
     void onPreviewPixelInfo(int x, int y, int gray, bool valid); // 预览区悬停像素读数
     void onCameraError(const QString &message);
+    // HTTP/BLE 遥控命令入口，与主界面按钮共用同一套业务槽。
     void onRemoteCommand(const QString &cmd);
 
     // 阶段表编辑
@@ -102,10 +103,10 @@ private:
     void refreshStageTableSerialNumbers(); // 按行刷新「序号」列（1-based）
     void updatePreviewInfoLabel();         // 合并状态行与悬停像素信息
     void updateGlobalStatus();             // 刷新底部状态栏四段摘要
+    void setupStartupGuide();         // 创建 GuideManager 并填充测试引导步骤
+    void populateBasicCaptureGuide(); // 注册 basic_capture 的 7 步引导配置（宿主样例）
+    // 组装遥控状态 JSON，供 HTTP 响应与 BLE Notify 共用。
     QJsonObject buildRemoteStatusJson() const;
-    QString remoteCommandText(const QString &cmd) const;
-    void refreshBleStatusLabel();
-    void refreshHttpStatusLabel();
     void pushRemoteStatus();
 
     Ui::QtProject_1Class ui;
@@ -114,10 +115,11 @@ private:
     ImageSaveThread m_saveThread;
     SavePathHelper m_savePath;
     AppLogger m_logger;              // 运行日志写入 Log/run_*.log；log() 同步写入文件与界面控件
-    BleControlServer m_bleServer;    // 微信小程序 BLE 遥控 GATT 服务
-    RemoteControlServer m_httpServer; // 局域网 HTTP 遥控（与 BLE 并存）
+    RemoteHost m_remoteHost;
     QLabel *m_bleStatusLabel = nullptr;
     QLabel *m_httpStatusLabel = nullptr;
+    GuideManager *m_startupGuide = nullptr;       // GuideKit 实例
+    bool m_startupGuideScheduled = false;         // showEvent 中仅调度一次 startIfNeeded
     QTimer m_displayTimer;           // 预览刷新定时器，间隔约 33 ms（约 30 Hz）
     QFileSystemWatcher m_saveDirWatcher; // 监视保存根目录，外部删改文件时 resync
     QTimer m_saveDirResyncTimer;     // 目录变化防抖，避免连续 resync

@@ -1,6 +1,8 @@
-# BLE 微信小程序遥控 — 使用手册
+# BLE / WiFi 微信小程序遥控 — 使用手册
 
-用手机微信小程序，通过蓝牙（BLE）遥控 PC 上的 `QtProject_1` 相机软件：开关相机、开始/停止采集、保存单张、开始/停止阶段采集。
+> **开发者**（协议、扩展命令、目录结构）→ [MINIPROGRAM_REMOTE_DEV.md](MINIPROGRAM_REMOTE_DEV.md)
+
+用手机微信小程序，通过 **WiFi（推荐）** 或 **蓝牙（BLE）** 遥控 PC 上的 `QtProject_1` 相机软件：开关相机、开始/停止采集、保存单张、开始/停止阶段采集。
 
 ---
 
@@ -52,7 +54,7 @@ config\netconfig.ini    # [remote] token；[http] bind/port；[ble] device_name
 token=1234          ; 遥控口令（HTTP/BLE/小程序共用）
 
 [http]
-bind=0.0.0.0        ; 0.0.0.0=全部网卡
+bind=192.168.x.x     ; 本机 WiFi IP（与手机同网段）；日志与小程序均用此值
 port=18765           ; WiFi 模式 IP:端口
 
 [ble]
@@ -62,12 +64,12 @@ device_name=PhotoMech   ; 扫描名称提示
 | 文件 | 键 | 说明 |
 |------|-----|------|
 | `netconfig.ini` | `[remote] token` | **HTTP 与 BLE 共用口令**（只改这里） |
-| `netconfig.ini` | `[http] bind` | 监听地址，默认 `0.0.0.0` |
+| `netconfig.ini` | `[http] bind` | 本机 WiFi IPv4；日志与小程序填写与此一致 |
 | `netconfig.ini` | `[http] port` | HTTP 监听端口，默认 `18765` |
 | `netconfig.ini` | `[ble] device_name` | 扫描提示；主要仍按服务 UUID 过滤 |
 ### 2.3 WiFi 模式（推荐，无需蓝牙）
 
-1. 启动 PC 软件，日志出现 `HTTP 遥控已启动：http://局域网IP:18765`
+1. 启动 PC 软件，日志出现 `HTTP 遥控已启动，手机可连接 192.168.x.x:18765`（地址来自 `netconfig.ini` 的 `http/bind`）
 2. 手机与 PC **同一 WiFi**（PC 可不插网线）
 3. 微信小程序选 **WiFi（推荐）**，填 `IP:18765`，token 与 `[remote]` 一致
 4. 开发者工具勾选 **不校验合法域名**；真机预览更稳
@@ -167,7 +169,8 @@ sequenceDiagram
 ### 4.4 断开
 
 - 手机点 **「断开」**。
-- 或关闭 PC 软件、关闭手机蓝牙，连接会自动失效。
+- 或关闭 PC 软件：PC 会先推送 `ok=0`（「PC已关闭」），手机立即进入已断开；随后 GATT 停止广播。
+- 或关闭手机蓝牙，连接会自动失效。
 
 ---
 

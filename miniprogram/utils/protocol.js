@@ -52,10 +52,25 @@ function buildCommand(cmd, token) {
   return cmd
 }
 
+/** BLE 紧凑键 → WiFi/按钮规则用的完整键（与 PC compactStatusJson 对齐）。 */
+function normalizeStatus(raw) {
+  if (!raw || typeof raw !== 'object') return raw
+  const s = Object.assign({}, raw)
+  if (s.cameraOpen === undefined && s.cam !== undefined) s.cameraOpen = !!s.cam
+  if (s.liveViewActive === undefined && s.lv !== undefined) s.liveViewActive = !!s.lv
+  if (s.acquisitionActive === undefined && s.grab !== undefined) s.acquisitionActive = !!s.grab
+  if (s.stageRunning === undefined && s.stg !== undefined) s.stageRunning = !!s.stg
+  if (s.message === undefined && s.msg !== undefined) s.message = s.msg
+  if (s.queueSize === undefined && s.q !== undefined) s.queueSize = s.q
+  if (s.queueCapacity === undefined && s.qc !== undefined) s.queueCapacity = s.qc
+  if (s.totalSaved === undefined && s.tot !== undefined) s.totalSaved = s.tot
+  return s
+}
+
 function parseStatus(buffer) {
   const text = ab2str(buffer)
   try {
-    return JSON.parse(text)
+    return normalizeStatus(JSON.parse(text))
   } catch (e) {
     return { raw: text }
   }
@@ -90,6 +105,7 @@ module.exports = {
   normalizeUuid,
   parseAdvertisData,
   buildCommand,
+  normalizeStatus,
   parseStatus,
   str2ab
 }

@@ -4,6 +4,9 @@
 
 #include "ui/PreviewWidget.h"
 
+#include "remote/RemoteCommands.h"
+#include "guide/GuideKit.h"
+
 #include <QCloseEvent>
 #include <QShowEvent>
 #include <QEvent>
@@ -14,12 +17,11 @@
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QMessageBox>
+#include <QScrollArea>
 #include <QTableWidgetItem>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QJsonObject>
-
-#include "remote/ble/BleConfigHelper.h"
 
 namespace
 {
@@ -124,6 +126,7 @@ QtProject_1::QtProject_1(QWidget *parent)
     connect(&m_saveThread, &ImageSaveThread::queueBacklog, this, &QtProject_1::onSaveQueueBacklog);
     connect(&m_saveThread, &ImageSaveThread::queueFull, this, &QtProject_1::onSaveQueueFull);
     connect(&m_camera, &CameraController::errorOccurred, this, &QtProject_1::onCameraError);
+    // --- 遥控服务初始化：BLE/HTTP 状态行、命令转发与配置加载 ---
     auto *bleRow = new QWidget(this);
     auto *bleLayout = new QHBoxLayout(bleRow);
     bleLayout->setContentsMargins(0, 0, 0, 0);
@@ -142,14 +145,13 @@ QtProject_1::QtProject_1(QWidget *parent)
     httpLayout->addWidget(m_httpStatusLabel, 1);
     ui.logLayout->insertWidget(1, httpRow);
 
-    connect(&m_bleServer, &BleControlServer::commandReceived, this, &QtProject_1::onRemoteCommand);
-    connect(&m_httpServer, &RemoteControlServer::commandReceived, this, &QtProject_1::onRemoteCommand);
-    connect(&m_bleServer, &BleControlServer::serverError, this, [this](const QString &msg) {
-        log(QStringLiteral("[BLE] %1").arg(msg));
-        refreshBleStatusLabel();
+    m_remoteHost.setStatusLabels(m_bleStatusLabel, m_httpStatusLabel);
+    m_remoteHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
+    connect(&m_remoteHost, &RemoteHost::commandReceived, this, &QtProject_1::onRemoteCommand);
+    connect(&m_remoteHost, &RemoteHost::notify, this, [this](const QString &msg) {
+        if (!msg.isEmpty())
+            log(msg);
     });
-    m_bleServer.setStatusProvider([this]() { return buildRemoteStatusJson(); });
-    m_httpServer.setStatusProvider([this]() { return buildRemoteStatusJson(); });
 
 
     // 六个主操作按钮样式固定：正向 primary=蓝，停止/关闭 danger=红
@@ -188,35 +190,23 @@ QtProject_1::QtProject_1(QWidget *parent)
     log(m_camera.initPylon() ? QStringLiteral("Pylon 初始化成功。")
                               : QStringLiteral("[警告] Pylon 初始化失败。"));
     log(QStringLiteral("软件启动。"));
-    NetConfigHelper::ensureDefaultConfigFile();
-    if (m_bleServer.start())
-        {
-        const BleAdapterInfo ai = m_bleServer.adapterInfo();
-        log(QStringLiteral("BLE 遥控已启动（Windows 默认蓝牙适配器：%1）。").arg(ai.address));
-        if (!ai.friendlyName.isEmpty())
-            log(QStringLiteral("手机扫描请找名称「%1」（或 MAC 尾号 %2）。")
-                    .arg(ai.friendlyName, ai.address.right(8)));
-        else
-            log(QStringLiteral("手机扫描请找 MAC 尾号 %1；名称可能显示为「未知设备」。").arg(ai.address.right(8)));
-        log(QStringLiteral("手机端：刷新设备列表 → 点选电脑。"));
-        }
-    else
-        log(QStringLiteral("[警告] BLE 遥控启动失败：%1").arg(m_bleServer.lastError()));
-    refreshBleStatusLabel();
-
-    const HttpNetConfig httpCfg = NetConfigHelper::loadHttpConfig();
-    if (m_httpServer.start(httpCfg.port, httpCfg.token, httpCfg.bindAddress))
+    if (!m_remoteHost.bootstrap())
     {
-        const QString endpoint = NetConfigHelper::httpEndpointHint(m_httpServer.serverPort());
-        log(QStringLiteral("HTTP 遥控已启动：http://%1").arg(endpoint));
-        const QStringList lanIps = NetConfigHelper::listLanIpv4();
-        if (lanIps.size() > 1)
-            log(QStringLiteral("可用 IP：%1").arg(lanIps.join(QStringLiteral(", "))));
+        if (!m_remoteHost.kit().lastError().isEmpty())
+            log(QStringLiteral("遥控：%1").arg(m_remoteHost.kit().lastError()));
     }
-    else
-        log(QStringLiteral("[警告] HTTP 遥控启动失败：%1").arg(m_httpServer.lastError()));
-    refreshHttpStatusLabel();
+    for (const QString &line : m_remoteHost.startupWarnings())
+        log(line);
+    if (m_remoteHost.kit().http().isListening())
+    {
+        log(QStringLiteral("HTTP 遥控已启动，手机可连接 %1")
+                .arg(m_remoteHost.kit().httpEndpoint()));
+    }
+    if (m_remoteHost.kit().ble().isRunning())
+        log(QStringLiteral("BLE 遥控已启动，设备名：%1")
+                .arg(m_remoteHost.kit().config().bleDeviceName));
 
+    setupStartupGuide();
     refreshButtonState();
     updateGlobalStatus();
 }
@@ -253,6 +243,13 @@ void QtProject_1::showEvent(QShowEvent *event)
         const int previewW = mainW * 5 / 9;
         ui.mainSplitter->setSizes({previewW, mainW - previewW});
     }
+
+    if (m_startupGuide && !m_startupGuideScheduled)
+    {
+        m_startupGuideScheduled = true;
+        // 布局完成后启动引导，避免高亮坐标未就绪
+        QTimer::singleShot(0, m_startupGuide, &GuideManager::startIfNeeded);
+    }
 }
 
 void QtProject_1::changeEvent(QEvent *event)
@@ -270,8 +267,7 @@ void QtProject_1::shutdownAll()
         return;
     m_shutdownDone = true;
 
-    m_bleServer.stop();
-    m_httpServer.stop();
+    m_remoteHost.shutdown();
 
     if (m_stageRunning)
     {
@@ -307,6 +303,109 @@ void QtProject_1::loadDefaultUiValues()
     ui.exposureSpin->setValue(10000.0);
     ui.gainSpin->setValue(0.0);
     ui.fpsSpin->setValue(20.0);
+}
+
+// 初始化启动引导：创建 GuideManager、设置产品 ID，并调用 populateBasicCaptureGuide 填充步骤
+void QtProject_1::setupStartupGuide()
+{
+    if (m_startupGuide)
+        return;
+
+    m_startupGuide = new GuideManager(this, this);
+    m_startupGuide->setProductId(QStringLiteral("QtProject_1"));
+    populateBasicCaptureGuide();
+}
+
+// 向 GuideManager 注册 basic_capture 引导的 7 个步骤；仅供本工程验收 GuideKit，移植时替换为业务步骤
+void QtProject_1::populateBasicCaptureGuide()
+{
+    if (!m_startupGuide)
+        return;
+
+    m_startupGuide->clearSteps();
+    m_startupGuide->setGuideId(QStringLiteral("basic_capture"));
+    m_startupGuide->setVersion(4);
+
+    auto ensureVisible = [this](QWidget *widget) {
+        if (widget)
+            ui.workflowScroll->ensureWidgetVisible(widget, 24, 24);
+    };
+
+    // --- 步骤 1：选择相机 ---
+    GuideStep selectCamera;
+    selectCamera.id = QStringLiteral("select_camera");
+    selectCamera.targetGetter = [this]() -> QWidget * { return ui.cameraSelectCombo; };
+    selectCamera.title = QStringLiteral("选择相机");
+    selectCamera.description = QStringLiteral("在相机连接区域确认要使用的相机型号。当前版本默认提供 Basler 相机。");
+    selectCamera.actionHint = QStringLiteral("您可在此确认相机型号；完成后点击「下一步」。");
+    selectCamera.beforeShow = [this, ensureVisible]() { ensureVisible(ui.cameraConnectGroup); };
+    m_startupGuide->addStep(selectCamera);
+
+    // --- 步骤 2：打开相机（须连接成功后可进入下一步）---
+    GuideStep openCamera;
+    openCamera.id = QStringLiteral("open_camera");
+    openCamera.targetGetter = [this]() -> QWidget * { return ui.openCameraBtn; };
+    openCamera.title = QStringLiteral("打开相机");
+    openCamera.description = QStringLiteral("点击「打开相机」建立连接。成功后预览区将显示实时画面。");
+    openCamera.actionHint = QStringLiteral("您可点击「打开相机」；连接成功后「下一步」将可用。");
+    openCamera.requireCanProceed = true;
+    openCamera.conditionId = QStringLiteral("camera_opened");
+    openCamera.canProceed = [this]() { return m_camera.isOpen(); };
+    openCamera.beforeShow = [this, ensureVisible]() { ensureVisible(ui.cameraConnectGroup); };
+    m_startupGuide->addStep(openCamera);
+
+    // --- 步骤 3：采集参数 ---
+    GuideStep cameraParams;
+    cameraParams.id = QStringLiteral("camera_params");
+    cameraParams.targetGetter = [this]() -> QWidget * { return ui.cameraParamGroup; };
+    cameraParams.title = QStringLiteral("确认采集参数");
+    cameraParams.description = QStringLiteral("曝光、增益和帧率位于此区域。可先保持默认值，需要时再点击「应用参数」写入相机。");
+    cameraParams.actionHint = QStringLiteral("您可调整曝光、增益、帧率并应用；完成后点击「下一步」。");
+    cameraParams.beforeShow = [this, ensureVisible]() { ensureVisible(ui.cameraParamGroup); };
+    m_startupGuide->addStep(cameraParams);
+
+    // --- 步骤 4：开始采集（须采集会话建立后可进入下一步）---
+    GuideStep startCapture;
+    startCapture.id = QStringLiteral("start_capture");
+    startCapture.targetGetter = [this]() -> QWidget * { return ui.startGrabBtn; };
+    startCapture.title = QStringLiteral("开始采集");
+    startCapture.description = QStringLiteral("点击「开始采集」建立采集会话。停止采集前可保存单张图像。");
+    startCapture.actionHint = QStringLiteral("您可点击「开始采集」；启动成功后「下一步」将可用。");
+    startCapture.requireCanProceed = true;
+    startCapture.conditionId = QStringLiteral("capture_started");
+    startCapture.canProceed = [this]() { return m_acquisitionActive; };
+    startCapture.beforeShow = [this, ensureVisible]() { ensureVisible(ui.cameraCaptureGroup); };
+    m_startupGuide->addStep(startCapture);
+
+    // --- 步骤 5：保存单张（介绍型，无 canProceed 门控）---
+    GuideStep saveOne;
+    saveOne.id = QStringLiteral("save_one");
+    saveOne.targetGetter = [this]() -> QWidget * { return ui.saveOneBmpBtn; };
+    saveOne.title = QStringLiteral("保存单张图像");
+    saveOne.description = QStringLiteral("采集过程中可将当前帧保存为 BMP。本步仅作介绍，可直接进入下一步。");
+    saveOne.actionHint = QStringLiteral("您可试存一张图像，或直接点击「下一步」。");
+    saveOne.beforeShow = [this, ensureVisible]() { ensureVisible(ui.cameraCaptureGroup); };
+    m_startupGuide->addStep(saveOne);
+
+    // --- 步骤 6：阶段采集 ---
+    GuideStep stageCapture;
+    stageCapture.id = QStringLiteral("stage_capture");
+    stageCapture.targetGetter = [this]() -> QWidget * { return ui.stageGroup; };
+    stageCapture.title = QStringLiteral("阶段采集");
+    stageCapture.description = QStringLiteral("阶段采集按阶段表自动采图。使用前需配置阶段名称、单段时长、帧率与循环次数。");
+    stageCapture.actionHint = QStringLiteral("您可浏览阶段采集区域；了解后点击「下一步」。");
+    stageCapture.beforeShow = [this, ensureVisible]() { ensureVisible(ui.stageGroup); };
+    m_startupGuide->addStep(stageCapture);
+
+    // --- 步骤 7：存图设置（末步，气泡显示「完成」）---
+    GuideStep savePath;
+    savePath.id = QStringLiteral("save_path");
+    savePath.targetGetter = [this]() -> QWidget * { return ui.saveSettingGroup; };
+    savePath.title = QStringLiteral("存图设置");
+    savePath.description = QStringLiteral("设置保存路径、分文件夹规则与最大保存数量。");
+    savePath.actionHint = QStringLiteral("您可确认存图路径与规则；完成后点击「完成」。");
+    savePath.beforeShow = [this, ensureVisible]() { ensureVisible(ui.saveSettingGroup); };
+    m_startupGuide->addStep(savePath);
 }
 
 void QtProject_1::waitSaveQueueDrained(bool warnIfTimeout)
@@ -659,6 +758,8 @@ void QtProject_1::onOpenCamera()
         startLiveView(); // 打开相机后启动连续采集与预览定时器；「开始采集」为独立业务会话
         log(m_liveViewActive ? QStringLiteral("相机连接成功，预览已启动。")
                              : QStringLiteral("相机连接成功。"));
+        if (m_startupGuide)
+            m_startupGuide->notifyCondition(QStringLiteral("camera_opened")); // 引导：刷新「打开相机」步下一步状态
     }
     else
     {
@@ -703,6 +804,8 @@ void QtProject_1::onStartGrab()
     applyCamParams();
     setCamStatus(QStringLiteral("状态: 采集中"), QStringLiteral("rgb(202, 80, 16)"));
     log(QStringLiteral("开始采集。"));
+    if (m_startupGuide)
+        m_startupGuide->notifyCondition(QStringLiteral("capture_started")); // 引导：刷新「开始采集」步下一步状态
     refreshButtonState();
 }
 
@@ -1106,6 +1209,7 @@ void QtProject_1::onClearStages()
         ui.stageTable->setRowCount(0);
 }
 
+// 遥控状态快照：相机/采集/阶段标志、存图队列与摘要 message。
 QJsonObject QtProject_1::buildRemoteStatusJson() const
 {
     const int qSize = m_saveThread.queueSize();
@@ -1130,77 +1234,19 @@ QJsonObject QtProject_1::buildRemoteStatusJson() const
     return obj;
 }
 
-QString QtProject_1::remoteCommandText(const QString &cmd) const
-{
-    if (cmd == QStringLiteral("open_camera"))
-        return QStringLiteral("打开相机");
-    if (cmd == QStringLiteral("close_camera"))
-        return QStringLiteral("关闭相机");
-    if (cmd == QStringLiteral("start_capture"))
-        return QStringLiteral("开始采集");
-    if (cmd == QStringLiteral("stop_capture"))
-        return QStringLiteral("停止采集");
-    if (cmd == QStringLiteral("save_one"))
-        return QStringLiteral("保存单张");
-    if (cmd == QStringLiteral("start_stage"))
-        return QStringLiteral("开始阶段采集");
-    if (cmd == QStringLiteral("stop_stage"))
-        return QStringLiteral("停止阶段采集");
-    if (cmd == QStringLiteral("status"))
-        return QStringLiteral("查询状态");
-    return cmd;
-}
-
-void QtProject_1::refreshBleStatusLabel()
-{
-    if (!m_bleStatusLabel)
-        return;
-    m_bleStatusLabel->setText(m_bleServer.statusSummary());
-    if (m_bleServer.isRunning())
-    {
-        const BleAdapterInfo ai = m_bleServer.adapterInfo();
-        m_bleStatusLabel->setToolTip(
-            QStringLiteral("适配器 ID：%1\nBLE 外设模式：%2")
-                .arg(ai.adapterId)
-                .arg(ai.peripheralSupported ? QStringLiteral("支持") : QStringLiteral("不支持")));
-    }
-    else
-    {
-        m_bleStatusLabel->setToolTip(QString());
-    }
-}
-
-
 void QtProject_1::pushRemoteStatus()
 {
-    if (m_bleServer.isRunning())
-        m_bleServer.pushStatus();
+    m_remoteHost.pushBleStatus();
 }
 
-void QtProject_1::refreshHttpStatusLabel()
-{
-    if (!m_httpStatusLabel)
-        return;
-    if (m_httpServer.isListening())
-    {
-        const QString endpoint = NetConfigHelper::httpEndpointHint(m_httpServer.serverPort());
-        m_httpStatusLabel->setText(QStringLiteral("小程序填写 %1").arg(endpoint));
-        m_httpStatusLabel->setToolTip(QStringLiteral("WiFi 连接 http://%1").arg(endpoint));
-    }
-    else
-    {
-        m_httpStatusLabel->setText(m_httpServer.lastError().isEmpty() ? QStringLiteral("未启动") : m_httpServer.lastError());
-        m_httpStatusLabel->setToolTip(QString());
-    }
-}
-
+// 遥控命令分发：映射至现有 onOpenCamera 等槽，前置条件与主界面一致。
 void QtProject_1::onRemoteCommand(const QString &cmd)
 {
     if (m_shutdownDone)
         return;
 
-    if (cmd != QStringLiteral("status"))
-        log(QStringLiteral("远程命令：%1").arg(remoteCommandText(cmd)));
+    // if (cmd != QStringLiteral("status"))
+    //     log(QStringLiteral("远程命令：%1").arg(remoteCommandLabel(cmd)));
 
     if (cmd == QStringLiteral("status"))
     {
@@ -1241,8 +1287,8 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
     {
         if (m_camera.isOpen() && m_acquisitionActive && m_liveViewActive)
             onSaveOneBmp();
-        else
-            log(QStringLiteral("[警告] 远程保存单张失败：请先打开相机并开始采集。"));
+        // else
+        //     log(QStringLiteral("[警告] 远程保存单张失败：请先打开相机并开始采集。"));
         pushRemoteStatus();
         return;
     }
@@ -1250,8 +1296,8 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
     {
         if (m_camera.isOpen() && !m_stageRunning && !m_acquisitionActive)
             onStartStageCapture();
-        else
-            log(QStringLiteral("[警告] 远程阶段采集未启动：请确认相机已打开且当前空闲。"));
+        // else
+        //     log(QStringLiteral("[警告] 远程阶段采集未启动：请确认相机已打开且当前空闲。"));
         pushRemoteStatus();
         return;
     }
@@ -1263,6 +1309,6 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
         return;
     }
 
-    log(QStringLiteral("[警告] 未知远程命令：%1").arg(cmd));
+    // log(QStringLiteral("[警告] 未知远程命令：%1").arg(cmd));
     pushRemoteStatus();
 }

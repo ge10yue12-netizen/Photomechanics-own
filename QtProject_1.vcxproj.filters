@@ -34,6 +34,9 @@
     <Filter Include="remote\ble">
       <UniqueIdentifier>{F2B3C4D5-E6F7-8901-BCDE-234567890ABC}</UniqueIdentifier>
     </Filter>
+    <Filter Include="guide">
+      <UniqueIdentifier>{A9D35C7A-1D5A-4B53-AE16-4E6A04A8D1D4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtRcc Include="QtProject_1.qrc"><Filter>Resource Files</Filter></QtRcc>
@@ -54,21 +57,33 @@
     <ClCompile Include="stage\StageManager.cpp"><Filter>stage</Filter></ClCompile>
     <QtMoc Include="ui\PreviewWidget.h"><Filter>ui</Filter></QtMoc>
     <ClCompile Include="ui\PreviewWidget.cpp"><Filter>ui</Filter></ClCompile>
-    <ClInclude Include="remote\RemoteCommandList.h"><Filter>remote</Filter></ClInclude>
-    <ClInclude Include="remote\NetConfigHelper.h"><Filter>remote</Filter></ClInclude>
+    <QtMoc Include="guide\GuideBubbleWidget.h"><Filter>guide</Filter></QtMoc>
+    <QtMoc Include="guide\GuideManager.h"><Filter>guide</Filter></QtMoc>
+    <ClInclude Include="guide\GuideKit.h"><Filter>guide</Filter></ClInclude>
+    <ClInclude Include="guide\GuideOverlay.h"><Filter>guide</Filter></ClInclude>
+    <ClInclude Include="guide\GuideStep.h"><Filter>guide</Filter></ClInclude>
+    <ClInclude Include="guide\GuideTheme.h"><Filter>guide</Filter></ClInclude>
+    <ClCompile Include="guide\GuideBubbleWidget.cpp"><Filter>guide</Filter></ClCompile>
+    <ClCompile Include="guide\GuideManager.cpp"><Filter>guide</Filter></ClCompile>
+    <ClCompile Include="guide\GuideOverlay.cpp"><Filter>guide</Filter></ClCompile>
+    <QtMoc Include="remote\RemoteKit.h"><Filter>remote</Filter></QtMoc>
+    <QtMoc Include="remote\RemoteHost.h"><Filter>remote</Filter></QtMoc>
+    <ClInclude Include="remote\RemoteCommands.h"><Filter>remote</Filter></ClInclude>
+    <ClInclude Include="remote\RemoteStatusText.h"><Filter>remote</Filter></ClInclude>
     <ClCompile Include="remote\NetConfigHelper.cpp"><Filter>remote</Filter></ClCompile>
     <QtMoc Include="remote\RemoteControlServer.h"><Filter>remote</Filter></QtMoc>
+    <ClCompile Include="remote\RemoteKit.cpp"><Filter>remote</Filter></ClCompile>
+    <ClCompile Include="remote\RemoteHost.cpp"><Filter>remote</Filter></ClCompile>
     <ClCompile Include="remote\RemoteControlServer.cpp"><Filter>remote</Filter></ClCompile>
     <ClInclude Include="remote\ble\BleProtocol.h"><Filter>remote\ble</Filter></ClInclude>
     <ClInclude Include="remote\ble\BleCommandProtocol.h"><Filter>remote\ble</Filter></ClInclude>
     <ClInclude Include="remote\ble\BleAdapterChecker.h"><Filter>remote\ble</Filter></ClInclude>
     <ClInclude Include="remote\ble\BleGattServerWin.h"><Filter>remote\ble</Filter></ClInclude>
-    <ClInclude Include="remote\ble\BleConfigHelper.h"><Filter>remote\ble</Filter></ClInclude>
     <ClInclude Include="remote\ble\WinRtBootstrap.h"><Filter>remote\ble</Filter></ClInclude>
+    <ClCompile Include="remote\ble\WinRtBootstrap.cpp"><Filter>remote\ble</Filter></ClCompile>
     <ClCompile Include="remote\ble\BleCommandProtocol.cpp"><Filter>remote\ble</Filter></ClCompile>
     <ClCompile Include="remote\ble\BleAdapterChecker.cpp"><Filter>remote\ble</Filter></ClCompile>
     <ClCompile Include="remote\ble\BleGattServerWin.cpp"><Filter>remote\ble</Filter></ClCompile>
-    <ClCompile Include="remote\ble\BleConfigHelper.cpp"><Filter>remote\ble</Filter></ClCompile>
     <ClCompile Include="remote\ble\BleControlServer.cpp"><Filter>remote\ble</Filter></ClCompile>
     <ClCompile Include="remote\ble\BleWinRtWorker.cpp"><Filter>remote\ble</Filter></ClCompile>
     <QtMoc Include="remote\ble\BleControlServer.h"><Filter>remote\ble</Filter></QtMoc>

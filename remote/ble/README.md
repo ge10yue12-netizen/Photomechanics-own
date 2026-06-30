@@ -1,37 +1,42 @@
-# BLE 遥控模块（可移植）
+# BLE 模块
 
-将本目录与 `remote/RemoteCommandList.h` 一并复制到目标 Qt 工程即可复用。
-
-## PC 端
+外设 GATT 服务，命令格式 `cmd:token`。配置由 **`RemoteKit::loadConfig()`** 一次读入，与 HTTP 共用 `netconfig.ini`。
 
 | 类 | 职责 |
 |----|------|
-| `BleControlServer` | 对外 API：`start()` / `stop()` / `commandReceived` |
-| `BleAdapterChecker` | 检测 Windows 默认蓝牙适配器、MAC、外设模式 |
-| `BleWinRtWorker` | WinRT GATT 专用线程（勿在主线程调 WinRT） |
-| `BleConfigHelper` | `config/netconfig.ini（[ble] 段）`（与 HTTP 同目录，`NetConfigHelper::configDirPath()`） |
+| `BleControlServer` | 对外 API：`start(cfg)` / `stop()` / `commandReceived` |
+| `BleWinRtWorker` | WinRT 专用线程 |
+| `BleAdapterChecker` | 适配器与外设模式检测 |
 
-启动成功后 `adapterInfo().address` 为当前 **Windows 默认适配器** MAC。USB 蓝牙棒若未设为系统默认，则不会用到。
+## C++14 宿主工程：语言标准规则
 
-## 手机端
+WinRT 头 **只出现在下列 3 个 `.cpp`** 中，宿主工程保持 **C++14**，仅这 3 个文件在 `vcxproj` 里标 **C++17**：
 
-复制 `miniprogram/utils/protocol.js` 与 `ble.js`。交互流程：
+| 文件 | 标准 | 原因 |
+|------|------|------|
+| `BleAdapterChecker.cpp` | C++17 | `#include <winrt/...>` |
+| `BleGattServerWin.cpp` | C++17 | `#include <winrt/...>` |
+| `WinRtBootstrap.cpp` | C++17 | `#include <winrt/...>` |
+| 其余 `ble/*.cpp` 与全部 `.h` | C++14 | 无 WinRT 头 |
 
-1. **刷新设备列表**（仅扫描，不自动连接）
-2. 用户 **点选设备**
-3. 校验 GATT 服务 UUID 后进入已连接状态
+`WinRtBootstrap.h` 仅声明函数，**可被 C++14 代码安全 include**。
 
-微信小程序 **不能** 调用系统蓝牙配对界面，这是平台限制，不是实现疏漏。
+### vcxproj 片段（复制到工程，生成不会覆盖）
 
-## 诊断对照
+```xml
+<!-- 全工程 ItemDefinitionGroup：LanguageStandard = stdcpp14 -->
 
-| 现象 | PC 端 | 手机端 |
-|------|-------|--------|
-| 适配器不支持外设 | 日志：不支持 BLE 外设模式 | — |
-| 未启动 GATT | 日志：启动失败 | 连接后：未找到遥控服务 |
-| 扫不到设备 | — | 开蓝牙/定位、靠近 PC |
-| token 错误 | 日志：token 无效 | 命令无响应或报错 |
+<ClCompile Include="remote\ble\WinRtBootstrap.cpp">
+  <LanguageStandard>stdcpp17</LanguageStandard>
+</ClCompile>
+<ClCompile Include="remote\ble\BleAdapterChecker.cpp">
+  <LanguageStandard>stdcpp17</LanguageStandard>
+</ClCompile>
+<ClCompile Include="remote\ble\BleGattServerWin.cpp">
+  <LanguageStandard>stdcpp17</LanguageStandard>
+</ClCompile>
+```
 
-## UUID
+另需：链接 `windowsapp.lib`；附加选项 `/utf-8`；**不要** `/await`。
 
-见 `BleProtocol.h`，须与小程序 `protocol.js` 一致。
+集成见上级 **`../README.md`**。

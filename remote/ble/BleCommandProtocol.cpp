@@ -1,10 +1,11 @@
-﻿#include "BleCommandProtocol.h"
+#include "BleCommandProtocol.h"
 
-#include "remote/RemoteCommandList.h"
+#include "../RemoteCommands.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
 
+// 解析格式：cmd 或 cmd:token；token 非空且与 expectedToken 不一致时 tokenOk=false。
 BleCommandParseResult parseBleCommand(const QByteArray &raw, const QString &expectedToken)
 {
     BleCommandParseResult result;
@@ -42,6 +43,8 @@ BleCommandParseResult parseBleCommand(const QByteArray &raw, const QString &expe
     return result;
 }
 
+// 紧凑 JSON 字段映射：cameraOpen→cam, liveViewActive→lv, acquisitionActive→grab,
+// stageRunning→stg, queueSize→q, queueCapacity→qc, totalSaved→tot, message→msg。
 QByteArray compactStatusJson(const QByteArray &json)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(json);
@@ -61,4 +64,3 @@ QByteArray compactStatusJson(const QByteArray &json)
     out.insert(QStringLiteral("msg"), in.value(QStringLiteral("message")).toString());
     return QJsonDocument(out).toJson(QJsonDocument::Compact);
 }
-
