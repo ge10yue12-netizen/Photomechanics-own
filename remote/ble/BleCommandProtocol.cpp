@@ -57,6 +57,7 @@ QByteArray compactStatusJson(const QByteArray &json)
     out.insert(QStringLiteral("cam"), in.value(QStringLiteral("cameraOpen")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("lv"), in.value(QStringLiteral("liveViewActive")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("grab"), in.value(QStringLiteral("acquisitionActive")).toBool() ? 1 : 0);
+    out.insert(QStringLiteral("calc"), in.value(QStringLiteral("calculateActive")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("stg"), in.value(QStringLiteral("stageRunning")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("q"), in.value(QStringLiteral("queueSize")).toInt());
     out.insert(QStringLiteral("qc"), in.value(QStringLiteral("queueCapacity")).toInt());

@@ -1,14 +1,13 @@
 /**
- * WiFi 模式链路：HTTP 状态轮询 + 预览刷新。
+ * WiFi 模式链路：HTTP 状态轮询 + 预览 URL（供 PreviewStream 双缓冲）。
  */
 const { HttpClient } = require('./http')
-const { POLL_MS, PREVIEW_MS } = require('./remote-buttons')
+const { POLL_MS } = require('./remote-buttons')
 
 class WifiLink {
   constructor() {
     this._http = new HttpClient()
     this._pollTimer = null
-    this._previewTimer = null
     this._pollToken = ''
   }
 
@@ -54,35 +53,11 @@ class WifiLink {
       clearInterval(this._pollTimer)
       this._pollTimer = null
     }
-    this.stopPreview()
   }
 
-  startPreview(token, onFrame) {
-    this.stopPreview()
-    if (!this._http.connected || !onFrame) return
-    const t = token || ''
-    let busy = false
-    const tick = () => {
-      if (!this._http.connected || busy) return
-      busy = true
-      wx.downloadFile({
-        url: this._http.previewUrl(t),
-        success: (res) => {
-          if (res.statusCode === 200 && res.tempFilePath)
-            onFrame(res.tempFilePath)
-        },
-        complete: () => { busy = false }
-      })
-    }
-    tick()
-    this._previewTimer = setInterval(tick, PREVIEW_MS)
-  }
-
-  stopPreview() {
-    if (this._previewTimer) {
-      clearInterval(this._previewTimer)
-      this._previewTimer = null
-    }
+  getPreviewUrl(token) {
+    if (!this._http.connected) return ''
+    return this._http.previewUrl(token || '')
   }
 }
 

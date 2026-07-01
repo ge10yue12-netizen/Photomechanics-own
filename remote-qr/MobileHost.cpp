@@ -153,6 +153,8 @@ void MobileHost::onPhoneIdleCheck()
 
     m_phoneConnected = false;
     m_lastPhoneActivityMs = 0;
+    if (m_controlGuard)
+        m_controlGuard->release(RemoteControlSource::QrBrowser);
     emit phoneDisconnected();
 }
 

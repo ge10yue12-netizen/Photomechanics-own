@@ -45,75 +45,228 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <QtRcc Include="QtProject_1.qrc"><Filter>Resource Files</Filter></QtRcc>
-    <QtRcc Include="remote-qr\remote-qr.qrc"><Filter>remote-qr</Filter></QtRcc>
-    <QtUic Include="QtProject_1.ui"><Filter>Form Files</Filter></QtUic>
-    <QtMoc Include="QtProject_1.h"><Filter>Header Files</Filter></QtMoc>
-    <ClCompile Include="QtProject_1.cpp"><Filter>Source Files</Filter></ClCompile>
-    <ClCompile Include="main.cpp"><Filter>Source Files</Filter></ClCompile>
-    <QtMoc Include="camera\CameraController.h"><Filter>camera</Filter></QtMoc>
-    <ClCompile Include="camera\CameraController.cpp"><Filter>camera</Filter></ClCompile>
-    <ClInclude Include="core\AppTypes.h"><Filter>core</Filter></ClInclude>
-    <ClInclude Include="core\AppLogger.h"><Filter>core</Filter></ClInclude>
-    <ClCompile Include="core\AppLogger.cpp"><Filter>core</Filter></ClCompile>
-    <QtMoc Include="save\ImageSaveThread.h"><Filter>save</Filter></QtMoc>
-    <ClCompile Include="save\ImageSaveThread.cpp"><Filter>save</Filter></ClCompile>
-    <ClInclude Include="save\SavePathHelper.h"><Filter>save</Filter></ClInclude>
-    <ClCompile Include="save\SavePathHelper.cpp"><Filter>save</Filter></ClCompile>
-    <QtMoc Include="stage\StageManager.h"><Filter>stage</Filter></QtMoc>
-    <ClCompile Include="stage\StageManager.cpp"><Filter>stage</Filter></ClCompile>
-    <QtMoc Include="ui\PreviewWidget.h"><Filter>ui</Filter></QtMoc>
-    <ClCompile Include="ui\PreviewWidget.cpp"><Filter>ui</Filter></ClCompile>
-    <QtMoc Include="guide\GuideBubbleWidget.h"><Filter>guide</Filter></QtMoc>
-    <QtMoc Include="guide\GuideManager.h"><Filter>guide</Filter></QtMoc>
-    <ClInclude Include="guide\GuideKit.h"><Filter>guide</Filter></ClInclude>
-    <ClInclude Include="guide\GuideOverlay.h"><Filter>guide</Filter></ClInclude>
-    <ClInclude Include="guide\GuideStep.h"><Filter>guide</Filter></ClInclude>
-    <ClInclude Include="guide\GuideTheme.h"><Filter>guide</Filter></ClInclude>
-    <ClCompile Include="guide\GuideBubbleWidget.cpp"><Filter>guide</Filter></ClCompile>
-    <ClCompile Include="guide\GuideManager.cpp"><Filter>guide</Filter></ClCompile>
-    <ClCompile Include="guide\GuideOverlay.cpp"><Filter>guide</Filter></ClCompile>
-    <QtMoc Include="remote\RemoteKit.h"><Filter>remote</Filter></QtMoc>
-    <QtMoc Include="remote\RemoteHost.h"><Filter>remote</Filter></QtMoc>
-    <ClInclude Include="remote\RemoteCommands.h"><Filter>remote</Filter></ClInclude>
-    <ClInclude Include="remote\RemoteControlGuard.h"><Filter>remote</Filter></ClInclude>
-    <ClInclude Include="remote\RemoteStatusText.h"><Filter>remote</Filter></ClInclude>
-    <ClCompile Include="remote\NetConfigHelper.cpp"><Filter>remote</Filter></ClCompile>
-    <QtMoc Include="remote\RemoteControlServer.h"><Filter>remote</Filter></QtMoc>
-    <ClCompile Include="remote\RemoteKit.cpp"><Filter>remote</Filter></ClCompile>
-    <ClCompile Include="remote\RemoteHost.cpp"><Filter>remote</Filter></ClCompile>
-    <ClCompile Include="remote\RemoteControlGuard.cpp"><Filter>remote</Filter></ClCompile>
-    <ClCompile Include="remote\RemoteControlServer.cpp"><Filter>remote</Filter></ClCompile>
-    <ClInclude Include="remote\ble\BleProtocol.h"><Filter>remote\ble</Filter></ClInclude>
-    <ClInclude Include="remote\ble\BleCommandProtocol.h"><Filter>remote\ble</Filter></ClInclude>
-    <ClInclude Include="remote\ble\BleAdapterChecker.h"><Filter>remote\ble</Filter></ClInclude>
-    <ClInclude Include="remote\ble\BleGattServerWin.h"><Filter>remote\ble</Filter></ClInclude>
-    <ClInclude Include="remote\ble\WinRtBootstrap.h"><Filter>remote\ble</Filter></ClInclude>
-    <ClCompile Include="remote\ble\WinRtBootstrap.cpp"><Filter>remote\ble</Filter></ClCompile>
-    <ClCompile Include="remote\ble\BleCommandProtocol.cpp"><Filter>remote\ble</Filter></ClCompile>
-    <ClCompile Include="remote\ble\BleAdapterChecker.cpp"><Filter>remote\ble</Filter></ClCompile>
-    <ClCompile Include="remote\ble\BleGattServerWin.cpp"><Filter>remote\ble</Filter></ClCompile>
-    <ClCompile Include="remote\ble\BleControlServer.cpp"><Filter>remote\ble</Filter></ClCompile>
-    <ClCompile Include="remote\ble\BleWinRtWorker.cpp"><Filter>remote\ble</Filter></ClCompile>
-    <QtMoc Include="remote\ble\BleControlServer.h"><Filter>remote\ble</Filter></QtMoc>
-    <QtMoc Include="remote\ble\BleWinRtWorker.h"><Filter>remote\ble</Filter></QtMoc>
-    <QtMoc Include="remote-qr\MobileWebServer.h"><Filter>remote-qr</Filter></QtMoc>
-    <QtMoc Include="remote-qr\MobileHost.h"><Filter>remote-qr</Filter></QtMoc>
-    <QtMoc Include="remote-qr\RemoteControlDialog.h"><Filter>remote-qr</Filter></QtMoc>
-    <ClInclude Include="remote-qr\MobileConfig.h"><Filter>remote-qr</Filter></ClInclude>
-    <ClInclude Include="remote-qr\MobileCommands.h"><Filter>remote-qr</Filter></ClInclude>
-    <ClInclude Include="remote-qr\NetworkHelper.h"><Filter>remote-qr</Filter></ClInclude>
-    <ClInclude Include="remote-qr\TokenManager.h"><Filter>remote-qr</Filter></ClInclude>
-    <ClInclude Include="remote-qr\QrCodeHelper.h"><Filter>remote-qr</Filter></ClInclude>
-    <ClInclude Include="remote-qr\PreviewFrameCache.h"><Filter>remote-qr</Filter></ClInclude>
-    <ClCompile Include="remote-qr\MobileConfig.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\NetworkHelper.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\TokenManager.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\QrCodeHelper.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\PreviewFrameCache.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\MobileWebServer.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\MobileHost.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\RemoteControlDialog.cpp"><Filter>remote-qr</Filter></ClCompile>
-    <ClCompile Include="remote-qr\thirdparty\qrcodegen.cpp"><Filter>remote-qr\thirdparty</Filter></ClCompile>
+    <QtRcc Include="QtProject_1.qrc">
+      <Filter>Resource Files</Filter>
+    </QtRcc>
+    <QtRcc Include="remote-qr\remote-qr.qrc">
+      <Filter>remote-qr</Filter>
+    </QtRcc>
+    <QtUic Include="QtProject_1.ui">
+      <Filter>Form Files</Filter>
+    </QtUic>
+    <QtMoc Include="QtProject_1.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <ClCompile Include="QtProject_1.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <QtMoc Include="camera\CameraController.h">
+      <Filter>camera</Filter>
+    </QtMoc>
+    <ClCompile Include="camera\CameraController.cpp">
+      <Filter>camera</Filter>
+    </ClCompile>
+    <ClInclude Include="core\AppTypes.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\AppLogger.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClCompile Include="core\AppLogger.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <QtMoc Include="save\ImageSaveThread.h">
+      <Filter>save</Filter>
+    </QtMoc>
+    <ClCompile Include="save\ImageSaveThread.cpp">
+      <Filter>save</Filter>
+    </ClCompile>
+    <ClInclude Include="save\SavePathHelper.h">
+      <Filter>save</Filter>
+    </ClInclude>
+    <ClCompile Include="save\SavePathHelper.cpp">
+      <Filter>save</Filter>
+    </ClCompile>
+    <QtMoc Include="stage\StageManager.h">
+      <Filter>stage</Filter>
+    </QtMoc>
+    <ClCompile Include="stage\StageManager.cpp">
+      <Filter>stage</Filter>
+    </ClCompile>
+    <QtMoc Include="ui\PreviewWidget.h">
+      <Filter>ui</Filter>
+    </QtMoc>
+    <ClCompile Include="ui\PreviewWidget.cpp">
+      <Filter>ui</Filter>
+    </ClCompile>
+    <QtMoc Include="guide\GuideBubbleWidget.h">
+      <Filter>guide</Filter>
+    </QtMoc>
+    <QtMoc Include="guide\GuideManager.h">
+      <Filter>guide</Filter>
+    </QtMoc>
+    <ClInclude Include="guide\GuideKit.h">
+      <Filter>guide</Filter>
+    </ClInclude>
+    <ClInclude Include="guide\GuideOverlay.h">
+      <Filter>guide</Filter>
+    </ClInclude>
+    <ClInclude Include="guide\GuideStep.h">
+      <Filter>guide</Filter>
+    </ClInclude>
+    <ClInclude Include="guide\GuideTheme.h">
+      <Filter>guide</Filter>
+    </ClInclude>
+    <ClCompile Include="guide\GuideBubbleWidget.cpp">
+      <Filter>guide</Filter>
+    </ClCompile>
+    <ClCompile Include="guide\GuideManager.cpp">
+      <Filter>guide</Filter>
+    </ClCompile>
+    <ClCompile Include="guide\GuideOverlay.cpp">
+      <Filter>guide</Filter>
+    </ClCompile>
+    <QtMoc Include="remote\RemoteKit.h">
+      <Filter>remote</Filter>
+    </QtMoc>
+    <QtMoc Include="remote\RemoteHost.h">
+      <Filter>remote</Filter>
+    </QtMoc>
+    <ClInclude Include="remote\RemoteCommands.h">
+      <Filter>remote</Filter>
+    </ClInclude>
+    <ClInclude Include="remote\RemotePreviewFrameCache.h">
+      <Filter>remote</Filter>
+    </ClInclude>
+    <ClInclude Include="remote\RemoteControlGuard.h">
+      <Filter>remote</Filter>
+    </ClInclude>
+    <ClInclude Include="remote\RemoteStatusText.h">
+      <Filter>remote</Filter>
+    </ClInclude>
+    <ClCompile Include="remote\NetConfigHelper.cpp">
+      <Filter>remote</Filter>
+    </ClCompile>
+    <QtMoc Include="remote\RemoteControlServer.h">
+      <Filter>remote</Filter>
+    </QtMoc>
+    <ClCompile Include="remote\RemoteKit.cpp">
+      <Filter>remote</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\RemoteHost.cpp">
+      <Filter>remote</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\RemoteControlGuard.cpp">
+      <Filter>remote</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\RemoteControlServer.cpp">
+      <Filter>remote</Filter>
+    </ClCompile>
+    <ClInclude Include="remote\ble\BleProtocol.h">
+      <Filter>remote\ble</Filter>
+    </ClInclude>
+    <ClInclude Include="remote\ble\BleCommandProtocol.h">
+      <Filter>remote\ble</Filter>
+    </ClInclude>
+    <ClInclude Include="remote\ble\BleAdapterChecker.h">
+      <Filter>remote\ble</Filter>
+    </ClInclude>
+    <ClInclude Include="remote\ble\BleGattServerWin.h">
+      <Filter>remote\ble</Filter>
+    </ClInclude>
+    <ClInclude Include="remote\ble\WinRtBootstrap.h">
+      <Filter>remote\ble</Filter>
+    </ClInclude>
+    <ClCompile Include="remote\ble\WinRtBootstrap.cpp">
+      <Filter>remote\ble</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\ble\BleCommandProtocol.cpp">
+      <Filter>remote\ble</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\ble\BleAdapterChecker.cpp">
+      <Filter>remote\ble</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\ble\BleGattServerWin.cpp">
+      <Filter>remote\ble</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\ble\BleControlServer.cpp">
+      <Filter>remote\ble</Filter>
+    </ClCompile>
+    <ClCompile Include="remote\ble\BleWinRtWorker.cpp">
+      <Filter>remote\ble</Filter>
+    </ClCompile>
+    <QtMoc Include="remote\ble\BleControlServer.h">
+      <Filter>remote\ble</Filter>
+    </QtMoc>
+    <QtMoc Include="remote\ble\BleWinRtWorker.h">
+      <Filter>remote\ble</Filter>
+    </QtMoc>
+    <QtMoc Include="remote-qr\MobileWebServer.h">
+      <Filter>remote-qr</Filter>
+    </QtMoc>
+    <QtMoc Include="remote-qr\MobileHost.h">
+      <Filter>remote-qr</Filter>
+    </QtMoc>
+    <QtMoc Include="remote-qr\RemoteControlDialog.h">
+      <Filter>remote-qr</Filter>
+    </QtMoc>
+    <ClInclude Include="remote-qr\MobileConfig.h">
+      <Filter>remote-qr</Filter>
+    </ClInclude>
+    <ClInclude Include="remote-qr\MobileCommands.h">
+      <Filter>remote-qr</Filter>
+    </ClInclude>
+    <ClInclude Include="remote-qr\NetworkHelper.h">
+      <Filter>remote-qr</Filter>
+    </ClInclude>
+    <ClInclude Include="remote-qr\TokenManager.h">
+      <Filter>remote-qr</Filter>
+    </ClInclude>
+    <ClInclude Include="remote-qr\QrCodeHelper.h">
+      <Filter>remote-qr</Filter>
+    </ClInclude>
+    <ClInclude Include="remote-qr\PreviewFrameCache.h">
+      <Filter>remote-qr</Filter>
+    </ClInclude>
+    <ClCompile Include="remote-qr\MobileConfig.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\NetworkHelper.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\TokenManager.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\QrCodeHelper.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\PreviewFrameCache.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\MobileWebServer.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\MobileHost.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\RemoteControlDialog.cpp">
+      <Filter>remote-qr</Filter>
+    </ClCompile>
+    <ClCompile Include="remote-qr\thirdparty\qrcodegen.cpp">
+      <Filter>remote-qr\thirdparty</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="remote\RemotePreviewFrameCache.cpp">
+      <Filter>remote</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="remote\NetConfigHelper.h">
+      <Filter>remote</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

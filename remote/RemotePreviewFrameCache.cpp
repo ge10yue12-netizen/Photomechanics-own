@@ -1,9 +1,9 @@
-#include "PreviewFrameCache.h"
+#include "RemotePreviewFrameCache.h"
 
 #include <QBuffer>
 #include <QMutexLocker>
 
-void PreviewFrameCache::setEncodeOptions(int maxWidth, int maxHeight, int jpegQuality)
+void RemotePreviewFrameCache::setEncodeOptions(int maxWidth, int maxHeight, int jpegQuality)
 {
     QMutexLocker lock(&m_mutex);
     m_maxWidth = maxWidth > 0 ? maxWidth : 480;
@@ -11,7 +11,7 @@ void PreviewFrameCache::setEncodeOptions(int maxWidth, int maxHeight, int jpegQu
     m_jpegQuality = jpegQuality >= 30 && jpegQuality <= 90 ? jpegQuality : 55;
 }
 
-void PreviewFrameCache::updateFrame(const QImage &frame, quint64 frameSeq)
+void RemotePreviewFrameCache::updateFrame(const QImage &frame, quint64 frameSeq)
 {
     if (frame.isNull())
         return;
@@ -30,10 +30,7 @@ void PreviewFrameCache::updateFrame(const QImage &frame, quint64 frameSeq)
 
     QImage scaled = frame;
     if (scaled.width() > maxWidth || scaled.height() > maxHeight)
-    {
         scaled = scaled.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::FastTransformation);
-    }
-    // Mono8 为 Grayscale8；JPEG 编码须 RGB888，否则 save 静默失败导致预览为空。
     if (scaled.format() == QImage::Format_Grayscale8)
         scaled = scaled.convertToFormat(QImage::Format_RGB888);
 
@@ -50,14 +47,14 @@ void PreviewFrameCache::updateFrame(const QImage &frame, quint64 frameSeq)
     m_jpeg = jpeg;
 }
 
-void PreviewFrameCache::clear()
+void RemotePreviewFrameCache::clear()
 {
     QMutexLocker lock(&m_mutex);
     m_jpeg.clear();
     m_lastFrameSeq = 0;
 }
 
-QByteArray PreviewFrameCache::getLatestJpeg() const
+QByteArray RemotePreviewFrameCache::getLatestJpeg() const
 {
     QMutexLocker lock(&m_mutex);
     return m_jpeg;

@@ -1,12 +1,32 @@
 #include "RemoteControlGuard.h"
 
+namespace
+{
+
+bool isMiniProgramSource(RemoteControlSource source)
+{
+    return source == RemoteControlSource::MiniProgramHttp
+           || source == RemoteControlSource::MiniProgramBle;
+}
+
+/** 小程序 HTTP/BLE 为同一客户端组；扫码 Web 与小程序之间仍互斥。 */
+bool sameClientGroup(RemoteControlSource a, RemoteControlSource b)
+{
+    if (a == b)
+        return true;
+    return isMiniProgramSource(a) && isMiniProgramSource(b);
+}
+
+} // namespace
+
 RemoteControlGuard::Decision RemoteControlGuard::tryCommand(RemoteControlGuard *guard,
                                                             RemoteControlSource source)
 {
     if (!guard)
         return {};
     QMutexLocker lock(&guard->m_mutex);
-    if (guard->m_cmdOwner != RemoteControlSource::None && guard->m_cmdOwner != source)
+    if (guard->m_cmdOwner != RemoteControlSource::None
+        && !sameClientGroup(guard->m_cmdOwner, source))
     {
         Decision d;
         d.blocked = true;
@@ -26,7 +46,7 @@ QJsonObject RemoteControlGuard::statusWithGuard(RemoteControlGuard *guard,
     QMutexLocker lock(&guard->m_mutex);
     QJsonObject obj = base;
     const RemoteControlSource owner = guard->m_cmdOwner;
-    const bool blocked = owner != RemoteControlSource::None && owner != source;
+    const bool blocked = owner != RemoteControlSource::None && !sameClientGroup(owner, source);
     obj.insert(QStringLiteral("remoteControlOwner"), sourceKey(owner));
     obj.insert(QStringLiteral("remoteControlOwnerLabel"), sourceLabel(owner));
     obj.insert(QStringLiteral("remoteControlBlocked"), blocked);
@@ -38,7 +58,7 @@ QJsonObject RemoteControlGuard::statusWithGuard(RemoteControlGuard *guard,
 void RemoteControlGuard::release(RemoteControlSource source)
 {
     QMutexLocker lock(&m_mutex);
-    if (m_cmdOwner == source)
+    if (m_cmdOwner == source || sameClientGroup(m_cmdOwner, source))
         m_cmdOwner = RemoteControlSource::None;
 }
 
@@ -70,9 +90,9 @@ QString RemoteControlGuard::sourceLabel(RemoteControlSource source)
     case RemoteControlSource::QrBrowser:
         return QStringLiteral("Web 客户端");
     case RemoteControlSource::MiniProgramHttp:
-        return QStringLiteral("HTTP 客户端");
+        return QStringLiteral("小程序 WiFi");
     case RemoteControlSource::MiniProgramBle:
-        return QStringLiteral("BLE 客户端");
+        return QStringLiteral("小程序 BLE");
     default:
         return QStringLiteral("无占用");
     }

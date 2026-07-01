@@ -1,18 +1,18 @@
 /**
- * 遥控主页面：WiFi / BLE 双模式；预览/状态格为增量，按钮区保持原版。
+ * 远程控制主页面：独立小程序；命令表与 PC knownCommands 一致。
  */
 const {
   CMD_KEYS, defaultBtnState, computeBtnState, isRemoteOffline, formatMetrics
 } = require('../../utils/remote-buttons')
 const WifiLink = require('../../utils/wifi-link')
 const BleLink = require('../../utils/ble-link')
+const PreviewStream = require('../../utils/preview-stream')
 const { humanizeError } = require('../../utils/errors')
 
-const STORAGE_HOST = 'photomech_host'
-const STORAGE_TOKEN = 'photomech_token'
-const STORAGE_MODE = 'photomech_mode'
+const STORAGE_HOST = 'rc_host'
+const STORAGE_TOKEN = 'rc_token'
+const STORAGE_MODE = 'rc_mode'
 
-/** 预览区占位文案（与交互顺序：连接主机 → 图像预览 → 打开相机） */
 const PREVIEW_HINT = {
   NEED_CONNECT: '须先建立主机连接',
   WIFI_ONLY: '图像预览仅支持 WiFi 通道',
@@ -23,10 +23,11 @@ const PREVIEW_HINT = {
 
 const EMPTY_METRICS = {
   metricCam: '—',
-  metricGrab: '—',
-  metricStage: '—',
+  metricCalc: '—',
   metricMsg: '—',
-  previewUrl: '',
+  previewUrlA: '',
+  previewUrlB: '',
+  previewActive: 0,
   previewHint: PREVIEW_HINT.NEED_CONNECT
 }
 
@@ -47,6 +48,7 @@ Page({
     connConnectDisabled: false,
     connDisconnectDisabled: true,
     uiLocked: false,
+    linkPanelOpen: true,
     ...EMPTY_METRICS
   },
 
@@ -57,6 +59,14 @@ Page({
 
     this.wifiLink = new WifiLink()
     this.bleLink = new BleLink()
+    this._previewStream = new PreviewStream(() => {
+      if (!this.wifiLink.isConnected()) return ''
+      return this.wifiLink.getPreviewUrl((this.data.token || '').trim())
+    })
+    this._previewStream.setOnFrame((slot, url) => {
+      const key = slot === 0 ? 'previewUrlA' : 'previewUrlB'
+      this._safeSetData({ [key]: url })
+    })
 
     this.wifiLink.setOnStatus((status) => {
       if (!this._alive || this.data.mode !== 'wifi') return
@@ -118,6 +128,7 @@ Page({
   _stopAllPoll() {
     this.wifiLink.stopPoll()
     this.bleLink.stopPoll()
+    this._previewStream.stop()
   },
 
   _resumePollForCurrentMode() {
@@ -125,7 +136,7 @@ Page({
     const token = (this.data.token || '').trim()
     if (this.data.mode === 'wifi' && this.wifiLink.isConnected()) {
       this.wifiLink.startPoll(token)
-      this._syncPreview(this._lastStatus, token)
+      this._syncPreview(this._lastStatus)
     } else if (this.data.mode === 'ble' && this.bleLink.isConnected()) {
       this.bleLink.startPoll(token)
     }
@@ -192,35 +203,55 @@ Page({
     return PREVIEW_HINT.NEED_OPEN_CAMERA
   },
 
-  _syncPreview(status, token) {
+  _stopPreviewUi(hint) {
+    this._previewStream.stop()
+    this._safeSetData({
+      previewUrlA: '',
+      previewUrlB: '',
+      previewActive: 0,
+      previewHint: hint || PREVIEW_HINT.NEED_CONNECT
+    })
+  },
+
+  _syncPreview(status) {
     const H = PREVIEW_HINT
     if (this.data.mode === 'ble') {
-      this.wifiLink.stopPreview()
-      this._safeSetData({ previewUrl: '', previewHint: H.WIFI_ONLY })
+      this._stopPreviewUi(H.WIFI_ONLY)
       return
     }
     if (!this.data.connected) {
-      this.wifiLink.stopPreview()
-      this._safeSetData({ previewUrl: '', previewHint: H.NEED_CONNECT })
+      this._stopPreviewUi(H.NEED_CONNECT)
       return
     }
     const ready = !!(status && status.cameraOpen && status.liveViewActive)
     if (ready) {
-      this.wifiLink.startPreview(token, (path) => {
-        if (this._alive && path && path !== this.data.previewUrl) {
-          this._safeSetData({ previewUrl: path, previewHint: '' })
-        }
-      })
-      if (!this.data.previewUrl && this.data.previewHint !== H.NO_FRAME) {
+      if (!this._previewStream.isRunning()) {
+        this._previewStream.start()
+      }
+      if (!this.data.previewUrlA && !this.data.previewUrlB && this.data.previewHint !== H.NO_FRAME) {
         this._safeSetData({ previewHint: H.NO_FRAME })
       }
     } else if (status && status.cameraOpen && !status.liveViewActive) {
-      this.wifiLink.stopPreview()
-      this._safeSetData({ previewUrl: '', previewHint: H.LIVE_NOT_READY })
+      this._stopPreviewUi(H.LIVE_NOT_READY)
     } else {
-      this.wifiLink.stopPreview()
-      this._safeSetData({ previewUrl: '', previewHint: H.NEED_OPEN_CAMERA })
+      this._stopPreviewUi(H.NEED_OPEN_CAMERA)
     }
+  },
+
+  onPreviewLoad(e) {
+    const slot = Number(e.currentTarget.dataset.slot)
+    if (slot !== this._previewStream.pendingSlot) return
+    this._safeSetData({ previewActive: slot, previewHint: '' })
+    this._previewStream.frameDone(true)
+  },
+
+  onPreviewError() {
+    this._previewStream.frameDone(false)
+  },
+
+  onToggleLinkPanel() {
+    if (this.data.uiLocked) return
+    this._safeSetData({ linkPanelOpen: !this.data.linkPanelOpen })
   },
 
   _applyLinkConnected(endpoint) {
@@ -232,7 +263,10 @@ Page({
       errorHint: '',
       connConnectDisabled: true,
       connDisconnectDisabled: false,
-      previewUrl: '',
+      linkPanelOpen: false,
+      previewUrlA: '',
+      previewUrlB: '',
+      previewActive: 0,
       previewHint: this._previewHintIdle(true)
     })
     this._refreshBtnState()
@@ -243,6 +277,7 @@ Page({
   _applyDisconnectedUi(detail) {
     this.wifiLink.stopPoll()
     this.bleLink.stopPoll()
+    this._previewStream.stop()
     this._lastStatus = {}
     this._safeSetData({
       connected: false,
@@ -256,6 +291,7 @@ Page({
       connConnectDisabled: false,
       connDisconnectDisabled: true,
       selectedDeviceId: '',
+      linkPanelOpen: true,
       ...EMPTY_METRICS,
       previewHint: this._previewHintIdle(false)
     })
@@ -280,7 +316,7 @@ Page({
 
     this._safeSetData(patch)
     if (!this.data.pendingAction) this._refreshBtnState()
-    this._syncPreview(status, (this.data.token || '').trim())
+    this._syncPreview(status)
   },
 
   async runAction(action, work) {
@@ -300,6 +336,8 @@ Page({
   handleWifiLost(reason) {
     const token = (this.data.token || '').trim()
     this.wifiLink.disconnect(token).catch(() => {})
+    this._previewStream.stop()
+    this._lastStatus = {}
     this._safeSetData({
       connected: false,
       connState: 'error',
@@ -311,14 +349,15 @@ Page({
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
+      linkPanelOpen: true,
       ...EMPTY_METRICS,
       previewHint: this._previewHintIdle(false)
     })
-    this._lastStatus = {}
   },
 
   handleBlePcOffline(reason) {
     this.bleLink.stopPoll()
+    this._previewStream.stop()
     this._lastStatus = {}
     const hint = reason || '主机服务已停止'
     this._safeSetData({
@@ -332,6 +371,7 @@ Page({
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
+      linkPanelOpen: true,
       ...EMPTY_METRICS,
       previewHint: this._previewHintIdle(false)
     })
@@ -356,10 +396,12 @@ Page({
       patch.connected = false
       patch.errorHint = detail || '连接异常'
       patch.btnState = defaultBtnState(true)
+      patch.linkPanelOpen = true
       Object.assign(patch, EMPTY_METRICS)
       patch.previewHint = this._previewHintIdle(false)
       this._lastStatus = {}
       this.bleLink.stopPoll()
+      this._previewStream.stop()
     } else if (state === 'idle') {
       if (this.data.connected && detail && detail.indexOf('断开') >= 0) {
         this._applyDisconnectedUi(detail)
@@ -408,6 +450,7 @@ Page({
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
+      linkPanelOpen: true,
       statusDetail: mode === 'wifi' ? '客户端与主机须处于同一局域网' : '扫描后选择目标 BLE 设备',
       connState: 'disconnected',
       ...EMPTY_METRICS,
@@ -528,6 +571,19 @@ Page({
       const token = (this.data.token || '').trim()
       try {
         await link.sendCommand(cmd, token)
+      } catch (err) {
+        this._safeSetData({ errorHint: humanizeError(err, 'command') })
+      }
+    })
+  },
+
+  onStatusTap() {
+    if (this.data.uiLocked || !this.data.connected) return
+    const link = this._activeLink()
+    this.runAction('status', async () => {
+      const token = (this.data.token || '').trim()
+      try {
+        await link.sendCommand('status', token)
       } catch (err) {
         this._safeSetData({ errorHint: humanizeError(err, 'command') })
       }

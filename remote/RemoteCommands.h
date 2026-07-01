@@ -20,6 +20,9 @@ inline const QSet<QString> &knownCommands()
         QStringLiteral("save_one"),
         QStringLiteral("start_stage"),
         QStringLiteral("stop_stage"),
+        QStringLiteral("start_calculate"),
+        QStringLiteral("stop_calculate"),
+        QStringLiteral("calibrate"),
         QStringLiteral("status")};
     return kTable;
 }
@@ -38,6 +41,9 @@ inline QString label(const QString &cmd)
     if (cmd == QStringLiteral("save_one")) return QStringLiteral("保存单张");
     if (cmd == QStringLiteral("start_stage")) return QStringLiteral("开始阶段采集");
     if (cmd == QStringLiteral("stop_stage")) return QStringLiteral("停止阶段采集");
+    if (cmd == QStringLiteral("start_calculate")) return QStringLiteral("开始计算");
+    if (cmd == QStringLiteral("stop_calculate")) return QStringLiteral("停止计算");
+    if (cmd == QStringLiteral("calibrate")) return QStringLiteral("标定");
     if (cmd == QStringLiteral("status")) return QStringLiteral("查询状态");
     return cmd;
 }

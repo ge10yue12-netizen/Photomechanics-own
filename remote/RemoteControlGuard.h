@@ -4,7 +4,10 @@
 #include <QMutex>
 #include <QString>
 
-/** 遥控命令占用源；状态/预览各通道可同时访问，仅 POST 命令互斥。 */
+/**
+ * 遥控命令占用源；状态/预览各通道可同时访问，仅 POST 命令互斥。
+ * MiniProgramHttp 与 MiniProgramBle 视为同一客户端组（小程序 WiFi/BLE 切换不互斥）。
+ */
 enum class RemoteControlSource
 {
     None = 0,
@@ -13,7 +16,7 @@ enum class RemoteControlSource
     MiniProgramBle
 };
 
-/** 跨通道命令锁：复制 remote/ 后与 HTTP/BLE/remote-qr 共用同一实例。guard 为 nullptr 时不启用。 */
+/** 跨通道命令锁：复制 remote/ 后与 HTTP/BLE/remote-qr 共用同一 guard 实例。guard 为 nullptr 时不启用。 */
 class RemoteControlGuard
 {
 public:

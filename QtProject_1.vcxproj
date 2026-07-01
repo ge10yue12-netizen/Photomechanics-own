@@ -75,7 +75,7 @@
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -93,7 +93,7 @@
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -110,6 +110,7 @@
     <QtMoc Include="ui\PreviewWidget.h" />
     <QtMoc Include="guide\GuideBubbleWidget.h" />
     <QtMoc Include="guide\GuideManager.h" />
+    <ClCompile Include="remote\RemotePreviewFrameCache.cpp" />
     <ClCompile Include="ui\PreviewWidget.cpp" />
     <ClCompile Include="guide\GuideBubbleWidget.cpp" />
     <ClCompile Include="guide\GuideManager.cpp" />
@@ -128,14 +129,15 @@
     <ClCompile Include="core\AppLogger.cpp" />
     <ClCompile Include="save\ImageSaveThread.cpp" />
     <ClCompile Include="save\SavePathHelper.cpp" />
+    <ClInclude Include="remote\NetConfigHelper.h" />
     <ClInclude Include="save\SavePathHelper.h" />
     <QtMoc Include="remote\ble\BleControlServer.h" />
     <QtMoc Include="remote\ble\BleWinRtWorker.h" />
     <QtMoc Include="remote\RemoteControlServer.h" />
-    <ClInclude Include="remote\NetConfigHelper.h" />
     <QtMoc Include="remote\RemoteKit.h" />
     <QtMoc Include="remote\RemoteHost.h" />
     <ClInclude Include="remote\RemoteCommands.h" />
+    <ClInclude Include="remote\RemotePreviewFrameCache.h" />
     <ClInclude Include="remote\RemoteControlGuard.h" />
     <ClInclude Include="remote\RemoteStatusText.h" />
     <ClInclude Include="remote\ble\BleProtocol.h" />

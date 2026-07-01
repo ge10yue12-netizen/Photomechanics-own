@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RemotePreviewFrameCache.h"
 #include "RemoteKit.h"
 
 #include <QJsonObject>
@@ -30,10 +31,14 @@ public:
     // 注册状态 JSON，须在 bootstrap() 前调用。
     void setStatusProvider(std::function<QJsonObject()> provider);
 
-    // 可选：WiFi 预览 JPEG；宿主通常与 remote-qr 共用 PreviewFrameCache。
+    /** WiFi 预览 JPEG 缓存；宿主在取帧路径调用 updateFrame，与 remote-qr 模块独立。 */
+    RemotePreviewFrameCache &previewCache() { return m_preview; }
+    void clearPreviewFrame() { m_preview.clear(); }
+
+    /** 可选：覆盖默认 previewCache 提供函数。 */
     void setPreviewProvider(std::function<QByteArray()> provider);
 
-    // 注入跨通道互斥（与 remote-qr 共用同一 RemoteControlGuard 实例）。
+    /** 与 remote-qr 共用同一 RemoteControlGuard；小程序 HTTP/BLE 为同组，与扫码 Web 互斥。 */
     void setControlGuard(RemoteControlGuard *guard);
 
     // loadConfig + start + 刷新状态行；至少一个通道成功时返回 true。
@@ -54,6 +59,7 @@ private:
     void onBleServerError(const QString &message);
 
     RemoteKit m_kit;
+    RemotePreviewFrameCache m_preview;
     QLabel *m_bleLabel = nullptr;
     QLabel *m_httpLabel = nullptr;
 };

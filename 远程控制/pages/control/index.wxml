@@ -1,0 +1,95 @@
+<view class="page">
+  <!-- 连接设置置顶：先连主机，再预览与遥控 -->
+  <view class="link-panel-head {{uiLocked ? 'link-panel-head--locked' : ''}}" bindtap="onToggleLinkPanel">
+    <text class="link-panel-title">连接设置</text>
+    <text class="link-panel-arrow">{{linkPanelOpen ? '▲' : '▼'}}</text>
+  </view>
+
+  <view class="link-panel" wx:if="{{linkPanelOpen}}">
+    <view class="mode-tabs">
+      <view class="mode-tab {{mode === 'wifi' ? 'active' : ''}} {{uiLocked ? 'mode-tab--locked' : ''}}" data-mode="wifi" bindtap="onModeChange">WiFi</view>
+      <view class="mode-tab {{mode === 'ble' ? 'active' : ''}} {{uiLocked ? 'mode-tab--locked' : ''}}" data-mode="ble" bindtap="onModeChange">蓝牙 BLE</view>
+    </view>
+
+    <block wx:if="{{mode === 'wifi'}}">
+      <input class="field-input" disabled="{{uiLocked}}" placeholder="192.168.x.x:18765" value="{{host}}" bindinput="onHostInput" />
+      <input class="field-input" disabled="{{uiLocked}}" placeholder="认证 token" value="{{token}}" bindinput="onTokenInput" />
+      <view class="btn-group">
+        <view class="tap-btn tap-btn--primary {{pendingAction === 'connect' ? 'tap-btn--pending' : ''}} {{connConnectDisabled ? 'tap-btn--disabled' : ''}}" hover-class="{{connConnectDisabled ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onConnect">连接主机</view>
+        <view class="tap-btn tap-btn--secondary {{pendingAction === 'disconnect' ? 'tap-btn--pending' : ''}} {{connDisconnectDisabled ? 'tap-btn--disabled' : ''}}" hover-class="{{connDisconnectDisabled ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onDisconnect">断开连接</view>
+      </view>
+    </block>
+
+    <block wx:else>
+      <input class="field-input" disabled="{{uiLocked}}" placeholder="认证 token" value="{{token}}" bindinput="onTokenInput" />
+      <view class="btn-group">
+        <view class="tap-btn tap-btn--primary {{pendingAction === 'scan' ? 'tap-btn--pending' : ''}} {{(uiLocked && pendingAction !== 'scan') || connected ? 'tap-btn--disabled' : ''}}" hover-class="{{(uiLocked && pendingAction !== 'scan') || connected ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onRefresh">刷新设备列表</view>
+        <view class="tap-btn tap-btn--secondary {{pendingAction === 'disconnect' ? 'tap-btn--pending' : ''}} {{connDisconnectDisabled ? 'tap-btn--disabled' : ''}}" hover-class="{{connDisconnectDisabled ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onDisconnect">断开连接</view>
+      </view>
+      <view class="device-section">
+        <view class="section-title section-title--inner">远程控制设备</view>
+        <view class="empty" wx:if="{{devices.length === 0}}">须完成 BLE 扫描后选择目标设备（仅显示已命名设备）</view>
+        <view wx:for="{{devices}}" wx:key="deviceId" class="device-row {{item.deviceId === selectedDeviceId ? 'selected' : ''}} {{uiLocked ? 'device-row--locked' : ''}}" hover-class="{{uiLocked ? 'none' : 'device-row--down'}}" hover-stay-time="120" bindtap="onSelectDevice" data-id="{{item.deviceId}}" data-name="{{item.name}}">
+          <text class="device-name">{{item.name}}</text>
+          <text class="device-rssi">{{item.rssi}} dBm</text>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <view class="conn-banner {{connState}}" wx:if="{{connState !== 'disconnected'}}">
+    <text class="conn-title">{{statusTitle}}</text>
+    <text class="conn-detail">{{statusDetail}}</text>
+  </view>
+  <view class="error-slot" wx:if="{{errorHint}}">{{errorHint}}</view>
+
+  <view class="preview-box">
+    <image
+      hidden="{{!previewUrlA}}"
+      class="preview-img {{previewActive === 0 ? 'preview-img--show' : 'preview-img--hide'}}"
+      src="{{previewUrlA}}"
+      mode="aspectFit"
+      data-slot="0"
+      bindload="onPreviewLoad"
+      binderror="onPreviewError"
+    />
+    <image
+      hidden="{{!previewUrlB}}"
+      class="preview-img {{previewActive === 1 ? 'preview-img--show' : 'preview-img--hide'}}"
+      src="{{previewUrlB}}"
+      mode="aspectFit"
+      data-slot="1"
+      bindload="onPreviewLoad"
+      binderror="onPreviewError"
+    />
+    <view wx:if="{{previewHint}}" class="preview-hint">{{previewHint}}</view>
+  </view>
+
+  <view class="metrics-grid" wx:if="{{connected}}">
+    <view class="metric-cell">链路：<text class="metric-val metric-ok">正常</text></view>
+    <view class="metric-cell">相机：<text class="metric-val">{{metricCam}}</text></view>
+    <view class="metric-cell">计算：<text class="metric-val">{{metricCalc}}</text></view>
+    <view class="metric-cell metric-wide">摘要：<text class="metric-val">{{metricMsg}}</text></view>
+  </view>
+
+  <view class="section-title">相机</view>
+  <view class="btn-grid">
+    <view class="tap-btn tap-btn--primary {{pendingAction === 'open_camera' ? 'tap-btn--pending' : ''}} {{btnState.open_camera ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.open_camera ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="open_camera">打开相机</view>
+    <view class="tap-btn tap-btn--danger {{pendingAction === 'close_camera' ? 'tap-btn--pending' : ''}} {{btnState.close_camera ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.close_camera ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="close_camera">关闭相机</view>
+  </view>
+
+  <view class="section-title">计算</view>
+  <view class="btn-grid">
+    <view class="tap-btn tap-btn--primary {{pendingAction === 'start_calculate' ? 'tap-btn--pending' : ''}} {{btnState.start_calculate ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.start_calculate ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="start_calculate">开始计算</view>
+    <view class="tap-btn tap-btn--danger {{pendingAction === 'stop_calculate' ? 'tap-btn--pending' : ''}} {{btnState.stop_calculate ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.stop_calculate ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="stop_calculate">停止计算</view>
+  </view>
+
+  <view class="section-title">标定</view>
+  <view class="btn-grid btn-grid--single">
+    <view class="tap-btn tap-btn--primary tap-btn--wide {{pendingAction === 'calibrate' ? 'tap-btn--pending' : ''}} {{btnState.calibrate ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.calibrate ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="calibrate">标定</view>
+  </view>
+
+  <view class="btn-grid btn-grid--single">
+    <view class="tap-btn tap-btn--secondary {{pendingAction === 'status' ? 'tap-btn--pending' : ''}} {{uiLocked || !connected ? 'tap-btn--disabled' : ''}}" hover-class="{{uiLocked || !connected ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onStatusTap">查询状态</view>
+  </view>
+</view>

@@ -22,6 +22,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QJsonObject>
+#include <QImageWriter>
 
 namespace
 {
@@ -159,7 +160,6 @@ QtProject_1::QtProject_1(QWidget *parent)
 
     m_remoteHost.setControlGuard(&m_remoteGuard);
     m_mobileHost.setControlGuard(&m_remoteGuard);
-    m_remoteHost.setPreviewProvider([this]() { return m_mobileHost.previewCache().getLatestJpeg(); });
     m_mobileHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
     connect(&m_mobileHost, &MobileHost::commandReceived, this, &QtProject_1::onRemoteCommand);
     connect(&m_mobileHost, &MobileHost::sessionStarted, this, &QtProject_1::refreshMobileStatusLabel);
@@ -227,6 +227,7 @@ QtProject_1::QtProject_1(QWidget *parent)
     if (m_remoteHost.kit().ble().isRunning())
         log(QStringLiteral("BLE 遥控已启动，设备名：%1")
                 .arg(m_remoteHost.kit().config().bleDeviceName));
+    qDebug() << QImageWriter::supportedImageFormats();  // 检查是否包含 "jpeg"
 
     setupStartupGuide();
     refreshButtonState();
@@ -814,6 +815,7 @@ void QtProject_1::onCloseCamera()
     ui.imageLabel->clearImage();
     ui.imageLabel->setPlaceholderText(QStringLiteral("未连接相机"));
     m_mobileHost.clearPreviewFrame();
+    m_remoteHost.clearPreviewFrame();
     m_previewBaseInfo.clear();
     m_previewPixelInfo.clear();
     updatePreviewInfoLabel();
@@ -866,6 +868,7 @@ void QtProject_1::onDisplayTimer()
         return;
 
     m_mobileHost.previewCache().updateFrame(frame, frameSeq);
+    m_remoteHost.previewCache().updateFrame(frame, frameSeq);
 
     const QSize viewSize = ui.imageLabel->size();
     // 帧序号与预览区尺寸均未变化时跳过重绘，以降低界面刷新开销
@@ -1255,6 +1258,7 @@ QJsonObject QtProject_1::buildRemoteStatusJson() const
     obj.insert(QStringLiteral("cameraOpen"), m_camera.isOpen());
     obj.insert(QStringLiteral("liveViewActive"), m_liveViewActive);
     obj.insert(QStringLiteral("acquisitionActive"), m_acquisitionActive);
+    obj.insert(QStringLiteral("calculateActive"), m_acquisitionActive);
     obj.insert(QStringLiteral("stageRunning"), m_stageRunning);
     obj.insert(QStringLiteral("queueSize"), qSize);
     obj.insert(QStringLiteral("queueCapacity"), qCap);
@@ -1341,6 +1345,28 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
     {
         if (m_stageRunning)
             onStopStageCapture();
+        pushRemoteStatus();
+        return;
+    }
+    if (cmd == QStringLiteral("start_calculate"))
+    {
+        if (m_camera.isOpen() && !m_stageRunning && !m_acquisitionActive)
+            onStartGrab();
+        pushRemoteStatus();
+        return;
+    }
+    if (cmd == QStringLiteral("stop_calculate"))
+    {
+        if (m_stageRunning)
+            onStopStageCapture();
+        else if (m_camera.isOpen() && m_acquisitionActive)
+            onStopGrab();
+        pushRemoteStatus();
+        return;
+    }
+    if (cmd == QStringLiteral("calibrate"))
+    {
+        log(QStringLiteral("[提示] 远程标定命令已受理（业务逻辑待宿主实现）。"));
         pushRemoteStatus();
         return;
     }

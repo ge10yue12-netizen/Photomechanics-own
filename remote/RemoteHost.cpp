@@ -7,6 +7,7 @@
 RemoteHost::RemoteHost(QObject *parent)
     : QObject(parent)
 {
+    m_kit.setPreviewProvider([this]() { return m_preview.getLatestJpeg(); });
     connect(&m_kit, &RemoteKit::commandReceived, this, &RemoteHost::commandReceived);
     connect(&m_kit.ble(), &BleControlServer::serverError, this, &RemoteHost::onBleServerError);
 }
