@@ -157,6 +157,9 @@ QtProject_1::QtProject_1(QWidget *parent)
     ui.logLayout->insertWidget(2, mobileRow);
     connect(mobileBtn, &QPushButton::clicked, this, &QtProject_1::onMobileRemoteControl);
 
+    m_remoteHost.setControlGuard(&m_remoteGuard);
+    m_mobileHost.setControlGuard(&m_remoteGuard);
+    m_remoteHost.setPreviewProvider([this]() { return m_mobileHost.previewCache().getLatestJpeg(); });
     m_mobileHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
     connect(&m_mobileHost, &MobileHost::commandReceived, this, &QtProject_1::onRemoteCommand);
     connect(&m_mobileHost, &MobileHost::sessionStarted, this, &QtProject_1::refreshMobileStatusLabel);

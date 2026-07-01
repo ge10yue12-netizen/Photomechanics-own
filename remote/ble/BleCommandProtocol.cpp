@@ -12,7 +12,7 @@ BleCommandParseResult parseBleCommand(const QByteArray &raw, const QString &expe
     const QString text = QString::fromUtf8(raw).trimmed();
     if (text.isEmpty())
     {
-        result.error = QStringLiteral("empty command");
+        result.error = QStringLiteral("命令为空");
         return result;
     }
 
@@ -27,14 +27,14 @@ BleCommandParseResult parseBleCommand(const QByteArray &raw, const QString &expe
 
     if (!isKnownRemoteCommand(cmd))
     {
-        result.error = QStringLiteral("unknown command");
+        result.error = QStringLiteral("未知命令");
         return result;
     }
 
     if (!expectedToken.isEmpty() && token != expectedToken)
     {
         result.tokenOk = false;
-        result.error = QStringLiteral("invalid token");
+        result.error = QStringLiteral("认证 token 无效");
         return result;
     }
 

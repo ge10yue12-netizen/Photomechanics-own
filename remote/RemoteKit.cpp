@@ -33,12 +33,29 @@ void RemoteKit::stop()
 {
     m_ble.stop();
     m_http.stop();
+    if (m_controlGuard)
+    {
+        m_controlGuard->release(RemoteControlSource::MiniProgramHttp);
+        m_controlGuard->release(RemoteControlSource::MiniProgramBle);
+    }
 }
 
 void RemoteKit::setStatusProvider(std::function<QJsonObject()> provider)
 {
     m_http.setStatusProvider(provider);
     m_ble.setStatusProvider(std::move(provider));
+}
+
+void RemoteKit::setControlGuard(RemoteControlGuard *guard)
+{
+    m_controlGuard = guard;
+    m_http.setControlGuard(guard, RemoteControlSource::MiniProgramHttp);
+    m_ble.setControlGuard(guard, RemoteControlSource::MiniProgramBle);
+}
+
+void RemoteKit::setPreviewProvider(std::function<QByteArray()> provider)
+{
+    m_http.setPreviewProvider(std::move(provider));
 }
 
 void RemoteKit::pushBleStatus()

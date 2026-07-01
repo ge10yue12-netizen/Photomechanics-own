@@ -33,7 +33,7 @@ BleAdapterInfo queryBleAdapter()
         const auto adapter = BluetoothAdapter::GetDefaultAsync().get();
         if (!adapter)
         {
-            info.message = QStringLiteral("未检测到蓝牙适配器（请确认 USB 适配器已插好且驱动已安装）");
+            info.message = QStringLiteral("未检测到 BLE 适配器");
             return info;
         }
 
@@ -67,19 +67,19 @@ BleAdapterInfo queryBleAdapter()
         if (info.friendlyName.isEmpty())
             info.message = QStringLiteral("适配器 %1 就绪").arg(info.address);
         else
-            info.message = QStringLiteral("适配器 %1，手机扫描名称「%2」")
+            info.message = QStringLiteral("适配器 %1，广播名称 %2")
                                .arg(info.address, info.friendlyName);
     }
     catch (const winrt::hresult_error &ex)
     {
-        info.message = QStringLiteral("BLE 检测失败: %1").arg(QString::fromWCharArray(ex.message().c_str()));
+        info.message = QStringLiteral("BLE 适配器检测异常: %1").arg(QString::fromWCharArray(ex.message().c_str()));
     }
     catch (...)
     {
-        info.message = QStringLiteral("BLE 检测失败: 未知错误");
+        info.message = QStringLiteral("BLE 适配器检测异常：未知错误");
     }
 #else
-    info.message = QStringLiteral("BLE 遥控仅支持 Windows");
+    info.message = QStringLiteral("BLE 远程控制仅支持 Windows");
 #endif
     return info;
 }

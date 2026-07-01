@@ -89,7 +89,7 @@ flowchart TD
 | **相机** | `CameraController` — Mono8 采集、`Grayscale8` QImage；不支持时回退 RGB888 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit`；`writeBmpFile` 写入 8 位灰度或 24 位 RGB BMP |
-| **远程遥控** | `RemoteKit`（HTTP + BLE）；扫码浏览器见 `remote-qr/`（`config/mobile.ini`）；[remote-qr/README.md](remote-qr/README.md) |
+| **远程遥控** | `RemoteKit` + `RemoteControlGuard`（命令互斥、断开即释放）；扫码见 `remote-qr/`；[remote/README.md](remote/README.md) |
 | **新手引导** | 复制 `guide/` + `#include "guide/GuideKit.h"`；移植见 `guide/README.md` |
 | **日志** | `AppLogger` — `Log/run_*.log` 落盘；主窗口 `log()` 同步写文件与界面 |
 | **遥控配置** | 项目根 `config/netconfig.ini`（见 [remote/README.md](remote/README.md)） |

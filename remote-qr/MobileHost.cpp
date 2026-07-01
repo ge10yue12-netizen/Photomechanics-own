@@ -48,7 +48,7 @@ bool MobileHost::startSession(const QString &displayIp)
     const QString ip = displayIp.trimmed();
     if (ip.isEmpty())
     {
-        m_lastError = QStringLiteral("未选择本机 IP");
+        m_lastError = QStringLiteral("未选择主机地址");
         return false;
     }
 
@@ -90,6 +90,8 @@ void MobileHost::stopSession()
     m_displayIp.clear();
     m_phoneConnected = false;
     m_lastPhoneActivityMs = 0;
+    if (m_controlGuard)
+        m_controlGuard->release(RemoteControlSource::QrBrowser);
     emit sessionStopped();
 }
 
@@ -125,6 +127,12 @@ void MobileHost::clearPreviewFrame()
 void MobileHost::setStatusProvider(std::function<QJsonObject()> provider)
 {
     m_server.setStatusProvider(std::move(provider));
+}
+
+void MobileHost::setControlGuard(RemoteControlGuard *guard)
+{
+    m_controlGuard = guard;
+    m_server.setControlGuard(guard, RemoteControlSource::QrBrowser);
 }
 
 void MobileHost::onTokenExpired()

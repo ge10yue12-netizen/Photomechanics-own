@@ -17,7 +17,7 @@
 |------|------|
 | `pages/control/` | 主页面 |
 | `utils/wifi-link.js` / `ble-link.js` | 双模式链路 |
-| `utils/remote-buttons.js` | 命令与按钮规则（与 PC 一致） |
-| `utils/http.js` / `ble.js` / `protocol.js` | 传输与协议 |
+| `utils/remote-buttons.js` | 命令、按钮规则、状态摘要（与 PC / 扫码页一致） |
+| `utils/http.js` / `ble.js` / `protocol.js` | 传输与协议；WiFi 预览 `/api/preview.jpg` |
 
 详细说明见 **[开发文档](../docs/MINIPROGRAM_REMOTE_DEV.md)**。

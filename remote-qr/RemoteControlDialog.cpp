@@ -21,7 +21,7 @@ RemoteControlDialog::RemoteControlDialog(MobileHost *host, QWidget *parent)
     : QDialog(parent)
     , m_host(host)
 {
-    setWindowTitle(QStringLiteral("手机扫码远程控制"));
+    setWindowTitle(QStringLiteral("QR 远程控制"));
     setMinimumSize(420, 480);
     setAttribute(Qt::WA_DeleteOnClose, false);
     rebuildUi();
@@ -105,7 +105,7 @@ void RemoteControlDialog::loadIpList()
     const QStringList ips = NetworkHelper::getLocalIPv4List();
     if (ips.isEmpty())
     {
-        m_ipCombo->addItem(QStringLiteral("（未检测到局域网 IP）"), QString());
+        m_ipCombo->addItem(QStringLiteral("（未检测到局域网地址）"), QString());
         m_refreshBtn->setEnabled(false);
         return;
     }
@@ -148,7 +148,7 @@ bool RemoteControlDialog::ensureSessionStarted()
     const QString ip = selectedIp();
     if (ip.isEmpty())
     {
-        m_statusLabel->setText(QStringLiteral("状态：无可用 IP"));
+        m_statusLabel->setText(QStringLiteral("状态：无可用地址"));
         return false;
     }
 
@@ -173,7 +173,7 @@ void RemoteControlDialog::onRefreshClicked()
     const QString ip = selectedIp();
     if (ip.isEmpty())
     {
-        m_statusLabel->setText(QStringLiteral("状态：无可用 IP"));
+        m_statusLabel->setText(QStringLiteral("状态：无可用地址"));
         return;
     }
 
@@ -221,7 +221,7 @@ void RemoteControlDialog::onIpChanged(int /*index*/)
     if (!m_host || !m_host->isSessionActive())
         return;
     if (selectedIp() != m_host->sessionDisplayIp())
-        m_statusLabel->setText(QStringLiteral("状态：IP 已变更，请点刷新"));
+        m_statusLabel->setText(QStringLiteral("状态：IP 已变更，须重新生成会话"));
 }
 
 void RemoteControlDialog::onSessionStarted(const QString &url)
@@ -257,11 +257,11 @@ void RemoteControlDialog::updateStatusText()
     }
     if (selectedIp() != m_host->sessionDisplayIp())
     {
-        m_statusLabel->setText(QStringLiteral("状态：IP 已变更，请点刷新"));
+        m_statusLabel->setText(QStringLiteral("状态：IP 已变更，须重新生成会话"));
         return;
     }
     if (m_host->isPhoneConnected())
-        m_statusLabel->setText(QStringLiteral("状态：手机已连接"));
+        m_statusLabel->setText(QStringLiteral("状态：客户端已连接"));
     else
-        m_statusLabel->setText(QStringLiteral("状态：等待手机"));
+        m_statusLabel->setText(QStringLiteral("状态：等待客户端连接"));
 }

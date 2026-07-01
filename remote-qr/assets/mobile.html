@@ -1,245 +1,586 @@
 <!DOCTYPE html>
+
 <html lang="zh-CN">
+
 <head>
+
   <meta charset="UTF-8">
+
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
   <title>工业相机远程控制</title>
+
   <style>
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body { font-family: system-ui, sans-serif; background: #121212; color: #e8e8e8; padding: 10px; font-size: 14px; }
+
     h1 { text-align: center; font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; }
+
     .preview {
+
       position: relative; background: #000; border-radius: 6px; overflow: hidden;
+
       aspect-ratio: 4/3; margin-bottom: 10px;
+
     }
+
     .preview .hint {
+
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+
       color: #666; font-size: 13px; pointer-events: none;
+
     }
+
     .preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
     .preview img.no-image { display: none; }
+
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+
     .cell { background: #222; padding: 8px; border-radius: 4px; }
+
     .cell span { font-weight: 600; }
+
     .ok { color: #5cb85c; } .warn { color: #f0ad4e; } .err { color: #d9534f; }
+
     .sec { font-size: 12px; color: #888; margin: 8px 0 4px; }
+
     .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+
     button { padding: 12px 8px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; color: #fff; }
+
     button:disabled { opacity: 0.35; }
+
     .b-primary { background: #0067b8; }
+
     .b-danger { background: #a4262c; }
+
     .b-wide { grid-column: span 2; }
+
     #feedback { min-height: 18px; font-size: 12px; color: #aaa; margin-top: 6px; }
+
   </style>
+
 </head>
+
 <body>
+
   <h1>工业相机远程控制</h1>
+
   <div class="preview" id="previewBox">
+
     <span class="hint" id="previewHint">无画面</span>
+
     <img id="previewImg" class="no-image" alt="">
+
   </div>
+
   <div class="grid">
+
     <div class="cell">链路：<span id="linkStatus" class="warn">—</span></div>
+
     <div class="cell">相机：<span id="camStatus" class="warn">—</span></div>
+
     <div class="cell">采集：<span id="grabStatus">—</span></div>
+
     <div class="cell">阶段：<span id="stageStatus">—</span></div>
+
     <div class="cell" style="grid-column: span 2">摘要：<span id="msgStatus">—</span></div>
+
   </div>
+
   <div class="sec">相机</div>
+
   <div class="btns">
+
     <button class="b-primary" id="btnOpen">打开相机</button>
+
     <button class="b-danger" id="btnClose">关闭相机</button>
+
   </div>
+
   <div class="sec">采集</div>
+
   <div class="btns">
+
     <button class="b-primary" id="btnStart">开始采集</button>
+
     <button class="b-danger" id="btnStop">停止采集</button>
+
     <button class="b-primary b-wide" id="btnSnap">保存单张</button>
+
   </div>
+
   <div class="sec">阶段</div>
+
   <div class="btns">
+
     <button class="b-primary" id="btnStageStart">开始阶段采集</button>
+
     <button class="b-danger" id="btnStageStop">停止阶段采集</button>
+
   </div>
+
   <div id="feedback"></div>
+
   <script>
+
   (function () {
+
     var token = new URLSearchParams(location.search).get('token') || '';
+
     if (!token) {
-      document.body.innerHTML = '<p style="text-align:center;padding:24px;">token 缺失，请重新扫码</p>';
+
+      document.body.innerHTML = '<p style="text-align:center;padding:24px;">认证 token 缺失，须重新获取访问链接</p>';
+
       return;
+
     }
+
+
 
     var previewPollMs = 120;
+
     var statusPollMs = 800;
+
     var previewBusy = false;
+
     var previewPolling = false;
+
+    var previewWatchdog = null;
+
     var statusTimer = null;
 
+    var cmdLocked = false;
+
+
+
     var els = {
+
       link: document.getElementById('linkStatus'),
+
       cam: document.getElementById('camStatus'),
+
       grab: document.getElementById('grabStatus'),
+
       stage: document.getElementById('stageStatus'),
+
       msg: document.getElementById('msgStatus'),
+
       fb: document.getElementById('feedback'),
+
       previewHint: document.getElementById('previewHint'),
+
       img: document.getElementById('previewImg')
+
     };
+
     var btns = {
+
       open: document.getElementById('btnOpen'),
+
       close: document.getElementById('btnClose'),
+
       start: document.getElementById('btnStart'),
+
       stop: document.getElementById('btnStop'),
+
       snap: document.getElementById('btnSnap'),
+
       stageStart: document.getElementById('btnStageStart'),
+
       stageStop: document.getElementById('btnStageStop')
+
     };
+
+
 
     function apiUrl(path) {
+
       return path + '?token=' + encodeURIComponent(token);
+
     }
+
+
 
     function setText(el, text, cls) {
+
       el.textContent = text;
+
       el.className = cls || '';
+
     }
+
+
 
     function feedback(text) {
+
       els.fb.textContent = text || '';
+
     }
+
+
 
     function applyBtnState(d) {
+
       var open = !!d.cameraOpen;
+
       var acq = !!d.acquisitionActive;
+
       var stage = !!d.stageRunning;
+
       btns.open.disabled = open;
+
       btns.close.disabled = !open || stage;
+
       btns.start.disabled = !open || acq || stage;
+
       btns.stop.disabled = !acq && !stage;
+
       btns.snap.disabled = !open || !acq || stage;
+
       btns.stageStart.disabled = !open || acq || stage;
+
       btns.stageStop.disabled = !stage;
+
+      if (cmdLocked)
+
+        Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
+
     }
 
-    /** 仅清图像、保留黑色预览框；hint 为框内占位文案。 */
-    function clearPreviewImage(hint) {
-      previewPolling = false;
-      previewBusy = false;
-      els.img.onload = els.img.onerror = null;
-      els.img.removeAttribute('src');
-      els.img.classList.add('no-image');
-      els.previewHint.textContent = hint || '无画面';
-      els.previewHint.style.display = '';
+
+
+    function clearPreviewWatchdog() {
+
+      if (previewWatchdog) {
+
+        clearTimeout(previewWatchdog);
+
+        previewWatchdog = null;
+
+      }
+
     }
+
+
+
+    function armPreviewWatchdog() {
+
+      clearPreviewWatchdog();
+
+      previewWatchdog = setTimeout(function () {
+
+        previewBusy = false;
+
+        schedulePreview();
+
+      }, 4000);
+
+    }
+
+
+
+    function clearPreviewImage(hint) {
+
+      previewPolling = false;
+
+      previewBusy = false;
+
+      clearPreviewWatchdog();
+
+      els.img.onload = els.img.onerror = null;
+
+      els.img.removeAttribute('src');
+
+      els.img.classList.add('no-image');
+
+      els.previewHint.textContent = hint || '无画面';
+
+      els.previewHint.style.display = '';
+
+    }
+
+
 
     function startPreviewPolling() {
-      if (previewPolling)
-        return;
+
       previewPolling = true;
+
       els.previewHint.style.display = 'none';
+
+      previewBusy = false;
+
       schedulePreview();
+
     }
+
+
 
     function syncPreview(cameraOpen) {
-      if (cameraOpen)
-        startPreviewPolling();
-      else
+
+      if (!cameraOpen)
+
         clearPreviewImage('无画面');
+
+      else
+
+        startPreviewPolling();
+
     }
+
+
 
     function applyStatus(d) {
+
+      cmdLocked = !!d.remoteControlBlocked;
+
       setText(els.link, '正常', 'ok');
+
       setText(els.cam, d.cameraOpen ? '已打开' : '未打开', d.cameraOpen ? 'ok' : 'warn');
+
       if (d.stageRunning) {
+
         setText(els.grab, '—', '');
+
         setText(els.stage, '运行中', 'ok');
+
       } else if (d.acquisitionActive) {
+
         setText(els.grab, '进行中', 'ok');
+
         setText(els.stage, '空闲', '');
+
       } else {
+
         setText(els.grab, d.liveViewActive ? '预览' : '空闲', d.liveViewActive ? 'ok' : '');
+
         setText(els.stage, '空闲', '');
+
       }
+
       els.msg.textContent = d.message || '—';
+
       applyBtnState(d);
+
+      feedback(cmdLocked ? (d.remoteControlMessage || '') : '');
+
       syncPreview(!!d.cameraOpen);
+
     }
+
+
 
     function fetchStatus() {
+
       return fetch(apiUrl('/api/status'))
+
         .then(function (r) {
+
           if (!r.ok) throw new Error('status');
+
           return r.json();
+
         })
-        .then(function (d) {
-          applyStatus(d);
-        })
+
+        .then(applyStatus)
+
         .catch(function () {
+
           clearPreviewImage('无画面');
-          setText(els.link, '中断', 'err');
-          setText(els.cam, '—', 'warn');
-          els.msg.textContent = '链路中断，请检查网络或重新扫码';
-          Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
+
+          setText(els.link, '异常', 'err');
+
+          els.msg.textContent = '连接中断，轮询重试中';
+
         });
+
     }
+
+
 
     function schedulePreview() {
+
       if (!previewPolling || previewBusy)
+
         return;
+
       previewBusy = true;
+
+      armPreviewWatchdog();
+
       var img = els.img;
+
       var next = function () {
+
+        clearPreviewWatchdog();
+
         previewBusy = false;
+
         if (!previewPolling)
+
           return;
+
         if (img.src && img.complete && img.naturalWidth > 0)
+
           img.classList.remove('no-image');
+
         setTimeout(schedulePreview, previewPollMs);
+
       };
+
       img.onload = img.onerror = next;
+
       img.src = apiUrl('/api/preview.jpg') + '&t=' + Date.now();
+
     }
+
+
+
+    function resumeFromBackground() {
+
+      previewBusy = false;
+
+      clearPreviewWatchdog();
+
+      fetchStatus();
+
+    }
+
+
+
+    document.addEventListener('visibilitychange', function () {
+
+      if (document.visibilityState === 'visible')
+
+        resumeFromBackground();
+
+    });
+
+
+
+    function releaseCommandLock() {
+
+      fetch(apiUrl('/api/release'), { method: 'POST', keepalive: true }).catch(function () {});
+
+    }
+
+
+
+    window.addEventListener('pagehide', releaseCommandLock);
+
+
 
     function postCmd(path, label) {
+
+      if (cmdLocked) {
+
+        feedback(els.fb.textContent || '命令通道被占用');
+
+        return;
+
+      }
+
       feedback(label + '…');
+
       fetch(apiUrl(path), { method: 'POST' })
+
         .then(function (r) {
-          if (!r.ok) throw new Error('post');
-          return r.json();
+
+          return r.json().then(function (d) {
+
+            if (r.status === 409) {
+
+              cmdLocked = true;
+
+              Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
+
+              feedback(d.message || '命令通道被占用');
+
+              throw new Error('blocked');
+
+            }
+
+            if (!r.ok) throw new Error('post');
+
+            return d;
+
+          });
+
         })
+
         .then(function (d) {
+
           feedback(d.message || label);
+
           return fetchStatus();
+
         })
-        .catch(function () {
-          feedback(label + '失败');
+
+        .catch(function (err) {
+
+          if (err && err.message !== 'blocked')
+
+            feedback(label + '异常');
+
         });
+
     }
+
+
 
     function loadConfig() {
+
       return fetch(apiUrl('/api/config'))
+
         .then(function (r) { return r.ok ? r.json() : {}; })
+
         .then(function (c) {
+
           if (c.previewPollMs) previewPollMs = c.previewPollMs;
+
           if (c.statusPollMs) statusPollMs = c.statusPollMs;
+
         })
+
         .catch(function () { });
+
     }
 
+
+
     btns.open.onclick = function () { postCmd('/api/camera/open', '打开相机'); };
+
     btns.close.onclick = function () { postCmd('/api/camera/close', '关闭相机'); };
+
     btns.start.onclick = function () { postCmd('/api/camera/start', '开始采集'); };
+
     btns.stop.onclick = function () { postCmd('/api/camera/stop', '停止采集'); };
+
     btns.snap.onclick = function () { postCmd('/api/camera/snap', '保存单张'); };
+
     btns.stageStart.onclick = function () { postCmd('/api/camera/stage/start', '开始阶段采集'); };
+
     btns.stageStop.onclick = function () { postCmd('/api/camera/stage/stop', '停止阶段采集'); };
 
+
+
     loadConfig().then(function () {
+
       fetchStatus();
+
       statusTimer = setInterval(fetchStatus, statusPollMs);
+
     });
+
   })();
+
   </script>
+
 </body>
+
 </html>
+

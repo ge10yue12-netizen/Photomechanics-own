@@ -97,6 +97,12 @@ void MobileWebServer::setMobileHtml(const QByteArray &html)
     m_mobileHtml = html;
 }
 
+void MobileWebServer::setControlGuard(RemoteControlGuard *guard, RemoteControlSource source)
+{
+    m_controlGuard = guard;
+    m_controlSource = source;
+}
+
 void MobileWebServer::onNewConnection()
 {
     while (auto *socket = m_server.nextPendingConnection())
@@ -197,7 +203,7 @@ void MobileWebServer::handleRequest(QTcpSocket *socket, const QByteArray &reques
 
     if (method == QStringLiteral("GET") && path == QStringLiteral("/api/status"))
     {
-        writeJson(socket, currentStatus());
+        writeJson(socket, RemoteControlGuard::statusWithGuard(m_controlGuard, m_controlSource, currentStatus()));
         return;
     }
 
@@ -209,11 +215,27 @@ void MobileWebServer::handleRequest(QTcpSocket *socket, const QByteArray &reques
         return;
     }
 
+    if (method == QStringLiteral("POST") && path == QStringLiteral("/api/release"))
+    {
+        if (m_controlGuard)
+            m_controlGuard->release(m_controlSource);
+        writeJson(socket, RemoteControlGuard::statusWithGuard(m_controlGuard, m_controlSource, currentStatus()));
+        return;
+    }
+
     if (method == QStringLiteral("POST"))
     {
         const QString cmd = MobileCommands::commandForApiPath(path);
         if (!cmd.isEmpty())
         {
+            const RemoteControlGuard::Decision access =
+                RemoteControlGuard::tryCommand(m_controlGuard, m_controlSource);
+            if (access.blocked)
+            {
+                writeJson(socket, {{QStringLiteral("ok"), false}, {QStringLiteral("message"), access.message}}, 409,
+                          QByteArrayLiteral("Conflict"));
+                return;
+            }
             replyCommand(socket, cmd);
             return;
         }
@@ -226,7 +248,7 @@ void MobileWebServer::handleRequest(QTcpSocket *socket, const QByteArray &reques
 void MobileWebServer::replyCommand(QTcpSocket *socket, const QString &cmd)
 {
     emit commandReceived(cmd);
-    QJsonObject response = currentStatus();
+    QJsonObject response = RemoteControlGuard::statusWithGuard(m_controlGuard, m_controlSource, currentStatus());
     response.insert(QStringLiteral("ok"), true);
     writeJson(socket, response);
 }
@@ -267,5 +289,5 @@ QJsonObject MobileWebServer::currentStatus() const
 {
     if (m_statusProvider)
         return m_statusProvider();
-    return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("状态未接入")}};
+    return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("状态提供者未接入")}};
 }

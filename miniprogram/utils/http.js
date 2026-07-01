@@ -39,7 +39,7 @@ class HttpClient {
 
   async connect(host, token) {
     this.host = this.normalizeHost(host)
-    if (!this.host) throw new Error('请填写 PC 地址，如 192.168.x.x:18765')
+    if (!this.host) throw new Error('须配置主机地址（host:port）')
     const status = await this.fetchStatus(token, { probe: true })
     this.connected = true
     return status
@@ -70,7 +70,7 @@ class HttpClient {
   }
 
   async sendCommand(cmd, token) {
-    if (!this.connected || !this.host) throw new Error('未连接 PC')
+    if (!this.connected || !this.host) throw new Error('主机未连接')
     let res
     try {
       res = await this.request({
@@ -88,16 +88,31 @@ class HttpClient {
       return res.data
     }
     const bodyMsg = res.data && (res.data.message || res.data.msg)
-    const msg = humanizeHttpStatus(res.statusCode, bodyMsg)
-    if (res.statusCode === 0 || res.statusCode >= 500) {
-      this._markLost(msg)
-    }
-    throw new Error(msg)
+    throw new Error(humanizeHttpStatus(res.statusCode, bodyMsg))
   }
 
-  disconnect() {
+  async release(token) {
+    if (!this.host) return
+    try {
+      await this.request({
+        url: `${this.baseUrl()}/api/release?token=${encodeURIComponent(token || '')}`,
+        method: 'POST',
+        header: { 'content-type': 'application/json' },
+        data: { token: token || '' }
+      })
+    } catch (_) {}
+  }
+
+  async disconnect(token) {
+    if (this.connected && this.host)
+      await this.release(token)
     this.connected = false
     this.host = ''
+  }
+
+  previewUrl(token) {
+    if (!this.host) return ''
+    return `${this.baseUrl()}/api/preview.jpg?token=${encodeURIComponent(token || '')}&t=${Date.now()}`
   }
 }
 

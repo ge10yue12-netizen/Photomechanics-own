@@ -2,6 +2,7 @@
 
 #include "BleAdapterChecker.h"
 #include "../NetConfigHelper.h"
+#include "../RemoteControlGuard.h"
 
 #include <QJsonObject>
 #include <QObject>
@@ -31,6 +32,7 @@ public:
     QString statusSummary() const;
     // 注册状态 JSON 提供函数，与 HTTP 遥控共用同一数据源。
     void setStatusProvider(std::function<QJsonObject()> provider);
+    void setControlGuard(RemoteControlGuard *guard, RemoteControlSource source);
     // 立即向已连接 Central 推送一次紧凑状态 JSON。
     void pushStatus();
 
@@ -56,6 +58,8 @@ private:
     BleAdapterInfo m_adapterInfo;
     QString m_token;
     QString m_lastError;
+    RemoteControlGuard *m_controlGuard = nullptr;
+    RemoteControlSource m_controlSource = RemoteControlSource::MiniProgramBle;
     std::function<QJsonObject()> m_statusProvider;
     QTimer *m_statusTimer = nullptr;
 };

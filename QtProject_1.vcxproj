@@ -136,6 +136,7 @@
     <QtMoc Include="remote\RemoteKit.h" />
     <QtMoc Include="remote\RemoteHost.h" />
     <ClInclude Include="remote\RemoteCommands.h" />
+    <ClInclude Include="remote\RemoteControlGuard.h" />
     <ClInclude Include="remote\RemoteStatusText.h" />
     <ClInclude Include="remote\ble\BleProtocol.h" />
     <ClInclude Include="remote\ble\BleCommandProtocol.h" />
@@ -157,6 +158,7 @@
     <ClCompile Include="remote\NetConfigHelper.cpp" />
     <ClCompile Include="remote\RemoteKit.cpp" />
     <ClCompile Include="remote\RemoteHost.cpp" />
+    <ClCompile Include="remote\RemoteControlGuard.cpp" />
     <ClCompile Include="remote\RemoteControlServer.cpp" />
     <QtMoc Include="remote-qr\MobileWebServer.h" />
     <QtMoc Include="remote-qr\MobileHost.h" />

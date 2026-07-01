@@ -13,6 +13,7 @@
 | `RemoteStatusText.h` | 状态行「已启动/未启动/失败原因」，不改 |
 | `NetConfigHelper.*` | 读 `config/netconfig.ini`，不改 |
 | `RemoteControlServer.*` | HTTP 服务，不改 |
+| `RemoteControlGuard.*` | 跨通道**命令**互斥；`POST /api/release` 断开即释放 |
 | `ble/*` | BLE GATT（仅 Windows），不改 |
 | `miniprogram/`（项目根） | 小程序端，按业务改按钮 |
 
@@ -48,6 +49,7 @@ device_name=PhotoMech
 - **Qt 模块**：`core`、`network`（有界面加 `gui`、`widgets`）
 - 附加选项 `/utf-8`；链接 `windowsapp.lib`；**无需** `/await`
 - 将 `remote/` 下全部 `.cpp` 加入工程；`RemoteKit`、`RemoteHost`、`RemoteControlServer`、`BleControlServer`、`BleWinRtWorker` 走 **Qt Moc**
+- 预览（可选）：`RemoteHost::setPreviewProvider()` → GET `/api/preview.jpg`；宿主可共用 `PreviewFrameCache`
 
 ## 集成（推荐 RemoteHost）
 
@@ -56,10 +58,13 @@ device_name=PhotoMech
 
 // 成员
 RemoteHost m_remote;
+RemoteControlGuard m_remoteGuard;
 QLabel *m_bleStatusLabel = nullptr;
 QLabel *m_httpStatusLabel = nullptr;
 
 // 构造里（可选：日志区两行状态标签）
+m_remote.setControlGuard(&m_remoteGuard);
+m_remote.setPreviewProvider([]() { return previewCache.getLatestJpeg(); }); // 可选
 m_remote.setStatusLabels(m_bleStatusLabel, m_httpStatusLabel);
 m_remote.setStatusProvider([this]() { return buildStatusJson(); });
 connect(&m_remote, &RemoteHost::commandReceived, this, &MainWindow::onRemoteCommand);

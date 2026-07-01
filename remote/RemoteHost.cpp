@@ -22,6 +22,16 @@ void RemoteHost::setStatusProvider(std::function<QJsonObject()> provider)
     m_kit.setStatusProvider(std::move(provider));
 }
 
+void RemoteHost::setControlGuard(RemoteControlGuard *guard)
+{
+    m_kit.setControlGuard(guard);
+}
+
+void RemoteHost::setPreviewProvider(std::function<QByteArray()> provider)
+{
+    m_kit.setPreviewProvider(std::move(provider));
+}
+
 bool RemoteHost::bootstrap()
 {
     if (!m_kit.loadConfig())
@@ -66,14 +76,14 @@ QStringList RemoteHost::startupWarnings() const
     if (m_kit.configFilePath().isEmpty())
     {
         if (!m_kit.lastError().isEmpty())
-            lines << QStringLiteral("遥控：%1").arg(m_kit.lastError());
+            lines << QStringLiteral("远程控制：%1").arg(m_kit.lastError());
         return lines;
     }
     if (!m_kit.ble().isRunning() && !m_kit.ble().lastError().isEmpty())
-        lines << QStringLiteral("蓝牙遥控：%1").arg(m_kit.ble().lastError());
+        lines << QStringLiteral("远程控制 BLE：%1").arg(m_kit.ble().lastError());
     if (!m_kit.http().isListening() && !m_kit.http().lastError().isEmpty())
     {
-        lines << QStringLiteral("HTTP 遥控：%1")
+        lines << QStringLiteral("远程控制 HTTP：%1")
                      .arg(RemoteStatusText::humanizeHttpListenError(m_kit.http().lastError()));
     }
     return lines;
@@ -82,6 +92,6 @@ QStringList RemoteHost::startupWarnings() const
 void RemoteHost::onBleServerError(const QString &message)
 {
     if (!message.isEmpty())
-        emit notify(QStringLiteral("蓝牙遥控：%1").arg(message));
+        emit notify(QStringLiteral("远程控制 BLE：%1").arg(message));
     refreshStatusLabels();
 }

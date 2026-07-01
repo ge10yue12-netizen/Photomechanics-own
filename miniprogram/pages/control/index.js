@@ -1,7 +1,9 @@
 /**
- * 遥控主页面：WiFi / BLE 双模式独立链路，共用按钮规则与状态解析。
+ * 遥控主页面：WiFi / BLE 双模式；预览/状态格为增量，按钮区保持原版。
  */
-const { CMD_KEYS, defaultBtnState, computeBtnState, isRemoteOffline } = require('../../utils/remote-buttons')
+const {
+  CMD_KEYS, defaultBtnState, computeBtnState, isRemoteOffline, formatMetrics
+} = require('../../utils/remote-buttons')
 const WifiLink = require('../../utils/wifi-link')
 const BleLink = require('../../utils/ble-link')
 const { humanizeError } = require('../../utils/errors')
@@ -10,18 +12,24 @@ const STORAGE_HOST = 'photomech_host'
 const STORAGE_TOKEN = 'photomech_token'
 const STORAGE_MODE = 'photomech_mode'
 
+const EMPTY_METRICS = {
+  metricCam: '—',
+  metricGrab: '—',
+  metricStage: '—',
+  metricMsg: '—',
+  previewUrl: '',
+  previewHint: '无画面'
+}
+
 Page({
   data: {
     mode: 'wifi',
     connState: 'disconnected',
     statusTitle: '未连接',
-    statusDetail: '填写 PC 地址后点「连接」',
+    statusDetail: '须配置主机地址后建立连接',
     errorHint: '',
     connected: false,
     pendingAction: '',
-    linkLive: false,
-    deviceName: '',
-    statusText: '—',
     token: '1234',
     host: '',
     devices: [],
@@ -29,7 +37,8 @@ Page({
     btnState: defaultBtnState(true),
     connConnectDisabled: false,
     connDisconnectDisabled: true,
-    uiLocked: false
+    uiLocked: false,
+    ...EMPTY_METRICS
   },
 
   onLoad() {
@@ -66,9 +75,7 @@ Page({
         host,
         token,
         mode,
-        statusDetail: mode === 'wifi'
-          ? '地址与 PC 须同一 WiFi'
-          : '搜索后点选电脑'
+        statusDetail: mode === 'wifi' ? '客户端与主机须处于同一局域网' : '扫描后选择目标 BLE 设备'
       })
     } catch (e) {}
   },
@@ -85,13 +92,14 @@ Page({
     this._alive = false
     this._actionLock = false
     this._stopAllPoll()
+    const token = (this.data.token || '').trim()
     this.wifiLink.setOnStatus(null)
     this.wifiLink.setOnConnectionLost(null)
     this.bleLink.setOnStatus(null)
     this.bleLink.setOnStateChange(null)
-    this.bleLink.disconnect()
+    this.wifiLink.disconnect(token).catch(() => {})
+    this.bleLink.disconnect(token).catch(() => {})
     this.bleLink.closeAdapter()
-    this.wifiLink.disconnect()
   },
 
   _activeLink() {
@@ -108,6 +116,7 @@ Page({
     const token = (this.data.token || '').trim()
     if (this.data.mode === 'wifi' && this.wifiLink.isConnected()) {
       this.wifiLink.startPoll(token)
+      this._syncPreview(this._lastStatus, token)
     } else if (this.data.mode === 'ble' && this.bleLink.isConnected()) {
       this.bleLink.startPoll(token)
     }
@@ -129,7 +138,8 @@ Page({
   _setPending(action) {
     const pending = action || ''
     const uiLocked = !!action
-    const locked = uiLocked || !this.data.connected
+    const locked = uiLocked || !this.data.connected ||
+      !!(this._lastStatus && this._lastStatus.remoteControlBlocked)
     const btnMap = computeBtnState(this._lastStatus, locked)
     const patch = { pendingAction: pending, uiLocked }
     CMD_KEYS.forEach((k) => {
@@ -155,7 +165,8 @@ Page({
   },
 
   _refreshBtnState() {
-    const locked = !!this.data.pendingAction || !this.data.connected
+    const locked = !!this.data.pendingAction || !this.data.connected ||
+      !!(this._lastStatus && this._lastStatus.remoteControlBlocked)
     const next = computeBtnState(this._lastStatus, locked)
     const patch = {}
     CMD_KEYS.forEach((k) => {
@@ -164,38 +175,76 @@ Page({
     if (Object.keys(patch).length) this._safeSetData(patch)
   },
 
+  _syncPreview(status, token) {
+    if (this.data.mode !== 'wifi' || !this.data.connected) return
+    const open = !!(status && status.cameraOpen)
+    if (open) {
+      this.wifiLink.startPreview(token, (url) => {
+        if (this._alive && url && url !== this.data.previewUrl) {
+          this._safeSetData({ previewUrl: url, previewHint: '' })
+        }
+      })
+    } else if (this.data.previewUrl || !this.data.previewHint) {
+      this.wifiLink.stopPreview()
+      this._safeSetData({ previewUrl: '', previewHint: '无画面' })
+    }
+  },
+
   _applyLinkConnected(endpoint) {
     this._safeSetData({
       connected: true,
       connState: 'connected',
       statusTitle: '已连接',
       statusDetail: endpoint || '',
-      deviceName: endpoint || '',
       errorHint: '',
-      linkLive: true
+      connConnectDisabled: true,
+      connDisconnectDisabled: false
     })
-    this._refreshConnBtns()
     this._refreshBtnState()
+    this._refreshConnBtns()
     this._resumePollForCurrentMode()
+  },
+
+  _applyDisconnectedUi(detail) {
+    this.wifiLink.stopPoll()
+    this.bleLink.stopPoll()
+    this._lastStatus = {}
+    this._safeSetData({
+      connected: false,
+      connState: 'disconnected',
+      statusTitle: '未连接',
+      statusDetail: detail || '已断开',
+      errorHint: '',
+      pendingAction: '',
+      uiLocked: false,
+      btnState: defaultBtnState(true),
+      connConnectDisabled: false,
+      connDisconnectDisabled: true,
+      selectedDeviceId: '',
+      ...EMPTY_METRICS
+    })
   },
 
   applyRemoteStatus(status) {
     if (!status || typeof status !== 'object') return
 
-    const msg = status.message || status.msg || '—'
     if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
-      this.handleBlePcOffline(msg !== '—' ? msg : 'PC 已关闭')
+      this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
       return
     }
 
     this._lastStatus = status
+    const patch = formatMetrics(status)
 
-    const patch = {}
-    if (msg !== this.data.statusText) patch.statusText = msg
-    if (this.data.connected && !this.data.linkLive) patch.linkLive = true
-    if (Object.keys(patch).length) this._safeSetData(patch)
+    if (status.remoteControlBlocked) {
+      patch.errorHint = status.remoteControlMessage || '命令通道被占用'
+    } else if (this.data.errorHint && this.data.errorHint.indexOf('占用') >= 0) {
+      patch.errorHint = ''
+    }
 
+    this._safeSetData(patch)
     if (!this.data.pendingAction) this._refreshBtnState()
+    this._syncPreview(status, (this.data.token || '').trim())
   },
 
   async runAction(action, work) {
@@ -213,42 +262,40 @@ Page({
   },
 
   handleWifiLost(reason) {
-    this.wifiLink.disconnect()
-    this._lastStatus = {}
-    const hint = humanizeError(reason, 'lost')
+    const token = (this.data.token || '').trim()
+    this.wifiLink.disconnect(token).catch(() => {})
     this._safeSetData({
       connected: false,
       connState: 'error',
       statusTitle: '已断开',
-      statusDetail: hint,
-      errorHint: hint,
-      statusText: '—',
-      linkLive: false,
+      statusDetail: humanizeError(reason, 'lost'),
+      errorHint: humanizeError(reason, 'lost'),
       pendingAction: '',
       uiLocked: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
-      connDisconnectDisabled: true
+      connDisconnectDisabled: true,
+      ...EMPTY_METRICS
     })
+    this._lastStatus = {}
   },
 
   handleBlePcOffline(reason) {
     this.bleLink.stopPoll()
     this._lastStatus = {}
-    const hint = reason || 'PC 已关闭'
+    const hint = reason || '主机服务已停止'
     this._safeSetData({
       connected: false,
       connState: 'error',
       statusTitle: '已断开',
       statusDetail: hint,
       errorHint: hint,
-      statusText: '—',
-      linkLive: false,
       pendingAction: '',
       uiLocked: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
-      connDisconnectDisabled: true
+      connDisconnectDisabled: true,
+      ...EMPTY_METRICS
     })
     this.bleLink.disconnect().catch(() => {})
   },
@@ -259,7 +306,7 @@ Page({
     const patch = {}
     if (state === 'scanning') {
       patch.connState = 'scanning'
-      patch.statusTitle = '搜索中'
+      patch.statusTitle = 'BLE 扫描中'
       patch.errorHint = ''
     } else if (state === 'connecting') {
       patch.connState = 'connecting'
@@ -267,30 +314,16 @@ Page({
       patch.errorHint = ''
     } else if (state === 'error') {
       patch.connState = 'error'
-      patch.statusTitle = '连接失败'
+      patch.statusTitle = '连接异常'
       patch.connected = false
-      patch.linkLive = false
-      patch.errorHint = detail || '连接失败'
-      patch.statusText = '—'
+      patch.errorHint = detail || '连接异常'
       patch.btnState = defaultBtnState(true)
+      Object.assign(patch, EMPTY_METRICS)
       this._lastStatus = {}
       this.bleLink.stopPoll()
     } else if (state === 'idle') {
       if (this.data.connected && detail && detail.indexOf('断开') >= 0) {
-        this.bleLink.stopPoll()
-        this._lastStatus = {}
-        this._safeSetData({
-          connected: false,
-          connState: 'error',
-          statusTitle: '已断开',
-          statusDetail: detail,
-          errorHint: detail,
-          statusText: '—',
-          linkLive: false,
-          btnState: defaultBtnState(true),
-          connConnectDisabled: false,
-          connDisconnectDisabled: true
-        })
+        this._applyDisconnectedUi(detail)
         return
       }
       if (!this.data.connected) {
@@ -299,10 +332,7 @@ Page({
       }
     }
 
-    if (detail && state !== 'error' && state !== 'idle') {
-      patch.statusDetail = detail
-    }
-
+    if (detail && state !== 'error' && state !== 'idle') patch.statusDetail = detail
     if (Object.keys(patch).length) {
       this._safeSetData(patch)
       this._refreshConnBtns()
@@ -311,8 +341,9 @@ Page({
 
   _teardownAllLinks() {
     this._stopAllPoll()
-    this.wifiLink.disconnect()
-    this.bleLink.disconnect()
+    const token = (this.data.token || '').trim()
+    this.wifiLink.disconnect(token).catch(() => {})
+    this.bleLink.disconnect(token).catch(() => {})
     this.bleLink.closeAdapter()
   },
 
@@ -326,20 +357,18 @@ Page({
     this._safeSetData({
       mode,
       connected: false,
-      deviceName: '',
       selectedDeviceId: '',
       devices: [],
-      statusText: '—',
       errorHint: '',
       statusTitle: '未连接',
-      linkLive: false,
       pendingAction: '',
       uiLocked: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
-      statusDetail: mode === 'wifi' ? '地址与 PC 须同一 WiFi' : '搜索后点选电脑',
-      connState: 'disconnected'
+      statusDetail: mode === 'wifi' ? '客户端与主机须处于同一局域网' : '扫描后选择目标 BLE 设备',
+      connState: 'disconnected',
+      ...EMPTY_METRICS
     })
     this._savePrefs()
   },
@@ -357,7 +386,7 @@ Page({
   onRefresh() {
     if (this.data.mode !== 'ble' || this.data.uiLocked || this.data.connected) return
     this.runAction('scan', async () => {
-      this._safeSetData({ errorHint: '', devices: [], connState: 'scanning', statusTitle: '搜索中' })
+      this._safeSetData({ errorHint: '', devices: [], connState: 'scanning', statusTitle: 'BLE 扫描中' })
       try {
         const list = await this.bleLink.scan()
         this._safeSetData({ devices: list, connState: 'disconnected', statusTitle: '未连接' })
@@ -369,7 +398,7 @@ Page({
         this._safeSetData({
           errorHint: humanizeError(err, 'scan'),
           connState: 'error',
-          statusTitle: '搜索失败'
+          statusTitle: '扫描异常'
         })
       }
     })
@@ -379,7 +408,7 @@ Page({
     if (this.data.mode !== 'wifi' || this.data.uiLocked) return
     const host = (this.data.host || '').trim()
     if (!host) {
-      this._safeSetData({ errorHint: '请填写 PC 地址，如 192.168.x.x:18765' })
+      this._safeSetData({ errorHint: '须配置主机地址（host:port）' })
       return
     }
     this.runAction('connect', async () => {
@@ -398,9 +427,8 @@ Page({
       } catch (err) {
         this._safeSetData({
           connState: 'error',
-          statusTitle: '连接失败',
-          errorHint: humanizeError(err, 'connect'),
-          linkLive: false
+          statusTitle: '连接异常',
+          errorHint: humanizeError(err, 'connect')
         })
       }
     })
@@ -431,8 +459,7 @@ Page({
         this._safeSetData({
           connState: 'error',
           errorHint: humanizeError(err, 'ble'),
-          statusTitle: '连接失败',
-          linkLive: false
+          statusTitle: '连接异常'
         })
       }
     })
@@ -441,24 +468,10 @@ Page({
   onDisconnect() {
     if (this.data.uiLocked || !this.data.connected) return
     this.runAction('disconnect', async () => {
-      if (this.data.mode === 'wifi') {
-        this.wifiLink.disconnect()
-      } else {
-        await this.bleLink.disconnect()
-      }
-      this._lastStatus = {}
-      this._safeSetData({
-        connected: false,
-        deviceName: '',
-        selectedDeviceId: '',
-        statusText: '—',
-        connState: 'disconnected',
-        statusTitle: '未连接',
-        statusDetail: '已断开',
-        errorHint: '',
-        linkLive: false,
-        btnState: defaultBtnState(true)
-      })
+      const token = (this.data.token || '').trim()
+      if (this.data.mode === 'wifi') await this.wifiLink.disconnect(token)
+      else await this.bleLink.disconnect(token)
+      this._applyDisconnectedUi('已断开')
       this._refreshConnBtns()
     })
   },

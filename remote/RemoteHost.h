@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <functional>
 
+class RemoteControlGuard;
+
 /**
  * 遥控集成门面：配置加载、HTTP/BLE 启动、状态行刷新、命令转发。
  * 复制 remote/ + config/netconfig.ini 后，宿主工程只需构造 RemoteHost 并 bootstrap。
@@ -27,6 +29,12 @@ public:
 
     // 注册状态 JSON，须在 bootstrap() 前调用。
     void setStatusProvider(std::function<QJsonObject()> provider);
+
+    // 可选：WiFi 预览 JPEG；宿主通常与 remote-qr 共用 PreviewFrameCache。
+    void setPreviewProvider(std::function<QByteArray()> provider);
+
+    // 注入跨通道互斥（与 remote-qr 共用同一 RemoteControlGuard 实例）。
+    void setControlGuard(RemoteControlGuard *guard);
 
     // loadConfig + start + 刷新状态行；至少一个通道成功时返回 true。
     bool bootstrap();

@@ -7,6 +7,7 @@
 #include <QLabel>
 #include "camera/CameraController.h"
 #include "remote/RemoteHost.h"
+#include "remote/RemoteControlGuard.h"
 #include "remote-qr/MobileHost.h"
 #include "remote-qr/RemoteControlDialog.h"
 #include "core/AppLogger.h"
@@ -121,6 +122,7 @@ private:
     AppLogger m_logger;              // 运行日志写入 Log/run_*.log；log() 同步写入文件与界面控件
     RemoteHost m_remoteHost;
     MobileHost m_mobileHost;
+    RemoteControlGuard m_remoteGuard;
     RemoteControlDialog *m_mobileDialog = nullptr;
     QLabel *m_bleStatusLabel = nullptr;
     QLabel *m_httpStatusLabel = nullptr;

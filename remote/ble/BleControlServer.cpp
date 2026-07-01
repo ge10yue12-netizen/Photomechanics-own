@@ -97,7 +97,7 @@ void BleControlServer::stop()
     {
         QJsonObject offline;
         offline.insert(QStringLiteral("ok"), false);
-        offline.insert(QStringLiteral("message"), QStringLiteral("PC已关闭"));
+        offline.insert(QStringLiteral("message"), QStringLiteral("主机服务已停止"));
         const QByteArray payload =
             compactStatusJson(QJsonDocument(offline).toJson(QJsonDocument::Compact));
         QMetaObject::invokeMethod(m_worker, "notifyStatus", Qt::BlockingQueuedConnection,
@@ -122,13 +122,19 @@ void BleControlServer::setStatusProvider(std::function<QJsonObject()> provider)
     m_statusProvider = std::move(provider);
 }
 
+void BleControlServer::setControlGuard(RemoteControlGuard *guard, RemoteControlSource source)
+{
+    m_controlGuard = guard;
+    m_controlSource = source;
+}
+
 // 主线程组装 JSON → compactStatusJson → QueuedConnection 投递至 WinRT 线程 Notify。
 void BleControlServer::pushStatus()
 {
     if (!m_running || !m_worker)
         return;
 
-    const QJsonObject status = currentStatus();
+    const QJsonObject status = RemoteControlGuard::statusWithGuard(m_controlGuard, m_controlSource, currentStatus());
     const QByteArray json = QJsonDocument(status).toJson(QJsonDocument::Compact);
     const QByteArray payload = compactStatusJson(json);
     QMetaObject::invokeMethod(m_worker, "notifyStatus", Qt::QueuedConnection, Q_ARG(QByteArray, payload));
@@ -167,6 +173,22 @@ void BleControlServer::handleRawCommand(const QByteArray &raw)
         return;
     }
 
+    if (parsed.cmd == QStringLiteral("release"))
+    {
+        if (m_controlGuard)
+            m_controlGuard->release(m_controlSource);
+        pushStatus();
+        return;
+    }
+
+    const RemoteControlGuard::Decision access =
+        RemoteControlGuard::tryCommand(m_controlGuard, m_controlSource);
+    if (access.blocked)
+    {
+        emit serverError(access.message);
+        return;
+    }
+
     emit commandReceived(parsed.cmd);
     pushStatus();
 }
@@ -175,9 +197,8 @@ QJsonObject BleControlServer::currentStatus() const
 {
     if (m_statusProvider)
         return m_statusProvider();
-
     QJsonObject obj;
     obj.insert(QStringLiteral("ok"), true);
-    obj.insert(QStringLiteral("message"), QStringLiteral("idle"));
+    obj.insert(QStringLiteral("message"), QStringLiteral("空闲"));
     return obj;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "NetConfigHelper.h"
+#include "RemoteControlGuard.h"
 #include "RemoteControlServer.h"
 #include "ble/BleControlServer.h"
 
@@ -48,6 +49,11 @@ public:
     // 注册状态 JSON 提供函数，HTTP 与 BLE 共用。
     void setStatusProvider(std::function<QJsonObject()> provider);
 
+    void setPreviewProvider(std::function<QByteArray()> provider);
+
+    // 注入跨通道互斥，HTTP/BLE 各绑定对应 RemoteControlSource。
+    void setControlGuard(RemoteControlGuard *guard);
+
     // 若 BLE 已运行，立即向已连接客户端推送一次状态。
     void pushBleStatus();
 
@@ -59,6 +65,7 @@ private:
     QString m_configPath;
     QString m_lastError;
     RemoteConfig m_cfg;
+    RemoteControlGuard *m_controlGuard = nullptr;
     RemoteControlServer m_http;
     BleControlServer m_ble;
 };

@@ -18,13 +18,13 @@ const ErrorCode = {
 function classifyBleError(err) {
   const msg = (err && (err.errMsg || err.message)) || String(err || '')
   if (msg.indexOf('auth') >= 0 || msg.indexOf('authorize') >= 0) {
-    return { code: ErrorCode.AUTH_DENIED, message: '未授权蓝牙/定位：请在系统设置中允许微信使用蓝牙，Android 还需开启定位' }
+    return { code: ErrorCode.AUTH_DENIED, message: '蓝牙/定位权限未授权：须在系统设置中授予相应权限' }
   }
   if (msg.indexOf('not available') >= 0 || msg.indexOf('10001') >= 0) {
-    return { code: ErrorCode.ADAPTER_OFF, message: '手机蓝牙未开启或不可用' }
+    return { code: ErrorCode.ADAPTER_OFF, message: 'BLE 适配器不可用' }
   }
   if (msg.indexOf('no service') >= 0 || msg.indexOf('10004') >= 0) {
-    return { code: ErrorCode.NO_SERVICE, message: '该设备没有遥控服务（可能不是目标电脑）' }
+    return { code: ErrorCode.NO_SERVICE, message: '目标设备未提供远程控制 GATT 服务' }
   }
   if (msg.indexOf('no connection') >= 0 || msg.indexOf('10006') >= 0) {
     return { code: ErrorCode.NOT_CONNECTED, message: '蓝牙连接已断开' }
@@ -69,7 +69,7 @@ class BleClient {
       this.serviceId = ''
       this.cmdCharId = ''
       this.statusCharId = ''
-      this._setState('idle', '蓝牙连接已断开')
+      this._setState('idle', 'BLE 连接已断开')
       if (id) wx.closeBLEConnection({ deviceId: id, complete: () => {} })
     }
     wx.onBLEConnectionStateChange(this._connStateHandler)
@@ -172,7 +172,7 @@ class BleClient {
   async refreshDeviceList(onProgress) {
     this._lastError = null
     this._devices.clear()
-    this._setState('scanning', '正在搜索…')
+    this._setState('scanning', 'BLE 扫描中')
     await this.requestPermissions()
     await this.openAdapter()
 
@@ -217,7 +217,7 @@ class BleClient {
           if (list.length === 0) {
             this._lastError = {
               code: 'NO_DEVICES',
-              message: '未发现可用蓝牙设备，请确认手机蓝牙已开且附近有已命名设备'
+              message: '未发现可用 BLE 设备：须启用蓝牙且范围内存在已命名设备'
             }
             this._setState('idle', '')
             resolve(list)
@@ -238,7 +238,7 @@ class BleClient {
     }
 
     this._lastError = null
-    this._setState('connecting', '正在连接…')
+    this._setState('connecting', 'BLE 连接中')
     await this.openAdapter()
 
     try {
@@ -250,7 +250,7 @@ class BleClient {
     } catch (e) {
       const err = e.code ? e : classifyBleError(e)
       if (err.code === ErrorCode.NO_SERVICE) {
-        err.message = '未找到遥控服务，请确认 PC 软件已启动'
+        err.message = '远程控制 GATT 服务未就绪'
       }
       this._lastError = err
       this._setState('error', err.message)
@@ -290,7 +290,7 @@ class BleClient {
     const services = await promisify(wx.getBLEDeviceServices)({ deviceId: this.deviceId })
     const service = (services.services || []).find((s) => normalizeUuid(s.uuid) === normalizeUuid(SERVICE_UUID))
     if (!service) {
-      throw { code: ErrorCode.NO_SERVICE, message: '该设备没有遥控服务' }
+      throw { code: ErrorCode.NO_SERVICE, message: '目标设备未提供远程控制 GATT 服务' }
     }
     this.serviceId = service.uuid
 
@@ -302,7 +302,7 @@ class BleClient {
     const cmdChar = list.find((c) => normalizeUuid(c.uuid) === normalizeUuid(CMD_UUID))
     const statusChar = list.find((c) => normalizeUuid(c.uuid) === normalizeUuid(STATUS_UUID))
     if (!cmdChar || !statusChar) {
-      throw { code: ErrorCode.NO_GATT, message: '未找到命令/状态特征，请更新 PC 端软件' }
+      throw { code: ErrorCode.NO_GATT, message: 'GATT 命令/状态特征缺失，须升级主机端' }
     }
 
     this.cmdCharId = cmdChar.uuid
@@ -347,7 +347,7 @@ class BleClient {
 
   async sendCommand(cmd, token) {
     if (!this.connected || !this.deviceId || !this.cmdCharId || !this.serviceId) {
-      throw { code: ErrorCode.NOT_CONNECTED, message: '尚未连接设备' }
+      throw { code: ErrorCode.NOT_CONNECTED, message: 'BLE 未连接' }
     }
     const text = buildCommand(cmd, token)
     const buffer = str2ab(text)

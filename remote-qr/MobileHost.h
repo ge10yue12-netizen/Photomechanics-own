@@ -5,6 +5,8 @@
 #include "PreviewFrameCache.h"
 #include "TokenManager.h"
 
+#include "../remote/RemoteControlGuard.h"
+
 #include <QJsonObject>
 #include <QObject>
 #include <QTimer>
@@ -38,6 +40,7 @@ public:
     QString sessionDisplayIp() const { return m_displayIp; }
 
     void setStatusProvider(std::function<QJsonObject()> provider);
+    void setControlGuard(RemoteControlGuard *guard);
 
 signals:
     void commandReceived(const QString &cmd);
@@ -63,6 +66,7 @@ private:
     TokenManager m_token;
     PreviewFrameCache m_preview;
     MobileWebServer m_server;
+    RemoteControlGuard *m_controlGuard = nullptr;
     QByteArray m_mobileHtml;
     QTimer m_expiryTimer;
     QTimer m_phoneWatchTimer;

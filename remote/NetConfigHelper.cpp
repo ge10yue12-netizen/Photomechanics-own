@@ -41,7 +41,7 @@ bool NetConfigHelper::load(RemoteConfig &cfg, QString *error)
 {
     const QString path = configFilePath();
     if (path.isEmpty())
-        return fail(error, QStringLiteral("未找到 config/netconfig.ini"));
+        return fail(error, QStringLiteral("配置文件缺失：config/netconfig.ini"));
 
     QSettings settings(path, QSettings::IniFormat);
     cfg.token = settings.value(QStringLiteral("remote/token")).toString().trimmed();

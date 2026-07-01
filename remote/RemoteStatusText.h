@@ -23,8 +23,8 @@ inline QString humanizeHttpListenError(const QString &raw)
     if (raw.contains(QStringLiteral("not available"), Qt::CaseInsensitive))
     {
         return QStringLiteral(
-            "监听地址不可用，请将 config/netconfig.ini 中 http/bind"
-            "改为本机 WiFi 网卡 IPv4（与手机同网段）");
+            "监听地址不可用：须将 config/netconfig.ini 中 http/bind"
+            "设为主机局域网 IPv4（与客户端同网段）");
     }
     return raw;
 }

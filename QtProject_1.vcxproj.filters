@@ -76,11 +76,13 @@
     <QtMoc Include="remote\RemoteKit.h"><Filter>remote</Filter></QtMoc>
     <QtMoc Include="remote\RemoteHost.h"><Filter>remote</Filter></QtMoc>
     <ClInclude Include="remote\RemoteCommands.h"><Filter>remote</Filter></ClInclude>
+    <ClInclude Include="remote\RemoteControlGuard.h"><Filter>remote</Filter></ClInclude>
     <ClInclude Include="remote\RemoteStatusText.h"><Filter>remote</Filter></ClInclude>
     <ClCompile Include="remote\NetConfigHelper.cpp"><Filter>remote</Filter></ClCompile>
     <QtMoc Include="remote\RemoteControlServer.h"><Filter>remote</Filter></QtMoc>
     <ClCompile Include="remote\RemoteKit.cpp"><Filter>remote</Filter></ClCompile>
     <ClCompile Include="remote\RemoteHost.cpp"><Filter>remote</Filter></ClCompile>
+    <ClCompile Include="remote\RemoteControlGuard.cpp"><Filter>remote</Filter></ClCompile>
     <ClCompile Include="remote\RemoteControlServer.cpp"><Filter>remote</Filter></ClCompile>
     <ClInclude Include="remote\ble\BleProtocol.h"><Filter>remote\ble</Filter></ClInclude>
     <ClInclude Include="remote\ble\BleCommandProtocol.h"><Filter>remote\ble</Filter></ClInclude>

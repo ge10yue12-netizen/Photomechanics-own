@@ -14,6 +14,7 @@ const CMD_LABELS = {
 
 const CMD_KEYS = Object.keys(CMD_LABELS)
 const POLL_MS = 2000
+const PREVIEW_MS = 120
 
 function defaultBtnState(disabled) {
   const s = {}
@@ -21,13 +22,11 @@ function defaultBtnState(disabled) {
   return s
 }
 
-/** PC 主动离线（如关程序前 Notify ok=0）。 */
 function isRemoteOffline(status) {
   if (!status || typeof status !== 'object') return false
   return status.ok === false || status.ok === 0
 }
 
-/** 与 PC 主界面一致的命令按钮禁用规则。 */
 function computeBtnState(status, locked) {
   const s = status || {}
   const open = !!s.cameraOpen
@@ -45,11 +44,34 @@ function computeBtnState(status, locked) {
   }
 }
 
+/** 与扫码页状态格一致的中文摘要。 */
+function formatMetrics(status) {
+  const s = status || {}
+  let grab = '—'
+  let stage = '空闲'
+  if (s.stageRunning) {
+    stage = '运行中'
+  } else if (s.acquisitionActive) {
+    grab = '进行中'
+  } else {
+    grab = s.liveViewActive ? '预览' : '空闲'
+  }
+  return {
+    metricCam: s.cameraOpen ? '已打开' : '未打开',
+    metricGrab: grab,
+    metricStage: stage,
+    metricMsg: s.message || '—',
+    cameraOpen: !!s.cameraOpen
+  }
+}
+
 module.exports = {
   CMD_LABELS,
   CMD_KEYS,
   POLL_MS,
+  PREVIEW_MS,
   defaultBtnState,
   computeBtnState,
-  isRemoteOffline
+  isRemoteOffline,
+  formatMetrics
 }

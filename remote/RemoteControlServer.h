@@ -9,6 +9,7 @@
 #include <functional>
 
 #include "NetConfigHelper.h"
+#include "RemoteControlGuard.h"
 
 class QTcpSocket;
 
@@ -37,6 +38,12 @@ public:
 
     // 注册设备状态 JSON 提供函数，供 GET /api/status 与命令响应使用。
     void setStatusProvider(std::function<QJsonObject()> provider);
+
+    // 可选：GET /api/preview.jpg 的 JPEG 提供函数；未注册时返回空图。
+    void setPreviewProvider(std::function<QByteArray()> provider);
+
+    // 注入跨通道互斥；source 通常为 MiniProgramHttp。
+    void setControlGuard(RemoteControlGuard *guard, RemoteControlSource source);
 
 signals:
     // 收到合法 POST /api/command 后发出，cmd 为命令名。
@@ -73,7 +80,10 @@ private:
     QJsonObject currentStatus() const;
 
     QTcpServer m_server;
+    RemoteControlGuard *m_controlGuard = nullptr;
+    RemoteControlSource m_controlSource = RemoteControlSource::MiniProgramHttp;
     QString m_token = QStringLiteral("1234");
     QString m_lastError;
     std::function<QJsonObject()> m_statusProvider;
+    std::function<QByteArray()> m_previewProvider;
 };

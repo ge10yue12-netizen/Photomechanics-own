@@ -6,6 +6,8 @@
 #include <QTcpServer>
 #include <functional>
 
+#include "../remote/RemoteControlGuard.h"
+
 class QTcpSocket;
 
 /**
@@ -30,6 +32,7 @@ public:
     void setPreviewProvider(std::function<QByteArray()> provider);
     void setConfigProvider(std::function<QJsonObject()> provider);
     void setMobileHtml(const QByteArray &html);
+    void setControlGuard(RemoteControlGuard *guard, RemoteControlSource source);
 
 signals:
     void commandReceived(const QString &cmd);
@@ -55,6 +58,8 @@ private:
     QJsonObject currentStatus() const;
 
     QTcpServer m_server;
+    RemoteControlGuard *m_controlGuard = nullptr;
+    RemoteControlSource m_controlSource = RemoteControlSource::QrBrowser;
     QString m_lastError;
     QByteArray m_mobileHtml;
     std::function<bool(const QString &)> m_tokenVerifier;

@@ -35,8 +35,11 @@ class BleLink {
     return this._ble.connectToDevice(deviceId, token)
   }
 
-  disconnect() {
+  async disconnect(token) {
     this.stopPoll()
+    if (this._ble.connected && token) {
+      try { await this._ble.sendCommand('release', token) } catch (_) {}
+    }
     return this._ble.disconnect()
   }
 

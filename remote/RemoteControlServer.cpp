@@ -52,13 +52,13 @@ bool RemoteControlServer::start(const RemoteConfig &cfg)
 
     if (!m_server.listen(QHostAddress::Any, cfg.httpPort))
     {
-        m_lastError = QStringLiteral("%1；回退监听所有网卡仍失败：%2（port=%3）")
+        m_lastError = QStringLiteral("%1；回退至全接口监听仍失败：%2（port=%3）")
                           .arg(bindError, m_server.errorString())
                           .arg(cfg.httpPort);
         return false;
     }
 
-    m_lastError = QStringLiteral("%1；已回退监听所有网卡").arg(bindError);
+    m_lastError = QStringLiteral("%1；已回退至全接口监听").arg(bindError);
     return true;
 }
 
@@ -80,6 +80,17 @@ quint16 RemoteControlServer::serverPort() const
 void RemoteControlServer::setStatusProvider(std::function<QJsonObject()> provider)
 {
     m_statusProvider = std::move(provider);
+}
+
+void RemoteControlServer::setControlGuard(RemoteControlGuard *guard, RemoteControlSource source)
+{
+    m_controlGuard = guard;
+    m_controlSource = source;
+}
+
+void RemoteControlServer::setPreviewProvider(std::function<QByteArray()> provider)
+{
+    m_previewProvider = std::move(provider);
 }
 
 void RemoteControlServer::onNewConnection()
@@ -157,7 +168,7 @@ void RemoteControlServer::handleRequest(QTcpSocket *socket, const QByteArray &re
     if (method == QStringLiteral("GET") && path == QStringLiteral("/"))
     {
         writeJson(socket, {{QStringLiteral("ok"), true},
-                           {QStringLiteral("message"), QStringLiteral("请用小程序或访问 /api/status")}});
+                           {QStringLiteral("message"), QStringLiteral("远程控制 API：GET /api/status")}});
         return;
     }
 
@@ -169,13 +180,29 @@ void RemoteControlServer::handleRequest(QTcpSocket *socket, const QByteArray &re
 
     if (!hasValidToken(query, body))
     {
-        writeJson(socket, {{QStringLiteral("ok"), false}, {QStringLiteral("message"), QStringLiteral("遥控 token 无效")}}, 403, QByteArrayLiteral("Forbidden"));
+        writeJson(socket, {{QStringLiteral("ok"), false}, {QStringLiteral("message"), QStringLiteral("认证 token 无效")}}, 403, QByteArrayLiteral("Forbidden"));
         return;
     }
 
     if (method == QStringLiteral("GET") && path == QStringLiteral("/api/status"))
     {
-        writeJson(socket, currentStatus());
+        writeJson(socket, RemoteControlGuard::statusWithGuard(m_controlGuard, m_controlSource, currentStatus()));
+        return;
+    }
+
+    if (method == QStringLiteral("GET") && path == QStringLiteral("/api/preview.jpg"))
+    {
+        const QByteArray jpeg = m_previewProvider ? m_previewProvider() : QByteArray();
+        writeResponse(socket, 200, QByteArrayLiteral("OK"),
+                      QByteArrayLiteral("image/jpeg"), jpeg);
+        return;
+    }
+
+    if (method == QStringLiteral("POST") && path == QStringLiteral("/api/release"))
+    {
+        if (m_controlGuard)
+            m_controlGuard->release(m_controlSource);
+        writeJson(socket, RemoteControlGuard::statusWithGuard(m_controlGuard, m_controlSource, currentStatus()));
         return;
     }
 
@@ -188,11 +215,20 @@ void RemoteControlServer::handleRequest(QTcpSocket *socket, const QByteArray &re
             return;
         }
 
+        const RemoteControlGuard::Decision access =
+            RemoteControlGuard::tryCommand(m_controlGuard, m_controlSource);
+        if (access.blocked)
+        {
+            writeJson(socket, {{QStringLiteral("ok"), false}, {QStringLiteral("message"), access.message}}, 409,
+                      QByteArrayLiteral("Conflict"));
+            return;
+        }
+
         emit commandReceived(cmd);
-        QJsonObject response = currentStatus();
+        QJsonObject response = RemoteControlGuard::statusWithGuard(m_controlGuard, m_controlSource, currentStatus());
         response.insert(QStringLiteral("ok"), true);
         response.insert(QStringLiteral("cmd"), cmd);
-        response.insert(QStringLiteral("message"), QStringLiteral("命令已接收"));
+        response.insert(QStringLiteral("message"), QStringLiteral("命令已受理"));
         writeJson(socket, response);
         return;
     }
@@ -238,5 +274,5 @@ QJsonObject RemoteControlServer::currentStatus() const
 {
     if (m_statusProvider)
         return m_statusProvider();
-    return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("状态未接入")}};
+    return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("状态提供者未接入")}};
 }

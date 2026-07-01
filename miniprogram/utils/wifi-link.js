@@ -1,13 +1,14 @@
 /**
- * WiFi 模式链路：仅封装 HttpClient，与 BLE 无交叉。
+ * WiFi 模式链路：HTTP 状态轮询 + 预览刷新。
  */
 const { HttpClient } = require('./http')
-const { POLL_MS } = require('./remote-buttons')
+const { POLL_MS, PREVIEW_MS } = require('./remote-buttons')
 
 class WifiLink {
   constructor() {
     this._http = new HttpClient()
     this._pollTimer = null
+    this._previewTimer = null
     this._pollToken = ''
   }
 
@@ -27,9 +28,9 @@ class WifiLink {
     return this._http.connect(host, token)
   }
 
-  disconnect() {
+  async disconnect(token) {
     this.stopPoll()
-    this._http.disconnect()
+    await this._http.disconnect(token)
   }
 
   async sendCommand(cmd, token) {
@@ -52,6 +53,26 @@ class WifiLink {
     if (this._pollTimer) {
       clearInterval(this._pollTimer)
       this._pollTimer = null
+    }
+    this.stopPreview()
+  }
+
+  startPreview(token, onUrl) {
+    this.stopPreview()
+    if (!this._http.connected || !onUrl) return
+    const t = token || ''
+    const tick = () => {
+      if (!this._http.connected) return
+      onUrl(this._http.previewUrl(t))
+    }
+    tick()
+    this._previewTimer = setInterval(tick, PREVIEW_MS)
+  }
+
+  stopPreview() {
+    if (this._previewTimer) {
+      clearInterval(this._previewTimer)
+      this._previewTimer = null
     }
   }
 }
