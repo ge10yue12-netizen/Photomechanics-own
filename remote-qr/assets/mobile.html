@@ -154,8 +154,6 @@
 
     var previewPolling = false;
 
-    var previewUserEnabled = false;
-
     var previewWatchdog = null;
 
     var statusTimer = null;
@@ -242,17 +240,21 @@
 
       var open = !!d.cameraOpen;
 
-      var calc = isCalcRunning(d);
+      var live = !!d.liveViewActive;
 
       btns.open.disabled = open;
 
-      btns.close.disabled = !open || calc;
+      btns.close.disabled = !open;
 
-      btns.calcStart.disabled = !open || calc;
+      btns.calcStart.disabled = !open;
 
-      btns.calcStop.disabled = !open || !calc;
+      btns.calcStop.disabled = !open;
 
-      btns.calibrate.disabled = !open || calc;
+      btns.calibrate.disabled = !open;
+
+      btns.previewOn.disabled = !open || live;
+
+      btns.previewOff.disabled = !open || !live;
 
       if (cmdLocked)
 
@@ -328,23 +330,27 @@
 
 
 
-    function syncPreviewFromStatus(cameraOpen) {
+    function syncPreviewFromStatus(d) {
 
-      if (!previewUserEnabled) {
+      var open = !!d.cameraOpen;
+
+      var live = !!d.liveViewActive;
+
+      if (!live) {
 
         if (previewPolling)
 
-          clearPreviewImage('预览已关闭');
+          clearPreviewImage(open ? '预览已关闭' : '无画面');
 
         else
 
-          els.previewHint.textContent = '预览已关闭';
+          els.previewHint.textContent = open ? '预览已关闭' : '无画面';
 
         return;
 
       }
 
-      if (!cameraOpen) {
+      if (!open) {
 
         clearPreviewImage('无画面');
 
@@ -362,25 +368,13 @@
 
     function setPreviewEnabled(on) {
 
-      previewUserEnabled = !!on;
+      if (on)
 
-      btns.previewOn.disabled = previewUserEnabled;
+        postCmd('/api/preview/open', '开启预览');
 
-      btns.previewOff.disabled = !previewUserEnabled;
+      else
 
-      if (!previewUserEnabled) {
-
-        clearPreviewImage('预览已关闭');
-
-        return;
-
-      }
-
-      btns.previewOn.disabled = true;
-
-      btns.previewOff.disabled = false;
-
-      fetchStatus();
+        postCmd('/api/preview/close', '关闭预览');
 
     }
 
@@ -404,7 +398,7 @@
 
       feedback(cmdLocked ? (d.remoteControlMessage || '') : '');
 
-      syncPreviewFromStatus(!!d.cameraOpen);
+      syncPreviewFromStatus(d);
 
     }
 
@@ -601,10 +595,6 @@
     btns.previewOn.onclick = function () { setPreviewEnabled(true); };
 
     btns.previewOff.onclick = function () { setPreviewEnabled(false); };
-
-    btns.previewOn.disabled = false;
-
-    btns.previewOff.disabled = true;
 
 
 

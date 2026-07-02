@@ -4,6 +4,8 @@ C++14 · Qt 5.15 · 局域网浏览器扫码控制。
 
 **移植**：复制 `remote-qr/` + 宿主 `config/mobile.ini` + 下文 §5 约 12 行代码。与 `remote/`（18765 / 小程序）独立并存。
 
+> 完整开发说明（含小程序与扫码对比）→ **[docs/REMOTE_CONTROL_GUIDE.md](../docs/REMOTE_CONTROL_GUIDE.md)** §5
+
 ---
 
 ## 1. 目录

@@ -14,6 +14,10 @@ inline QString commandForApiPath(const QString &path)
         return QStringLiteral("open_camera");
     if (path == QStringLiteral("/api/camera/close"))
         return QStringLiteral("close_camera");
+    if (path == QStringLiteral("/api/preview/open"))
+        return QStringLiteral("open_preview");
+    if (path == QStringLiteral("/api/preview/close"))
+        return QStringLiteral("close_preview");
     if (path == QStringLiteral("/api/camera/calculate/start"))
         return QStringLiteral("start_calculate");
     if (path == QStringLiteral("/api/camera/calculate/stop"))

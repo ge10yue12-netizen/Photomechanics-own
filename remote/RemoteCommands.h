@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QSet>
 #include <QString>
@@ -14,6 +14,8 @@ inline const QSet<QString> &knownCommands()
     static const QSet<QString> kTable = {
         QStringLiteral("open_camera"),
         QStringLiteral("close_camera"),
+        QStringLiteral("open_preview"),
+        QStringLiteral("close_preview"),
         QStringLiteral("start_capture"),
         QStringLiteral("stop_capture"),
         QStringLiteral("save_one"),
@@ -37,6 +39,8 @@ inline QString label(const QString &cmd)
 {
     if (cmd == QStringLiteral("open_camera")) return QStringLiteral("打开相机");
     if (cmd == QStringLiteral("close_camera")) return QStringLiteral("关闭相机");
+    if (cmd == QStringLiteral("open_preview")) return QStringLiteral("开启预览");
+    if (cmd == QStringLiteral("close_preview")) return QStringLiteral("关闭预览");
     if (cmd == QStringLiteral("start_capture")) return QStringLiteral("开始采集");
     if (cmd == QStringLiteral("stop_capture")) return QStringLiteral("停止采集");
     if (cmd == QStringLiteral("save_one")) return QStringLiteral("保存单张");

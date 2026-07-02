@@ -2,8 +2,7 @@
 
 | 文档 | 读者 |
 |------|------|
-| **[开发文档](../docs/MINIPROGRAM_REMOTE_DEV.md)** | 协议、目录、扩展命令、联调 |
-| **[使用手册](../docs/BLE_REMOTE_GUIDE.md)** | WiFi/BLE 连接步骤、排错 |
+| **[远程控制开发说明](../docs/REMOTE_CONTROL_GUIDE.md)** | 统一文档；小程序见 §4 |
 
 ## 快速开始（WiFi）
 
@@ -20,4 +19,4 @@
 | `utils/remote-buttons.js` | 命令、按钮规则、状态摘要（与 PC / 扫码页一致） |
 | `utils/http.js` / `ble.js` / `protocol.js` | 传输与协议；WiFi 预览 `/api/preview.jpg` |
 
-详细说明见 **[开发文档](../docs/MINIPROGRAM_REMOTE_DEV.md)**。
+详细说明见 **[远程控制开发说明](../docs/REMOTE_CONTROL_GUIDE.md)** §4。

@@ -50,7 +50,6 @@ Page({
     connDisconnectDisabled: true,
     uiLocked: false,
     linkPanelOpen: true,
-    previewOn: false,
     ...EMPTY_METRICS
   },
 
@@ -217,10 +216,8 @@ Page({
 
   _syncPreview(status) {
     const H = PREVIEW_HINT
-    if (!this.data.previewOn) {
-      this._stopPreviewUi(this.data.connected ? H.PREVIEW_OFF : H.NEED_CONNECT)
-      return
-    }
+    const open = !!(status && status.cameraOpen)
+    const live = !!(status && status.liveViewActive)
     if (this.data.mode === 'ble') {
       this._stopPreviewUi(H.WIFI_ONLY)
       return
@@ -229,18 +226,19 @@ Page({
       this._stopPreviewUi(H.NEED_CONNECT)
       return
     }
-    const ready = !!(status && status.cameraOpen && status.liveViewActive)
-    if (ready) {
-      if (!this._previewStream.isRunning()) {
-        this._previewStream.start()
-      }
-      if (!this.data.previewUrlA && !this.data.previewUrlB && this.data.previewHint !== H.NO_FRAME) {
-        this._safeSetData({ previewHint: H.NO_FRAME })
-      }
-    } else if (status && status.cameraOpen && !status.liveViewActive) {
-      this._stopPreviewUi(H.LIVE_NOT_READY)
-    } else {
+    if (!open) {
       this._stopPreviewUi(H.NEED_OPEN_CAMERA)
+      return
+    }
+    if (!live) {
+      this._stopPreviewUi(H.PREVIEW_OFF)
+      return
+    }
+    if (!this._previewStream.isRunning()) {
+      this._previewStream.start()
+    }
+    if (!this.data.previewUrlA && !this.data.previewUrlB && this.data.previewHint !== H.NO_FRAME) {
+      this._safeSetData({ previewHint: H.NO_FRAME })
     }
   },
 
@@ -293,7 +291,6 @@ Page({
       errorHint: '',
       pendingAction: '',
       uiLocked: false,
-      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -309,7 +306,6 @@ Page({
 
     if (status.remoteEnabled === false) {
       this._stopPreviewUi(PREVIEW_HINT.PREVIEW_OFF)
-      this._safeSetData({ previewOn: false })
     }
 
     if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
@@ -358,7 +354,6 @@ Page({
       errorHint: humanizeError(reason, 'lost'),
       pendingAction: '',
       uiLocked: false,
-      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -381,7 +376,6 @@ Page({
       errorHint: hint,
       pendingAction: '',
       uiLocked: false,
-      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -602,17 +596,5 @@ Page({
         this._safeSetData({ errorHint: humanizeError(err, 'command') })
       }
     })
-  },
-
-  onPreviewOn() {
-    if (!this.data.connected || this.data.previewOn) return
-    this._safeSetData({ previewOn: true })
-    this._syncPreview(this._lastStatus)
-  },
-
-  onPreviewOff() {
-    if (!this.data.previewOn) return
-    this._stopPreviewUi(PREVIEW_HINT.PREVIEW_OFF)
-    this._safeSetData({ previewOn: false })
   }
 })

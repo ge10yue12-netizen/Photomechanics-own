@@ -3,6 +3,8 @@
 复制 **`remote/`** 整目录 + **`config/netconfig.ini`** 到新工程即可。  
 与业务代码隔离：协议、传输、状态行文案在 `remote/` 内；宿主工程只接 **`RemoteHost`** 并实现命令处理。
 
+> 完整开发说明（含小程序与扫码网页对比）→ **[docs/REMOTE_CONTROL_GUIDE.md](../docs/REMOTE_CONTROL_GUIDE.md)**
+
 ## 目录职责
 
 | 文件 | 移植时 |

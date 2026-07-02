@@ -1288,6 +1288,20 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
         pushRemoteStatus();
         return;
     }
+    if (cmd == QStringLiteral("open_preview"))
+    {
+        if (m_camera.isOpen() && !m_liveViewActive)
+            startLiveView();
+        pushRemoteStatus();
+        return;
+    }
+    if (cmd == QStringLiteral("close_preview"))
+    {
+        if (m_camera.isOpen() && !m_stageRunning && !m_acquisitionActive)
+            stopLiveView();
+        pushRemoteStatus();
+        return;
+    }
     if (cmd == QStringLiteral("start_capture"))
     {
         if (m_camera.isOpen() && !m_stageRunning && !m_acquisitionActive)

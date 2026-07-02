@@ -8,6 +8,8 @@
 |------|------|
 | `open_camera` | 打开相机 |
 | `close_camera` | 关闭相机 |
+| `open_preview` | 开启预览 |
+| `close_preview` | 关闭预览 |
 | `start_calculate` | 开始计算 |
 | `stop_calculate` | 停止计算 |
 | `calibrate` | 标定 |

@@ -89,8 +89,8 @@ flowchart TD
 | **相机** | `CameraController` — Mono8 采集、`Grayscale8` QImage；不支持时回退 RGB888 |
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit`；`writeBmpFile` 写入 8 位灰度或 24 位 RGB BMP |
-| **远程遥控** | `RemoteKit` + `RemoteControlGuard`（命令互斥、断开即释放）；扫码见 `remote-qr/`；[remote/README.md](remote/README.md) |
-| **新手引导** | 复制 `guide/` + `#include "guide/GuideKit.h"`；移植见 `guide/README.md` |
+| **远程遥控** | `RemoteKit` + `RemoteControlGuard`（命令互斥）；扫码见 `remote-qr/`；说明见 [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) |
+| **新手引导** | 复制 `guide/` + `#include "guide/GuideKit.h"`；说明见 [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) |
 | **日志** | `AppLogger` — `Log/run_*.log` 落盘；主窗口 `log()` 同步写文件与界面 |
 | **遥控配置** | 项目根 `config/netconfig.ini`（见 [remote/README.md](remote/README.md)） |
 
@@ -154,13 +154,24 @@ flowchart TB
 4. 小程序选 **WiFi 模式**，填 `IP:18765`，token 与 ini 一致，点 **连接 PC**。
 5. BLE 可选：真机预览 → 刷新设备列表 → 点选电脑。
 
-移植与排错：**[docs/MINIPROGRAM_REMOTE_DEV.md](docs/MINIPROGRAM_REMOTE_DEV.md)**（开发）· **[docs/BLE_REMOTE_GUIDE.md](docs/BLE_REMOTE_GUIDE.md)**（使用）· [remote/README.md](remote/README.md)（PC 套件）
+移植与排错：**[docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md)**（统一说明：小程序 §4 · 扫码网页 §5）· [remote/README.md](remote/README.md)（PC 套件速查）
+
+## 扫码网页遥控
+
+1. 主界面「打开远程控制」→ **开启** → 切至 **扫码网页** 页签。
+2. 选择本机 WiFi IP，用手机浏览器扫二维码或打开 URL。
+3. 配置见 `config/mobile.ini`（默认端口 8080）。
+
+详见 **[docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md)** §5。
 
 ## 详细文档
 
-完整实现说明（架构、阶段采集、存图、UI、编译排错等）见：
-
-**[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)**
+| 文档 | 内容 |
+|------|------|
+| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | 相机采集、阶段、存图（主手册） |
+| [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) | 新手引导 GuideKit |
+| [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) | 远程控制（小程序 §4 · 扫码网页 §5） |
+| [docs/README.md](docs/README.md) | 文档索引 |
 
 ---
 
@@ -178,8 +189,8 @@ flowchart TB
 | 非阻塞入队 | `ImageSaveThread::trySubmit` | `save/ImageSaveThread.cpp` |
 | 写 BMP | `ImageSaveThread::run`
 | **BLE 遥控命令** | `onRemoteCommand` ← `BleControlServer` | `QtProject_1.cpp` / `remote/ble/` |
-| **新手引导组件** | `GuideKit.h` → `GuideManager` + `GuideStep` | `guide/README.md` |
-| **微信小程序** | `miniprogram/` — 真机 BLE 连接 | 见 `miniprogram/README.md` | → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
+| **新手引导组件** | `GuideKit.h` → `GuideManager` + `GuideStep` | [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) |
+| **微信小程序** | `miniprogram/` — WiFi/BLE 遥控 | [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) §4 | → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
 
 ---
 
@@ -217,9 +228,11 @@ QtProject_1/
 │   └── AppLogger.h / AppLogger.cpp   ← 运行日志（Log/run_*.log）
 ├── Log/                      ← 运行日志目录（启动时自动创建）
 ├── docs/
+│   ├── README.md                     ← 文档索引
 │   ├── DEVELOPER_GUIDE.md
-│   └── GUIDEKIT_DEVELOPMENT_GUIDE.md ← 新手引导组件移植说明
-├── guide/                    ← GuideKit（复制即用，见 guide/README.md）
+│   ├── GUIDEKIT_DEVELOPMENT_GUIDE.md ← 新手引导开发说明
+│   └── REMOTE_CONTROL_GUIDE.md       ← 远程控制（小程序 + 扫码网页）
+├── guide/                    ← GuideKit（复制即用）
 │   └── GuideKit.h          ← 对外入口
 ├── main.cpp
 ├── QtProject_1.h/cpp/ui
@@ -236,9 +249,9 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | 新增 Qt Widgets 新手引导组件库 `guide/` 与 `docs/GUIDEKIT_DEVELOPMENT_GUIDE.md` |
-| 上一版 | 微信小程序遥控开发文档 `docs/MINIPROGRAM_REMOTE_DEV.md`；HTTP/BLE 双通道 |
-| 上上版 | 存图 Pic 序号改在写盘成功后递增；关相机时退出阶段存图路径模式 |
+| **当前** | 统一开发文档：`docs/GUIDEKIT_DEVELOPMENT_GUIDE.md`（新手引导）、`docs/REMOTE_CONTROL_GUIDE.md`（远程控制，含小程序与扫码网页） |
+| 上一版 | 新增 Qt Widgets 新手引导组件库 `guide/` |
+| 上上版 | 微信小程序遥控；HTTP/BLE 双通道 |
 | 更早 | 预览区滚轮缩放、拖拽平移、双击适应/1:1、悬停显示像素灰度值 |
 
 ---

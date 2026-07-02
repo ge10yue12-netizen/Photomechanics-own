@@ -47,7 +47,6 @@ Page({
     connConnectDisabled: false,
     connDisconnectDisabled: true,
     uiLocked: false,
-    previewOn: false,
     ...EMPTY_METRICS
   },
 
@@ -195,14 +194,8 @@ Page({
 
   _syncPreview(status, token) {
     const H = PREVIEW_HINT
-    if (!this.data.previewOn) {
-      this.wifiLink.stopPreview()
-      this._safeSetData({
-        previewUrl: '',
-        previewHint: this.data.connected ? H.PREVIEW_OFF : H.NEED_CONNECT
-      })
-      return
-    }
+    const open = !!(status && status.cameraOpen)
+    const live = !!(status && status.liveViewActive)
     if (this.data.mode === 'ble') {
       this.wifiLink.stopPreview()
       this._safeSetData({ previewUrl: '', previewHint: H.WIFI_ONLY })
@@ -213,22 +206,23 @@ Page({
       this._safeSetData({ previewUrl: '', previewHint: H.NEED_CONNECT })
       return
     }
-    const ready = !!(status && status.cameraOpen && status.liveViewActive)
-    if (ready) {
-      this.wifiLink.startPreview(token, (path) => {
-        if (this._alive && path && path !== this.data.previewUrl) {
-          this._safeSetData({ previewUrl: path, previewHint: '' })
-        }
-      })
-      if (!this.data.previewUrl && this.data.previewHint !== H.NO_FRAME) {
-        this._safeSetData({ previewHint: H.NO_FRAME })
-      }
-    } else if (status && status.cameraOpen && !status.liveViewActive) {
-      this.wifiLink.stopPreview()
-      this._safeSetData({ previewUrl: '', previewHint: H.LIVE_NOT_READY })
-    } else {
+    if (!open) {
       this.wifiLink.stopPreview()
       this._safeSetData({ previewUrl: '', previewHint: H.NEED_OPEN_CAMERA })
+      return
+    }
+    if (!live) {
+      this.wifiLink.stopPreview()
+      this._safeSetData({ previewUrl: '', previewHint: H.PREVIEW_OFF })
+      return
+    }
+    this.wifiLink.startPreview(token, (path) => {
+      if (this._alive && path && path !== this.data.previewUrl) {
+        this._safeSetData({ previewUrl: path, previewHint: '' })
+      }
+    })
+    if (!this.data.previewUrl && this.data.previewHint !== H.NO_FRAME) {
+      this._safeSetData({ previewHint: H.NO_FRAME })
     }
   },
 
@@ -261,7 +255,6 @@ Page({
       errorHint: '',
       pendingAction: '',
       uiLocked: false,
-      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -277,7 +270,6 @@ Page({
     if (status.remoteEnabled === false) {
       this.wifiLink.stopPreview()
       this._safeSetData({
-        previewOn: false,
         previewUrl: '',
         previewHint: PREVIEW_HINT.PREVIEW_OFF
       })
@@ -327,7 +319,6 @@ Page({
       errorHint: humanizeError(reason, 'lost'),
       pendingAction: '',
       uiLocked: false,
-      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -349,7 +340,6 @@ Page({
       errorHint: hint,
       pendingAction: '',
       uiLocked: false,
-      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -552,22 +542,6 @@ Page({
       } catch (err) {
         this._safeSetData({ errorHint: humanizeError(err, 'command') })
       }
-    })
-  },
-
-  onPreviewOn() {
-    if (!this.data.connected || this.data.previewOn) return
-    this._safeSetData({ previewOn: true })
-    this._syncPreview(this._lastStatus, (this.data.token || '').trim())
-  },
-
-  onPreviewOff() {
-    if (!this.data.previewOn) return
-    this.wifiLink.stopPreview()
-    this._safeSetData({
-      previewOn: false,
-      previewUrl: '',
-      previewHint: PREVIEW_HINT.PREVIEW_OFF
     })
   }
 })
