@@ -75,7 +75,7 @@
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -93,7 +93,7 @@
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -103,6 +103,9 @@
     <QtRcc Include="QtProject_1.qrc" />
     <QtRcc Include="remote-qr\remote-qr.qrc" />
     <QtUic Include="QtProject_1.ui" />
+    <QtUic Include="remote\RemoteServiceDialog.ui" />
+    <QtUic Include="remote-qr\RemoteControlDialog.ui" />
+    <QtUic Include="ui\RemoteControlHubDialog.ui" />
     <QtMoc Include="QtProject_1.h" />
     <QtMoc Include="camera\CameraController.h" />
     <QtMoc Include="save\ImageSaveThread.h" />
@@ -136,10 +139,13 @@
     <QtMoc Include="remote\RemoteControlServer.h" />
     <QtMoc Include="remote\RemoteKit.h" />
     <QtMoc Include="remote\RemoteHost.h" />
+    <QtMoc Include="remote\RemoteServiceDialog.h" />
+    <QtMoc Include="ui\RemoteControlHubDialog.h" />
     <ClInclude Include="remote\RemoteCommands.h" />
     <ClInclude Include="remote\RemotePreviewFrameCache.h" />
     <ClInclude Include="remote\RemoteControlGuard.h" />
     <ClInclude Include="remote\RemoteStatusText.h" />
+    <ClInclude Include="remote\RemoteServiceDialog.h" />
     <ClInclude Include="remote\ble\BleProtocol.h" />
     <ClInclude Include="remote\ble\BleCommandProtocol.h" />
     <ClInclude Include="remote\ble\BleAdapterChecker.h" />
@@ -160,11 +166,14 @@
     <ClCompile Include="remote\NetConfigHelper.cpp" />
     <ClCompile Include="remote\RemoteKit.cpp" />
     <ClCompile Include="remote\RemoteHost.cpp" />
+    <ClCompile Include="remote\RemoteServiceDialog.cpp" />
+    <ClCompile Include="ui\RemoteControlHubDialog.cpp" />
     <ClCompile Include="remote\RemoteControlGuard.cpp" />
     <ClCompile Include="remote\RemoteControlServer.cpp" />
     <QtMoc Include="remote-qr\MobileWebServer.h" />
     <QtMoc Include="remote-qr\MobileHost.h" />
     <QtMoc Include="remote-qr\RemoteControlDialog.h" />
+    <ClInclude Include="remote-qr\MobileCommandGuardHooks.h" />
     <ClInclude Include="remote-qr\MobileConfig.h" />
     <ClInclude Include="remote-qr\MobileCommands.h" />
     <ClInclude Include="remote-qr\NetworkHelper.h" />

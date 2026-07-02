@@ -8,6 +8,7 @@
 using qrcodegen::QrCode;
 using qrcodegen::QrSegment;
 
+// UTF-8 编码文本为 QR 模块矩阵并绘制为 QImage
 QImage QrCodeHelper::generateQrImage(const QString &text, int scale, int border)
 {
     if (text.isEmpty() || scale < 1 || border < 0)

@@ -2,7 +2,7 @@
  * 远程控制主页面：独立小程序；命令表与 PC knownCommands 一致。
  */
 const {
-  CMD_KEYS, defaultBtnState, computeBtnState, isRemoteOffline, formatMetrics
+  CMD_KEYS, defaultBtnState, computeBtnState, isRemoteOffline, formatMetrics, isRemoteEnabled
 } = require('../../utils/remote-buttons')
 const WifiLink = require('../../utils/wifi-link')
 const BleLink = require('../../utils/ble-link')
@@ -15,6 +15,7 @@ const STORAGE_MODE = 'rc_mode'
 
 const PREVIEW_HINT = {
   NEED_CONNECT: '须先建立主机连接',
+  REMOTE_OFF: '远程控制未开启',
   WIFI_ONLY: '图像预览仅支持 WiFi 通道',
   NEED_OPEN_CAMERA: '须执行「打开相机」',
   LIVE_NOT_READY: '实时预览未就绪',
@@ -223,6 +224,10 @@ Page({
       this._stopPreviewUi(H.NEED_CONNECT)
       return
     }
+    if (status && !isRemoteEnabled(status)) {
+      this._stopPreviewUi(H.REMOTE_OFF)
+      return
+    }
     const ready = !!(status && status.cameraOpen && status.liveViewActive)
     if (ready) {
       if (!this._previewStream.isRunning()) {
@@ -299,6 +304,17 @@ Page({
 
   applyRemoteStatus(status) {
     if (!status || typeof status !== 'object') return
+
+    if (!isRemoteEnabled(status)) {
+      if (this.data.mode === 'wifi' && this.data.connected) {
+        this.handleWifiLost(status.message || '远程控制未开启')
+        return
+      }
+      if (this.data.mode === 'ble' && this.data.connected) {
+        this.handleBlePcOffline(status.message || '远程控制未开启')
+        return
+      }
+    }
 
     if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
       this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')

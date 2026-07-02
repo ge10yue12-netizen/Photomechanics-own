@@ -6,6 +6,7 @@
 namespace
 {
 
+// 排除常见虚拟/回环网卡名称
 bool isVirtualInterface(const QNetworkInterface &iface)
 {
     const QString hint = iface.humanReadableName() + QLatin1Char(' ') + iface.name();
@@ -28,6 +29,7 @@ bool isVirtualInterface(const QNetworkInterface &iface)
     return false;
 }
 
+// 根据网卡名称判断是否为 Wi-Fi
 bool isWifiInterface(const QNetworkInterface &iface)
 {
     const QString hint = iface.humanReadableName() + QLatin1Char(' ') + iface.name();
@@ -36,6 +38,7 @@ bool isWifiInterface(const QNetworkInterface &iface)
         || hint.contains(QStringLiteral("无线"), Qt::CaseInsensitive);
 }
 
+// 去重追加 IP
 void appendIp(QStringList &list, const QString &ip)
 {
     if (!list.contains(ip))
@@ -44,6 +47,7 @@ void appendIp(QStringList &list, const QString &ip)
 
 } // namespace
 
+// 枚举可用 IPv4；Wi-Fi 在前、其余在后
 QStringList NetworkHelper::getLocalIPv4List()
 {
     QStringList wifiIps;
@@ -66,7 +70,7 @@ QStringList NetworkHelper::getLocalIPv4List()
                 continue;
 
             const QString ip = addr.toString();
-            if (ip.startsWith(QStringLiteral("169.254.")))
+            if (ip.startsWith(QStringLiteral("169.254."))) // APIPA 链路本地
                 continue;
 
             if (wifi)
@@ -81,6 +85,7 @@ QStringList NetworkHelper::getLocalIPv4List()
     return wifiIps + otherIps;
 }
 
+// 返回列表首项
 QString NetworkHelper::preferredDefaultIp()
 {
     const QStringList ips = getLocalIPv4List();

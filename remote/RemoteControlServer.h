@@ -36,6 +36,12 @@ public:
     // 返回最近一次 start() 失败或相关错误信息。
     QString lastError() const { return m_lastError; }
 
+    // 距上次 GET /api/preview.jpg 未超过 idleMs 时为真；供宿主决定是否编码 JPEG
+    bool isPreviewConsumerActive(int idleMs) const;
+
+    // 手机端 POST /api/remote/off 时调用；由宿主注入关闭远程服务逻辑
+    void setRemoteShutdownHandler(std::function<void()> handler);
+
     // 注册设备状态 JSON 提供函数，供 GET /api/status 与命令响应使用。
     void setStatusProvider(std::function<QJsonObject()> provider);
 
@@ -78,6 +84,8 @@ private:
 
     // 调用 statusProvider 获取当前状态；未注册时返回占位 JSON。
     QJsonObject currentStatus() const;
+    // 记录客户端正在拉取预览
+    void touchPreviewConsumer();
 
     QTcpServer m_server;
     RemoteControlGuard *m_controlGuard = nullptr;
@@ -86,4 +94,6 @@ private:
     QString m_lastError;
     std::function<QJsonObject()> m_statusProvider;
     std::function<QByteArray()> m_previewProvider;
+    std::function<void()> m_remoteShutdownHandler;
+    qint64 m_lastPreviewPullMs = 0;
 };

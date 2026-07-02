@@ -1,6 +1,7 @@
 ﻿#include "RemoteControlServer.h"
 #include "RemoteCommands.h"
 
+#include <QDateTime>
 #include <QHostAddress>
 #include <QJsonDocument>
 #include <QJsonParseError>
@@ -64,6 +65,7 @@ bool RemoteControlServer::start(const RemoteConfig &cfg)
 
 void RemoteControlServer::stop()
 {
+    m_lastPreviewPullMs = 0;
     m_server.close();
 }
 
@@ -75,6 +77,23 @@ bool RemoteControlServer::isListening() const
 quint16 RemoteControlServer::serverPort() const
 {
     return m_server.serverPort();
+}
+
+bool RemoteControlServer::isPreviewConsumerActive(int idleMs) const
+{
+    if (m_lastPreviewPullMs <= 0 || idleMs <= 0)
+        return false;
+    return QDateTime::currentMSecsSinceEpoch() - m_lastPreviewPullMs < idleMs;
+}
+
+void RemoteControlServer::touchPreviewConsumer()
+{
+    m_lastPreviewPullMs = QDateTime::currentMSecsSinceEpoch();
+}
+
+void RemoteControlServer::setRemoteShutdownHandler(std::function<void()> handler)
+{
+    m_remoteShutdownHandler = std::move(handler);
 }
 
 void RemoteControlServer::setStatusProvider(std::function<QJsonObject()> provider)
@@ -192,9 +211,19 @@ void RemoteControlServer::handleRequest(QTcpSocket *socket, const QByteArray &re
 
     if (method == QStringLiteral("GET") && path == QStringLiteral("/api/preview.jpg"))
     {
+        touchPreviewConsumer();
         const QByteArray jpeg = m_previewProvider ? m_previewProvider() : QByteArray();
         writeResponse(socket, 200, QByteArrayLiteral("OK"),
                       QByteArrayLiteral("image/jpeg"), jpeg);
+        return;
+    }
+
+    if (method == QStringLiteral("POST") && path == RemoteCommands::remoteOffApiPath())
+    {
+        if (m_remoteShutdownHandler)
+            m_remoteShutdownHandler();
+        writeJson(socket, {{QStringLiteral("ok"), true},
+                           {QStringLiteral("message"), QStringLiteral("远程控制已关闭")}});
         return;
     }
 

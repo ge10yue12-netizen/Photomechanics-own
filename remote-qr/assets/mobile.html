@@ -1,586 +1,502 @@
 <!DOCTYPE html>
-
 <html lang="zh-CN">
-
 <head>
-
   <meta charset="UTF-8">
-
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
   <title>工业相机远程控制</title>
-
   <style>
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body { font-family: system-ui, sans-serif; background: #121212; color: #e8e8e8; padding: 10px; font-size: 14px; }
-
     h1 { text-align: center; font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; }
-
     .preview {
-
       position: relative; background: #000; border-radius: 6px; overflow: hidden;
-
       aspect-ratio: 4/3; margin-bottom: 10px;
-
     }
-
     .preview .hint {
-
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-
-      color: #666; font-size: 13px; pointer-events: none;
-
+      color: #666; font-size: 13px; pointer-events: none; z-index: 2;
     }
-
-    .preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
-
-    .preview img.no-image { display: none; }
-
+    .preview canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
-
     .cell { background: #222; padding: 8px; border-radius: 4px; }
-
     .cell span { font-weight: 600; }
-
     .ok { color: #5cb85c; } .warn { color: #f0ad4e; } .err { color: #d9534f; }
-
     .sec { font-size: 12px; color: #888; margin: 8px 0 4px; }
-
     .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
-
     button { padding: 12px 8px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; color: #fff; }
-
     button:disabled { opacity: 0.35; }
-
     .b-primary { background: #0067b8; }
-
     .b-danger { background: #a4262c; }
-
     .b-wide { grid-column: span 2; }
-
     #feedback { min-height: 18px; font-size: 12px; color: #aaa; margin-top: 6px; }
-
   </style>
-
 </head>
-
 <body>
-
   <h1>工业相机远程控制</h1>
 
   <div class="preview" id="previewBox">
-
     <span class="hint" id="previewHint">无画面</span>
-
-    <img id="previewImg" class="no-image" alt="">
-
+    <canvas id="previewCanvas"></canvas>
   </div>
 
   <div class="grid">
-
     <div class="cell">链路：<span id="linkStatus" class="warn">—</span></div>
-
     <div class="cell">相机：<span id="camStatus" class="warn">—</span></div>
-
-    <div class="cell">采集：<span id="grabStatus">—</span></div>
-
-    <div class="cell">阶段：<span id="stageStatus">—</span></div>
-
+    <div class="cell">计算：<span id="calcStatus">—</span></div>
     <div class="cell" style="grid-column: span 2">摘要：<span id="msgStatus">—</span></div>
+  </div>
 
+  <div class="sec">预览与远程</div>
+  <div class="btns">
+    <button class="b-primary" id="btnPreviewToggle">打开预览</button>
+    <button class="b-danger" id="btnRemoteOff">关闭远程</button>
   </div>
 
   <div class="sec">相机</div>
-
   <div class="btns">
-
     <button class="b-primary" id="btnOpen">打开相机</button>
-
     <button class="b-danger" id="btnClose">关闭相机</button>
-
   </div>
 
-  <div class="sec">采集</div>
-
+  <div class="sec">计算</div>
   <div class="btns">
-
-    <button class="b-primary" id="btnStart">开始采集</button>
-
-    <button class="b-danger" id="btnStop">停止采集</button>
-
-    <button class="b-primary b-wide" id="btnSnap">保存单张</button>
-
+    <button class="b-primary" id="btnCalcStart">开始计算</button>
+    <button class="b-danger" id="btnCalcStop">停止计算</button>
   </div>
 
-  <div class="sec">阶段</div>
-
+  <div class="sec">标定</div>
   <div class="btns">
-
-    <button class="b-primary" id="btnStageStart">开始阶段采集</button>
-
-    <button class="b-danger" id="btnStageStop">停止阶段采集</button>
-
+    <button class="b-primary b-wide" id="btnCalibrate">标定</button>
   </div>
 
   <div id="feedback"></div>
 
   <script>
-
   (function () {
-
     var token = new URLSearchParams(location.search).get('token') || '';
-
     if (!token) {
-
       document.body.innerHTML = '<p style="text-align:center;padding:24px;">认证 token 缺失，须重新获取访问链接</p>';
-
       return;
-
     }
 
-
-
-    var previewPollMs = 120;
-
+    var previewPollMs = 80;
+    var catchUpMs = 16;
     var statusPollMs = 800;
-
-    var previewBusy = false;
-
     var previewPolling = false;
-
     var previewWatchdog = null;
-
+    var previewLoopTimer = null;
+    var previewFetchAbort = null;
+    var previewFetchGen = 0;
+    var previewCatchUp = false;
     var statusTimer = null;
-
     var cmdLocked = false;
-
-
+    var userPreviewEnabled = false;
+    var lastPreviewSeq = 0;
+    var hasPreviewFrame = false;
+    var decodeImg = new Image();
+    var blobUrl = null;
 
     var els = {
-
       link: document.getElementById('linkStatus'),
-
       cam: document.getElementById('camStatus'),
-
-      grab: document.getElementById('grabStatus'),
-
-      stage: document.getElementById('stageStatus'),
-
+      calc: document.getElementById('calcStatus'),
       msg: document.getElementById('msgStatus'),
-
       fb: document.getElementById('feedback'),
-
+      previewBox: document.getElementById('previewBox'),
       previewHint: document.getElementById('previewHint'),
-
-      img: document.getElementById('previewImg')
-
+      canvas: document.getElementById('previewCanvas')
     };
-
+    var ctx = els.canvas.getContext('2d', { alpha: false });
     var btns = {
-
       open: document.getElementById('btnOpen'),
-
       close: document.getElementById('btnClose'),
-
-      start: document.getElementById('btnStart'),
-
-      stop: document.getElementById('btnStop'),
-
-      snap: document.getElementById('btnSnap'),
-
-      stageStart: document.getElementById('btnStageStart'),
-
-      stageStop: document.getElementById('btnStageStop')
-
+      calcStart: document.getElementById('btnCalcStart'),
+      calcStop: document.getElementById('btnCalcStop'),
+      calibrate: document.getElementById('btnCalibrate'),
+      previewToggle: document.getElementById('btnPreviewToggle'),
+      remoteOff: document.getElementById('btnRemoteOff')
     };
-
-
 
     function apiUrl(path) {
-
       return path + '?token=' + encodeURIComponent(token);
-
     }
-
-
 
     function setText(el, text, cls) {
-
       el.textContent = text;
-
       el.className = cls || '';
-
     }
-
-
 
     function feedback(text) {
-
       els.fb.textContent = text || '';
-
     }
 
-
+    function isCalculateRunning(d) {
+      if (d.calculateActive !== undefined) return !!d.calculateActive;
+      return !!d.acquisitionActive;
+    }
 
     function applyBtnState(d) {
-
       var open = !!d.cameraOpen;
-
-      var acq = !!d.acquisitionActive;
-
-      var stage = !!d.stageRunning;
-
+      var calc = isCalculateRunning(d);
       btns.open.disabled = open;
-
-      btns.close.disabled = !open || stage;
-
-      btns.start.disabled = !open || acq || stage;
-
-      btns.stop.disabled = !acq && !stage;
-
-      btns.snap.disabled = !open || !acq || stage;
-
-      btns.stageStart.disabled = !open || acq || stage;
-
-      btns.stageStop.disabled = !stage;
-
+      btns.close.disabled = !open || calc;
+      btns.calcStart.disabled = !open || calc;
+      btns.calcStop.disabled = !open || !calc;
+      btns.calibrate.disabled = !open || calc;
       if (cmdLocked)
-
         Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
-
     }
 
-
+    function abortPreviewFetch() {
+      if (previewFetchAbort) {
+        previewFetchAbort.abort();
+        previewFetchAbort = null;
+      }
+    }
 
     function clearPreviewWatchdog() {
-
       if (previewWatchdog) {
-
         clearTimeout(previewWatchdog);
-
         previewWatchdog = null;
-
       }
-
     }
 
-
+    function clearPreviewLoopTimer() {
+      if (previewLoopTimer) {
+        clearTimeout(previewLoopTimer);
+        previewLoopTimer = null;
+      }
+    }
 
     function armPreviewWatchdog() {
-
       clearPreviewWatchdog();
-
       previewWatchdog = setTimeout(function () {
-
-        previewBusy = false;
-
-        schedulePreview();
-
+        abortPreviewFetch();
+        queuePreview(catchUpMs);
       }, 4000);
-
     }
 
+    function parseFrameSeq(response) {
+      var raw = response.headers.get('X-Frame-Seq');
+      if (!raw) return 0;
+      var seq = parseInt(raw, 10);
+      return isNaN(seq) ? 0 : seq;
+    }
 
+    function revokeBlobUrl() {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+      }
+    }
+
+    function paintDecodedFrame() {
+      var box = els.previewBox;
+      var w = box.clientWidth;
+      var h = box.clientHeight;
+      if (w < 1 || h < 1) return;
+      var dpr = window.devicePixelRatio || 1;
+      var cw = Math.round(w * dpr);
+      var ch = Math.round(h * dpr);
+      if (els.canvas.width !== cw || els.canvas.height !== ch) {
+        els.canvas.width = cw;
+        els.canvas.height = ch;
+      }
+      var iw = decodeImg.naturalWidth;
+      var ih = decodeImg.naturalHeight;
+      if (!iw || !ih) return;
+      var scale = Math.min(cw / iw, ch / ih);
+      var dw = iw * scale;
+      var dh = ih * scale;
+      var dx = (cw - dw) / 2;
+      var dy = (ch - dh) / 2;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(decodeImg, dx, dy, dw, dh);
+      hasPreviewFrame = true;
+      els.previewHint.style.display = 'none';
+    }
 
     function clearPreviewImage(hint) {
-
       previewPolling = false;
-
-      previewBusy = false;
-
+      previewCatchUp = false;
+      lastPreviewSeq = 0;
+      hasPreviewFrame = false;
       clearPreviewWatchdog();
-
-      els.img.onload = els.img.onerror = null;
-
-      els.img.removeAttribute('src');
-
-      els.img.classList.add('no-image');
-
+      clearPreviewLoopTimer();
+      abortPreviewFetch();
+      decodeImg.onload = decodeImg.onerror = null;
+      revokeBlobUrl();
+      decodeImg.removeAttribute('src');
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, els.canvas.width, els.canvas.height);
       els.previewHint.textContent = hint || '无画面';
-
       els.previewHint.style.display = '';
-
     }
 
-
-
-    function startPreviewPolling() {
-
+    function ensurePreviewPolling() {
+      if (previewPolling) return;
       previewPolling = true;
-
-      els.previewHint.style.display = 'none';
-
-      previewBusy = false;
-
-      schedulePreview();
-
+      previewCatchUp = true;
+      queuePreview(0);
     }
-
-
 
     function syncPreview(cameraOpen) {
-
+      if (!userPreviewEnabled) {
+        clearPreviewImage('预览已关闭，点「打开预览」查看');
+        return;
+      }
       if (!cameraOpen)
-
         clearPreviewImage('无画面');
-
       else
-
-        startPreviewPolling();
-
+        ensurePreviewPolling();
     }
-
-
 
     function applyStatus(d) {
-
       cmdLocked = !!d.remoteControlBlocked;
-
       setText(els.link, '正常', 'ok');
-
       setText(els.cam, d.cameraOpen ? '已打开' : '未打开', d.cameraOpen ? 'ok' : 'warn');
-
-      if (d.stageRunning) {
-
-        setText(els.grab, '—', '');
-
-        setText(els.stage, '运行中', 'ok');
-
-      } else if (d.acquisitionActive) {
-
-        setText(els.grab, '进行中', 'ok');
-
-        setText(els.stage, '空闲', '');
-
-      } else {
-
-        setText(els.grab, d.liveViewActive ? '预览' : '空闲', d.liveViewActive ? 'ok' : '');
-
-        setText(els.stage, '空闲', '');
-
-      }
-
+      var calc = isCalculateRunning(d);
+      if (calc)
+        setText(els.calc, '进行中', 'ok');
+      else
+        setText(els.calc, d.liveViewActive ? '预览' : '空闲', d.liveViewActive ? 'ok' : '');
       els.msg.textContent = d.message || '—';
-
       applyBtnState(d);
-
       feedback(cmdLocked ? (d.remoteControlMessage || '') : '');
-
       syncPreview(!!d.cameraOpen);
-
     }
-
-
 
     function fetchStatus() {
-
       return fetch(apiUrl('/api/status'))
-
         .then(function (r) {
-
           if (!r.ok) throw new Error('status');
-
           return r.json();
-
         })
-
         .then(applyStatus)
-
         .catch(function () {
-
-          clearPreviewImage('无画面');
-
           setText(els.link, '异常', 'err');
-
           els.msg.textContent = '连接中断，轮询重试中';
-
         });
-
     }
 
+    function queuePreview(delayMs) {
+      clearPreviewLoopTimer();
+      if (!previewPolling) return;
+      previewLoopTimer = setTimeout(tickPreview, delayMs);
+    }
 
+    function finishPreviewIdle() {
+      clearPreviewWatchdog();
+      previewCatchUp = false;
+      queuePreview(previewPollMs);
+    }
 
-    function schedulePreview() {
+    function finishPreviewCatchUp() {
+      clearPreviewWatchdog();
+      previewCatchUp = true;
+      queuePreview(catchUpMs);
+    }
 
-      if (!previewPolling || previewBusy)
+    function decodePreviewBlob(blob, seq, gen) {
+      if (!previewPolling || gen !== previewFetchGen) return;
+      revokeBlobUrl();
+      blobUrl = URL.createObjectURL(blob);
+      decodeImg.onload = function () {
+        if (!previewPolling || gen !== previewFetchGen) return;
+        requestAnimationFrame(function () {
+          paintDecodedFrame();
+          if (seq > 0)
+            lastPreviewSeq = seq;
+          finishPreviewCatchUp();
+        });
+      };
+      decodeImg.onerror = function () {
+        if (gen !== previewFetchGen) return;
+        finishPreviewIdle();
+      };
+      decodeImg.src = blobUrl;
+    }
 
-        return;
-
-      previewBusy = true;
-
+    function fetchPreviewJpeg() {
+      abortPreviewFetch();
+      previewFetchAbort = new AbortController();
+      var gen = ++previewFetchGen;
+      var signal = previewFetchAbort.signal;
       armPreviewWatchdog();
 
-      var img = els.img;
-
-      var next = function () {
-
-        clearPreviewWatchdog();
-
-        previewBusy = false;
-
-        if (!previewPolling)
-
-          return;
-
-        if (img.src && img.complete && img.naturalWidth > 0)
-
-          img.classList.remove('no-image');
-
-        setTimeout(schedulePreview, previewPollMs);
-
-      };
-
-      img.onload = img.onerror = next;
-
-      img.src = apiUrl('/api/preview.jpg') + '&t=' + Date.now();
-
+      fetch(apiUrl('/api/preview.jpg') + '&t=' + Date.now(), {
+        method: 'GET',
+        signal: signal,
+        cache: 'no-store'
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error('jpeg');
+          var seq = parseFrameSeq(r);
+          if (seq > 0 && seq === lastPreviewSeq) {
+            if (r.body && r.body.cancel) r.body.cancel();
+            finishPreviewIdle();
+            return null;
+          }
+          if (seq === 0) {
+            if (r.body && r.body.cancel) r.body.cancel();
+            if (!hasPreviewFrame)
+              els.previewHint.style.display = '';
+            finishPreviewIdle();
+            return null;
+          }
+          return r.blob().then(function (blob) {
+            if (!blob || blob.size === 0) throw new Error('empty');
+            return { blob: blob, seq: seq };
+          });
+        })
+        .then(function (data) {
+          if (!data) return;
+          decodePreviewBlob(data.blob, data.seq, gen);
+        })
+        .catch(function (err) {
+          if (err && err.name === 'AbortError') return;
+          finishPreviewIdle();
+        });
     }
 
+    function probePreviewSeq() {
+      abortPreviewFetch();
+      previewFetchAbort = new AbortController();
+      var gen = ++previewFetchGen;
+      var signal = previewFetchAbort.signal;
+      armPreviewWatchdog();
 
+      fetch(apiUrl('/api/preview.jpg') + '&t=' + Date.now(), {
+        method: 'HEAD',
+        signal: signal,
+        cache: 'no-store'
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error('head');
+          var seq = parseFrameSeq(r);
+          if (seq > 0 && seq === lastPreviewSeq)
+            finishPreviewIdle();
+          else if (seq === 0) {
+            if (!hasPreviewFrame)
+              els.previewHint.style.display = '';
+            finishPreviewIdle();
+          } else
+            fetchPreviewJpeg();
+        })
+        .catch(function (err) {
+          if (err && err.name === 'AbortError') return;
+          previewCatchUp = true;
+          queuePreview(catchUpMs);
+        });
+    }
+
+    function tickPreview() {
+      if (!previewPolling) return;
+      if (previewCatchUp || !hasPreviewFrame)
+        fetchPreviewJpeg();
+      else
+        probePreviewSeq();
+    }
+
+    function schedulePreview() {
+      queuePreview(0);
+    }
 
     function resumeFromBackground() {
-
-      previewBusy = false;
-
-      clearPreviewWatchdog();
-
+      if (previewPolling) {
+        abortPreviewFetch();
+        clearPreviewWatchdog();
+        previewCatchUp = true;
+        queuePreview(0);
+      }
       fetchStatus();
-
     }
-
-
 
     document.addEventListener('visibilitychange', function () {
-
       if (document.visibilityState === 'visible')
-
         resumeFromBackground();
-
     });
 
-
-
     function releaseCommandLock() {
-
       fetch(apiUrl('/api/release'), { method: 'POST', keepalive: true }).catch(function () {});
-
     }
-
-
 
     window.addEventListener('pagehide', releaseCommandLock);
 
-
-
     function postCmd(path, label) {
-
       if (cmdLocked) {
-
         feedback(els.fb.textContent || '命令通道被占用');
-
         return;
-
       }
-
       feedback(label + '…');
-
       fetch(apiUrl(path), { method: 'POST' })
-
         .then(function (r) {
-
           return r.json().then(function (d) {
-
             if (r.status === 409) {
-
               cmdLocked = true;
-
               Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
-
               feedback(d.message || '命令通道被占用');
-
               throw new Error('blocked');
-
             }
-
             if (!r.ok) throw new Error('post');
-
             return d;
-
           });
-
         })
-
         .then(function (d) {
-
           feedback(d.message || label);
-
           return fetchStatus();
-
         })
-
         .catch(function (err) {
-
           if (err && err.message !== 'blocked')
-
             feedback(label + '异常');
-
         });
-
     }
-
-
 
     function loadConfig() {
-
       return fetch(apiUrl('/api/config'))
-
         .then(function (r) { return r.ok ? r.json() : {}; })
-
         .then(function (c) {
-
           if (c.previewPollMs) previewPollMs = c.previewPollMs;
-
           if (c.statusPollMs) statusPollMs = c.statusPollMs;
-
         })
-
         .catch(function () { });
-
     }
 
-
-
     btns.open.onclick = function () { postCmd('/api/camera/open', '打开相机'); };
-
     btns.close.onclick = function () { postCmd('/api/camera/close', '关闭相机'); };
-
-    btns.start.onclick = function () { postCmd('/api/camera/start', '开始采集'); };
-
-    btns.stop.onclick = function () { postCmd('/api/camera/stop', '停止采集'); };
-
-    btns.snap.onclick = function () { postCmd('/api/camera/snap', '保存单张'); };
-
-    btns.stageStart.onclick = function () { postCmd('/api/camera/stage/start', '开始阶段采集'); };
-
-    btns.stageStop.onclick = function () { postCmd('/api/camera/stage/stop', '停止阶段采集'); };
-
-
+    btns.calcStart.onclick = function () { postCmd('/api/camera/calculate/start', '开始计算'); };
+    btns.calcStop.onclick = function () { postCmd('/api/camera/calculate/stop', '停止计算'); };
+    btns.calibrate.onclick = function () { postCmd('/api/camera/calibrate', '标定'); };
+    btns.previewToggle.onclick = function () {
+      userPreviewEnabled = !userPreviewEnabled;
+      btns.previewToggle.textContent = userPreviewEnabled ? '停止预览' : '打开预览';
+      if (!userPreviewEnabled)
+        clearPreviewImage('预览已关闭，点「打开预览」查看');
+      else
+        fetchStatus();
+    };
+    btns.remoteOff.onclick = function () {
+      feedback('正在关闭远程…');
+      fetch(apiUrl('/api/remote/off'), { method: 'POST' })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (x) {
+          feedback((x.d && x.d.message) || '远程控制已关闭');
+          userPreviewEnabled = false;
+          btns.previewToggle.textContent = '打开预览';
+          clearPreviewImage('远程已关闭');
+          return fetchStatus();
+        })
+        .catch(function () { feedback('关闭远程失败'); });
+    };
 
     loadConfig().then(function () {
-
       fetchStatus();
-
       statusTimer = setInterval(fetchStatus, statusPollMs);
-
     });
-
   })();
-
   </script>
-
 </body>
-
 </html>
-

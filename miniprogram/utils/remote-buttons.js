@@ -27,20 +27,28 @@ function isRemoteOffline(status) {
   return status.ok === false || status.ok === 0
 }
 
+function isRemoteEnabled(status) {
+  const s = status || {}
+  if (s.remoteEnabled !== undefined) return !!s.remoteEnabled
+  if (s.ren !== undefined) return !!s.ren
+  return true
+}
+
 function computeBtnState(status, locked) {
   const s = status || {}
   const open = !!s.cameraOpen
   const acq = !!s.acquisitionActive
   const stage = !!s.stageRunning
   const live = !!s.liveViewActive
+  const off = locked || !isRemoteEnabled(s)
   return {
-    open_camera: locked || open,
-    close_camera: locked || !open || stage,
-    start_capture: locked || !open || acq || stage,
-    stop_capture: locked || !open || !acq || stage,
-    save_one: locked || !open || !acq || !live || stage,
-    start_stage: locked || !open || acq || stage,
-    stop_stage: locked || !stage
+    open_camera: off || open,
+    close_camera: off || !open || stage,
+    start_capture: off || !open || acq || stage,
+    stop_capture: off || !open || !acq || stage,
+    save_one: off || !open || !acq || !live || stage,
+    start_stage: off || !open || acq || stage,
+    stop_stage: off || !stage
   }
 }
 
@@ -61,7 +69,8 @@ function formatMetrics(status) {
     metricGrab: grab,
     metricStage: stage,
     metricMsg: s.message || '—',
-    cameraOpen: !!s.cameraOpen
+    cameraOpen: !!s.cameraOpen,
+    remoteEnabled: isRemoteEnabled(s)
   }
 }
 
@@ -73,5 +82,6 @@ module.exports = {
   defaultBtnState,
   computeBtnState,
   isRemoteOffline,
-  formatMetrics
+  formatMetrics,
+  isRemoteEnabled
 }

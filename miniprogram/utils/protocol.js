@@ -59,6 +59,7 @@ function normalizeStatus(raw) {
   if (s.cameraOpen === undefined && s.cam !== undefined) s.cameraOpen = !!s.cam
   if (s.liveViewActive === undefined && s.lv !== undefined) s.liveViewActive = !!s.lv
   if (s.acquisitionActive === undefined && s.grab !== undefined) s.acquisitionActive = !!s.grab
+  if (s.remoteEnabled === undefined && s.ren !== undefined) s.remoteEnabled = !!s.ren
   if (s.stageRunning === undefined && s.stg !== undefined) s.stageRunning = !!s.stg
   if (s.message === undefined && s.msg !== undefined) s.message = s.msg
   if (s.queueSize === undefined && s.q !== undefined) s.queueSize = s.q

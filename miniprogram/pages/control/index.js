@@ -2,7 +2,7 @@
  * 遥控主页面：WiFi / BLE 双模式；预览/状态格为增量，按钮区保持原版。
  */
 const {
-  CMD_KEYS, defaultBtnState, computeBtnState, isRemoteOffline, formatMetrics
+  CMD_KEYS, defaultBtnState, computeBtnState, isRemoteOffline, formatMetrics, isRemoteEnabled
 } = require('../../utils/remote-buttons')
 const WifiLink = require('../../utils/wifi-link')
 const BleLink = require('../../utils/ble-link')
@@ -15,10 +15,12 @@ const STORAGE_MODE = 'photomech_mode'
 /** 预览区占位文案（与交互顺序：连接主机 → 图像预览 → 打开相机） */
 const PREVIEW_HINT = {
   NEED_CONNECT: '须先建立主机连接',
+  REMOTE_OFF: '远程控制未开启',
   WIFI_ONLY: '图像预览仅支持 WiFi 通道',
   NEED_OPEN_CAMERA: '须执行「打开相机」',
   LIVE_NOT_READY: '实时预览未就绪',
-  NO_FRAME: '暂无图像数据'
+  NO_FRAME: '暂无图像数据',
+  PREVIEW_OFF: '预览已关闭，点「打开预览」查看'
 }
 
 const EMPTY_METRICS = {
@@ -47,6 +49,8 @@ Page({
     connConnectDisabled: false,
     connDisconnectDisabled: true,
     uiLocked: false,
+    previewEnabled: false,
+    previewBtnLabel: '打开预览',
     ...EMPTY_METRICS
   },
 
@@ -204,6 +208,16 @@ Page({
       this._safeSetData({ previewUrl: '', previewHint: H.NEED_CONNECT })
       return
     }
+    if (status && !isRemoteEnabled(status)) {
+      this.wifiLink.stopPreview()
+      this._safeSetData({ previewUrl: '', previewHint: H.REMOTE_OFF })
+      return
+    }
+    if (!this.data.previewEnabled) {
+      this.wifiLink.stopPreview()
+      this._safeSetData({ previewUrl: '', previewHint: H.PREVIEW_OFF })
+      return
+    }
     const ready = !!(status && status.cameraOpen && status.liveViewActive)
     if (ready) {
       this.wifiLink.startPreview(token, (path) => {
@@ -263,6 +277,17 @@ Page({
 
   applyRemoteStatus(status) {
     if (!status || typeof status !== 'object') return
+
+    if (!isRemoteEnabled(status)) {
+      if (this.data.mode === 'wifi' && this.data.connected) {
+        this.handleWifiLost(status.message || '远程控制未开启')
+        return
+      }
+      if (this.data.mode === 'ble' && this.data.connected) {
+        this.handleBlePcOffline(status.message || '远程控制未开启')
+        return
+      }
+    }
 
     if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
       this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
@@ -530,6 +555,50 @@ Page({
         await link.sendCommand(cmd, token)
       } catch (err) {
         this._safeSetData({ errorHint: humanizeError(err, 'command') })
+      }
+    })
+  },
+
+  onTogglePreview() {
+    if (!this.data.connected || this.data.mode === 'ble') return
+    const on = !this.data.previewEnabled
+    this._safeSetData({
+      previewEnabled: on,
+      previewBtnLabel: on ? '停止预览' : '打开预览',
+      previewUrl: '',
+      previewHint: on ? PREVIEW_HINT.NO_FRAME : PREVIEW_HINT.PREVIEW_OFF
+    })
+    if (on && this._lastStatus)
+      this._syncPreview(this._lastStatus, (this.data.token || '').trim())
+    else
+      this.wifiLink.stopPreview()
+  },
+
+  onRemoteOff() {
+    if (!this.data.connected) return
+    wx.showModal({
+      title: '关闭远程控制',
+      content: '将停止 PC 端远程服务（HTTP/BLE/扫码），是否继续？',
+      success: (res) => {
+        if (!res.confirm) return
+        this.runAction('remote_off', async () => {
+          const token = (this.data.token || '').trim()
+          try {
+            if (this.data.mode === 'wifi')
+              await this.wifiLink.remoteOff(token)
+            else
+              await this.bleLink.sendCommand('remote_off', token)
+            this._safeSetData({
+              previewEnabled: false,
+              previewBtnLabel: '打开预览',
+              previewUrl: '',
+              previewHint: PREVIEW_HINT.REMOTE_OFF
+            })
+            this.wifiLink.stopPreview()
+          } catch (err) {
+            this._safeSetData({ errorHint: humanizeError(err, 'command') })
+          }
+        })
       }
     })
   }

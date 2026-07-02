@@ -106,6 +106,11 @@ public:
     QSpinBox *maxSaveCountSpin;
     QGroupBox *logGroup;
     QVBoxLayout *logLayout;
+    QWidget *remoteControlRow;
+    QHBoxLayout *remoteControlLayout;
+    QPushButton *remoteControlBtn;
+    QLabel *remoteStatusLabel;
+    QSpacerItem *remoteControlSpacer;
     QPlainTextEdit *logTextEdit;
     QPushButton *clearLogBtn;
     QFrame *statusBarFrame;
@@ -472,6 +477,29 @@ public:
         logGroup->setObjectName(QString::fromUtf8("logGroup"));
         logLayout = new QVBoxLayout(logGroup);
         logLayout->setObjectName(QString::fromUtf8("logLayout"));
+        remoteControlRow = new QWidget(logGroup);
+        remoteControlRow->setObjectName(QString::fromUtf8("remoteControlRow"));
+        remoteControlLayout = new QHBoxLayout(remoteControlRow);
+        remoteControlLayout->setObjectName(QString::fromUtf8("remoteControlLayout"));
+        remoteControlLayout->setContentsMargins(0, 0, 0, 0);
+        remoteControlBtn = new QPushButton(remoteControlRow);
+        remoteControlBtn->setObjectName(QString::fromUtf8("remoteControlBtn"));
+
+        remoteControlLayout->addWidget(remoteControlBtn);
+
+        remoteStatusLabel = new QLabel(remoteControlRow);
+        remoteStatusLabel->setObjectName(QString::fromUtf8("remoteStatusLabel"));
+        remoteStatusLabel->setMinimumSize(QSize(200, 0));
+
+        remoteControlLayout->addWidget(remoteStatusLabel);
+
+        remoteControlSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+
+        remoteControlLayout->addItem(remoteControlSpacer);
+
+
+        logLayout->addWidget(remoteControlRow);
+
         logTextEdit = new QPlainTextEdit(logGroup);
         logTextEdit->setObjectName(QString::fromUtf8("logTextEdit"));
         logTextEdit->setReadOnly(true);
@@ -571,6 +599,8 @@ public:
         secondsPerFolderLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\257\217\346\226\207\344\273\266\345\244\271\347\247\222\346\225\260", nullptr));
         maxSaveCountLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\200\273\344\277\235\345\255\230\344\270\212\351\231\220(0\344\270\215\351\231\220)", nullptr));
         logGroup->setTitle(QCoreApplication::translate("QtProject_1Class", "\350\277\220\350\241\214\346\227\245\345\277\227", nullptr));
+        remoteControlBtn->setText(QCoreApplication::translate("QtProject_1Class", "\350\277\234\347\250\213\346\216\247\345\210\266", nullptr));
+        remoteStatusLabel->setText(QCoreApplication::translate("QtProject_1Class", "\346\234\252\345\220\257\347\224\250", nullptr));
         clearLogBtn->setText(QCoreApplication::translate("QtProject_1Class", "\346\270\205\347\251\272\346\227\245\345\277\227", nullptr));
         statusCamera->setText(QCoreApplication::translate("QtProject_1Class", "\347\233\270\346\234\272: \346\234\252\350\277\236\346\216\245", nullptr));
         statusStage->setText(QCoreApplication::translate("QtProject_1Class", "\351\230\266\346\256\265: \347\251\272\351\227\262", nullptr));

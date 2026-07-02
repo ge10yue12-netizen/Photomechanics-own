@@ -54,6 +54,15 @@
     <QtUic Include="QtProject_1.ui">
       <Filter>Form Files</Filter>
     </QtUic>
+    <QtUic Include="remote\RemoteServiceDialog.ui">
+      <Filter>remote</Filter>
+    </QtUic>
+    <QtUic Include="remote-qr\RemoteControlDialog.ui">
+      <Filter>remote-qr</Filter>
+    </QtUic>
+    <QtUic Include="ui\RemoteControlHubDialog.ui">
+      <Filter>ui</Filter>
+    </QtUic>
     <QtMoc Include="QtProject_1.h">
       <Filter>Header Files</Filter>
     </QtMoc>
@@ -102,6 +111,12 @@
     <ClCompile Include="ui\PreviewWidget.cpp">
       <Filter>ui</Filter>
     </ClCompile>
+    <ClCompile Include="ui\RemoteControlHubDialog.cpp">
+      <Filter>ui</Filter>
+    </ClCompile>
+    <QtMoc Include="ui\RemoteControlHubDialog.h">
+      <Filter>ui</Filter>
+    </QtMoc>
     <QtMoc Include="guide\GuideBubbleWidget.h">
       <Filter>guide</Filter>
     </QtMoc>
@@ -135,6 +150,12 @@
     <QtMoc Include="remote\RemoteHost.h">
       <Filter>remote</Filter>
     </QtMoc>
+    <QtMoc Include="remote\RemoteServiceDialog.h">
+      <Filter>remote</Filter>
+    </QtMoc>
+    <ClCompile Include="remote\RemoteServiceDialog.cpp">
+      <Filter>remote</Filter>
+    </ClCompile>
     <ClInclude Include="remote\RemoteCommands.h">
       <Filter>remote</Filter>
     </ClInclude>
@@ -213,6 +234,9 @@
     <QtMoc Include="remote-qr\RemoteControlDialog.h">
       <Filter>remote-qr</Filter>
     </QtMoc>
+    <ClInclude Include="remote-qr\MobileCommandGuardHooks.h">
+      <Filter>remote-qr</Filter>
+    </ClInclude>
     <ClInclude Include="remote-qr\MobileConfig.h">
       <Filter>remote-qr</Filter>
     </ClInclude>

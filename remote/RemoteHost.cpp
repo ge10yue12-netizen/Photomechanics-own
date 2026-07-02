@@ -4,6 +4,14 @@
 
 #include <utility>
 
+namespace
+{
+
+// 与小程序 preview 轮询（约 120ms）对齐：4 倍间隔 + 1s，下限 2s
+constexpr int kRemotePreviewEncodeIdleMs = 3000;
+
+} // namespace
+
 RemoteHost::RemoteHost(QObject *parent)
     : QObject(parent)
 {
@@ -28,9 +36,20 @@ void RemoteHost::setControlGuard(RemoteControlGuard *guard)
     m_kit.setControlGuard(guard);
 }
 
+void RemoteHost::setRemoteShutdownHandler(std::function<void()> handler)
+{
+    m_kit.http().setRemoteShutdownHandler(std::move(handler));
+}
+
 void RemoteHost::setPreviewProvider(std::function<QByteArray()> provider)
 {
     m_kit.setPreviewProvider(std::move(provider));
+}
+
+bool RemoteHost::wantsPreviewEncoding() const
+{
+    return m_kit.http().isListening()
+           && m_kit.http().isPreviewConsumerActive(kRemotePreviewEncodeIdleMs);
 }
 
 bool RemoteHost::bootstrap()
@@ -64,6 +83,7 @@ void RemoteHost::refreshStatusLabels()
                                                          m_kit.http().lastError()));
         m_httpLabel->setToolTip(QString());
     }
+    emit statusDisplayChanged();
 }
 
 void RemoteHost::pushBleStatus()

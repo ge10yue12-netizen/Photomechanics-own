@@ -103,6 +103,17 @@ class HttpClient {
     } catch (_) {}
   }
 
+  /** 请求 PC 关闭远程服务（路径 /api/remote/off，与 PC 端约定一致）。 */
+  async remoteOff(token) {
+    if (!this.host) return
+    await this.request({
+      url: `${this.baseUrl()}/api/remote/off?token=${encodeURIComponent(token || '')}`,
+      method: 'POST',
+      header: { 'content-type': 'application/json' },
+      data: { token: token || '' }
+    })
+  }
+
   async disconnect(token) {
     if (this.connected && this.host)
       await this.release(token)

@@ -4,31 +4,29 @@
 #include <QImage>
 #include <QMutex>
 
-/**
- * @brief 手机预览 JPEG 缓存。
- *
- * - updateFrame：取帧路径写入图像
- * - clear：相机关闭时清空（配合 MobileHost::clearPreviewFrame）
- * - getLatestJpeg：HTTP 只读；空表示无图像（预览框仍保留）
- */
+// 预览帧 JPEG 缓存；生产者写、HTTP 只读；编码在锁外、写入在锁内
 class PreviewFrameCache
 {
 public:
-    /** @param maxWidth/maxHeight 缩放上限；@param jpegQuality JPEG 质量 1–100。 */
+    // 单次读出的 JPEG 与帧序号
+    struct Snapshot
+    {
+        QByteArray jpeg;
+        quint64 frameSeq = 0;
+    };
+
+    // 设置缩放上限与 JPEG 质量
     void setEncodeOptions(int maxWidth, int maxHeight, int jpegQuality);
-
-    /**
-     * @brief 写入最新帧；frameSeq 相同时跳过重复编码。
-     * @param frame 源图（通常为 Grayscale8）
-     * @param frameSeq 相机帧序号；为 0 时不做去重
-     */
+    // 缩放、转格式并编码帧写入缓存
     void updateFrame(const QImage &frame, quint64 frameSeq = 0);
-
-    /** @brief 清空缓存（相机关闭时调用，手机端不再返回旧帧）。 */
+    // 清空 JPEG 与帧序号
     void clear();
-
-    /** @brief 返回最新 JPEG；无数据时为空。 */
+    // 返回最新 JPEG 副本
     QByteArray getLatestJpeg() const;
+    // 返回当前缓存帧序号
+    quint64 lastFrameSeq() const;
+    // 一次锁内读出 JPEG 与序号
+    Snapshot snapshot() const;
 
 private:
     int m_maxWidth = 480;

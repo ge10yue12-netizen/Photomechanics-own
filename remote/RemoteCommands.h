@@ -23,6 +23,7 @@ inline const QSet<QString> &knownCommands()
         QStringLiteral("start_calculate"),
         QStringLiteral("stop_calculate"),
         QStringLiteral("calibrate"),
+        QStringLiteral("remote_off"),
         QStringLiteral("status")};
     return kTable;
 }
@@ -44,8 +45,15 @@ inline QString label(const QString &cmd)
     if (cmd == QStringLiteral("start_calculate")) return QStringLiteral("开始计算");
     if (cmd == QStringLiteral("stop_calculate")) return QStringLiteral("停止计算");
     if (cmd == QStringLiteral("calibrate")) return QStringLiteral("标定");
+    if (cmd == QStringLiteral("remote_off")) return QStringLiteral("关闭远程控制");
     if (cmd == QStringLiteral("status")) return QStringLiteral("查询状态");
     return cmd;
+}
+
+/** POST 路径：请求 PC 关闭远程服务（remote/ 模块自有）。 */
+inline QString remoteOffApiPath()
+{
+    return QStringLiteral("/api/remote/off");
 }
 
 } // namespace RemoteCommands

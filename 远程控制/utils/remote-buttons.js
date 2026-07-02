@@ -34,16 +34,24 @@ function isCalculateRunning(status) {
   return !!s.acquisitionActive
 }
 
+function isRemoteEnabled(status) {
+  const s = status || {}
+  if (s.remoteEnabled !== undefined) return !!s.remoteEnabled
+  if (s.ren !== undefined) return !!s.ren
+  return true
+}
+
 function computeBtnState(status, locked) {
   const s = status || {}
   const open = !!s.cameraOpen
   const calc = isCalculateRunning(s)
+  const off = locked || !isRemoteEnabled(s)
   return {
-    open_camera: locked || open,
-    close_camera: locked || !open || calc,
-    start_calculate: locked || !open || calc,
-    stop_calculate: locked || !open || !calc,
-    calibrate: locked || !open || calc
+    open_camera: off || open,
+    close_camera: off || !open || calc,
+    start_calculate: off || !open || calc,
+    stop_calculate: off || !open || !calc,
+    calibrate: off || !open || calc
   }
 }
 
@@ -54,7 +62,8 @@ function formatMetrics(status) {
     metricCam: s.cameraOpen ? '已打开' : '未打开',
     metricCalc: calc ? '进行中' : (s.liveViewActive ? '预览' : '空闲'),
     metricMsg: s.message || '—',
-    cameraOpen: !!s.cameraOpen
+    cameraOpen: !!s.cameraOpen,
+    remoteEnabled: isRemoteEnabled(s)
   }
 }
 
@@ -67,5 +76,6 @@ module.exports = {
   computeBtnState,
   isRemoteOffline,
   formatMetrics,
-  isCalculateRunning
+  isCalculateRunning,
+  isRemoteEnabled
 }

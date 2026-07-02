@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QObject>
+#include <QPointer>
 #include <QStringList>
 #include <functional>
 
@@ -34,12 +35,17 @@ public:
     /** WiFi 预览 JPEG 缓存；宿主在取帧路径调用 updateFrame，与 remote-qr 模块独立。 */
     RemotePreviewFrameCache &previewCache() { return m_preview; }
     void clearPreviewFrame() { m_preview.clear(); }
+    /** HTTP 监听且客户端近期拉 preview 时为真；宿主据此决定是否 updateFrame。 */
+    bool wantsPreviewEncoding() const;
 
     /** 可选：覆盖默认 previewCache 提供函数。 */
     void setPreviewProvider(std::function<QByteArray()> provider);
 
-    /** 与 remote-qr 共用同一 RemoteControlGuard；小程序 HTTP/BLE 为同组，与扫码 Web 互斥。 */
+    /** 可选：宿主注入 RemoteControlGuard，用于多客户端命令互斥。 */
     void setControlGuard(RemoteControlGuard *guard);
+
+    /** 客户端 POST /api/remote/off 时回调宿主关闭远程。 */
+    void setRemoteShutdownHandler(std::function<void()> handler);
 
     // loadConfig + start + 刷新状态行；至少一个通道成功时返回 true。
     bool bootstrap();
@@ -54,12 +60,14 @@ public:
 signals:
     void commandReceived(const QString &cmd);
     void notify(const QString &message);
+    // HTTP/BLE 运行状态变化；RemoteServiceDialog 等 UI 监听后自行刷新
+    void statusDisplayChanged();
 
 private:
     void onBleServerError(const QString &message);
 
     RemoteKit m_kit;
     RemotePreviewFrameCache m_preview;
-    QLabel *m_bleLabel = nullptr;
-    QLabel *m_httpLabel = nullptr;
+    QPointer<QLabel> m_bleLabel;
+    QPointer<QLabel> m_httpLabel;
 };

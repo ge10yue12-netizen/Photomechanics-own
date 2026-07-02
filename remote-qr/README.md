@@ -12,6 +12,7 @@ C++14 · Qt 5.15 · 局域网浏览器扫码控制。
 remote-qr/
   MobileHost.h/.cpp           唯一集成入口
   RemoteControlDialog.h/.cpp  二维码弹窗（可选）
+  RemoteControlDialog.ui      同上，Qt Designer 布局
   MobileWebServer.h/.cpp      HTTP
   MobileConfig / TokenManager / NetworkHelper / QrCodeHelper / PreviewFrameCache
   MobileCommands.h            REST → 命令名
@@ -33,7 +34,7 @@ remote-qr/
 | 手机连接 | 首次带 token 的 HTTP 请求 → `phoneConnected` |
 | 手机关页 | 轮询停止约 4s → `phoneDisconnected` |
 | 预览 | **框始终保留**；关相机清图像（`clearPreviewFrame`），开相机轮询 JPEG |
-| 互斥 | 与 `remote/` 共用 `RemoteControlGuard`：状态/预览并行，**命令**互斥；`POST /api/release` 断开即释放 |
+| 互斥 | 宿主经 `MobileCommandGuardHooks` 注入；未注入时不互斥。全功能宿主可与 `remote/` 的 Guard 对接 |
 | token | 过期自动 `stopSession`；「刷新」生成新 token |
 
 ---
@@ -71,16 +72,13 @@ status_poll_ms=800
 **工程**：`remote-qr/*.cpp`、`thirdparty/qrcodegen.cpp`、`remote-qr.qrc`；Moc：`MobileHost`、`MobileWebServer`、`RemoteControlDialog`。
 
 ```cpp
-#include "remote/RemoteControlGuard.h"
 #include "remote-qr/MobileHost.h"
 #include "remote-qr/RemoteControlDialog.h"
 
-RemoteControlGuard m_remoteGuard;
 MobileHost m_mobileHost;
 RemoteControlDialog *m_mobileDialog = nullptr;
 
-// 构造（与 remote/RemoteHost 共用同一 guard）
-m_mobileHost.setControlGuard(&m_remoteGuard);
+// 构造
 m_mobileHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
 connect(&m_mobileHost, &MobileHost::commandReceived, this, &MainWindow::onRemoteCommand);
 connect(&m_mobileHost, &MobileHost::sessionStarted, this, &MainWindow::refreshMobileStatusLabel);

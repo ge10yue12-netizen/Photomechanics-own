@@ -3,28 +3,28 @@
 #include "MobileHost.h"
 #include "NetworkHelper.h"
 #include "QrCodeHelper.h"
+#include "ui_RemoteControlDialog.h"
 
 #include <QApplication>
 #include <QClipboard>
-#include <QComboBox>
 #include <QCloseEvent>
-#include <QFrame>
-#include <QHBoxLayout>
-#include <QLabel>
 #include <QPixmap>
-#include <QPushButton>
 #include <QShowEvent>
 #include <QSignalBlocker>
-#include <QVBoxLayout>
 
 RemoteControlDialog::RemoteControlDialog(MobileHost *host, QWidget *parent)
     : QDialog(parent)
     , m_host(host)
+    , ui(new Ui::RemoteControlDialog)
 {
-    setWindowTitle(QStringLiteral("QR 远程控制"));
-    setMinimumSize(420, 480);
+    ui->setupUi(this);
     setAttribute(Qt::WA_DeleteOnClose, false);
-    rebuildUi();
+
+    connect(ui->refreshBtn, &QPushButton::clicked, this, &RemoteControlDialog::onRefreshClicked);
+    connect(ui->copyBtn, &QPushButton::clicked, this, &RemoteControlDialog::onCopyUrlClicked);
+    connect(ui->disconnectBtn, &QPushButton::clicked, this, &RemoteControlDialog::onDisconnectClicked);
+    connect(ui->closeBtn, &QPushButton::clicked, this, &RemoteControlDialog::onHideClicked);
+    connect(ui->ipCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RemoteControlDialog::onIpChanged);
 
     if (m_host)
     {
@@ -36,6 +36,11 @@ RemoteControlDialog::RemoteControlDialog(MobileHost *host, QWidget *parent)
         connect(m_host, &MobileHost::phoneConnected, this, &RemoteControlDialog::updateStatusText);
         connect(m_host, &MobileHost::phoneDisconnected, this, &RemoteControlDialog::updateStatusText);
     }
+}
+
+RemoteControlDialog::~RemoteControlDialog()
+{
+    delete ui;
 }
 
 void RemoteControlDialog::showEvent(QShowEvent *event)
@@ -51,84 +56,39 @@ void RemoteControlDialog::closeEvent(QCloseEvent *event)
     hide();
 }
 
-void RemoteControlDialog::rebuildUi()
-{
-    auto *root = new QVBoxLayout(this);
-
-    m_qrLabel = new QLabel(this);
-    m_qrLabel->setAlignment(Qt::AlignCenter);
-    m_qrLabel->setMinimumSize(280, 280);
-    m_qrLabel->setFrameShape(QFrame::Box);
-    root->addWidget(m_qrLabel);
-
-    auto *ipRow = new QHBoxLayout();
-    ipRow->addWidget(new QLabel(QStringLiteral("本机 IP："), this));
-    m_ipCombo = new QComboBox(this);
-    ipRow->addWidget(m_ipCombo, 1);
-    root->addLayout(ipRow);
-
-    m_urlLabel = new QLabel(QStringLiteral("访问 URL："), this);
-    m_urlLabel->setWordWrap(true);
-    m_urlLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    root->addWidget(m_urlLabel);
-
-    m_statusLabel = new QLabel(QStringLiteral("状态：—"), this);
-    m_statusLabel->setWordWrap(true);
-    root->addWidget(m_statusLabel);
-
-    auto *btnRow = new QHBoxLayout();
-    m_refreshBtn = new QPushButton(QStringLiteral("刷新"), this);
-    m_copyBtn = new QPushButton(QStringLiteral("复制链接"), this);
-    m_disconnectBtn = new QPushButton(QStringLiteral("断开"), this);
-    auto *closeBtn = new QPushButton(QStringLiteral("关闭"), this);
-    btnRow->addWidget(m_refreshBtn);
-    btnRow->addWidget(m_copyBtn);
-    btnRow->addWidget(m_disconnectBtn);
-    btnRow->addWidget(closeBtn);
-    root->addLayout(btnRow);
-
-    connect(m_refreshBtn, &QPushButton::clicked, this, &RemoteControlDialog::onRefreshClicked);
-    connect(m_copyBtn, &QPushButton::clicked, this, &RemoteControlDialog::onCopyUrlClicked);
-    connect(m_disconnectBtn, &QPushButton::clicked, this, &RemoteControlDialog::onDisconnectClicked);
-    connect(closeBtn, &QPushButton::clicked, this, &RemoteControlDialog::onHideClicked);
-    connect(m_ipCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RemoteControlDialog::onIpChanged);
-}
-
 void RemoteControlDialog::loadIpList()
 {
     const QString keepIp = m_host && m_host->isSessionActive()
         ? m_host->sessionDisplayIp()
         : selectedIp();
 
-    QSignalBlocker blocker(m_ipCombo);
-    m_ipCombo->clear();
+    QSignalBlocker blocker(ui->ipCombo);
+    ui->ipCombo->clear();
     const QStringList ips = NetworkHelper::getLocalIPv4List();
     if (ips.isEmpty())
     {
-        m_ipCombo->addItem(QStringLiteral("（未检测到局域网地址）"), QString());
-        m_refreshBtn->setEnabled(false);
+        ui->ipCombo->addItem(QStringLiteral("（未检测到局域网地址）"), QString());
+        ui->refreshBtn->setEnabled(false);
         return;
     }
-    m_refreshBtn->setEnabled(true);
+    ui->refreshBtn->setEnabled(true);
     for (const QString &ip : ips)
-        m_ipCombo->addItem(ip, ip);
+        ui->ipCombo->addItem(ip, ip);
 
-    const int keepIdx = m_ipCombo->findData(keepIp);
+    const int keepIdx = ui->ipCombo->findData(keepIp);
     if (keepIdx >= 0)
-        m_ipCombo->setCurrentIndex(keepIdx);
+        ui->ipCombo->setCurrentIndex(keepIdx);
     else
     {
-        const int preferredIdx = m_ipCombo->findData(NetworkHelper::preferredDefaultIp());
+        const int preferredIdx = ui->ipCombo->findData(NetworkHelper::preferredDefaultIp());
         if (preferredIdx >= 0)
-            m_ipCombo->setCurrentIndex(preferredIdx);
+            ui->ipCombo->setCurrentIndex(preferredIdx);
     }
 }
 
 QString RemoteControlDialog::selectedIp() const
 {
-    if (!m_ipCombo)
-        return QString();
-    return m_ipCombo->currentData().toString();
+    return ui->ipCombo->currentData().toString();
 }
 
 bool RemoteControlDialog::ensureSessionStarted()
@@ -148,15 +108,15 @@ bool RemoteControlDialog::ensureSessionStarted()
     const QString ip = selectedIp();
     if (ip.isEmpty())
     {
-        m_statusLabel->setText(QStringLiteral("状态：无可用地址"));
+        ui->statusLabel->setText(QStringLiteral("状态：无可用地址"));
         return false;
     }
 
     if (!m_host->startSession(ip))
     {
-        m_statusLabel->setText(QStringLiteral("状态：启动失败 — %1").arg(m_host->lastError()));
-        m_qrLabel->clear();
-        m_urlLabel->setText(QStringLiteral("访问 URL：（启动失败）"));
+        ui->statusLabel->setText(QStringLiteral("状态：启动失败 — %1").arg(m_host->lastError()));
+        ui->qrLabel->clear();
+        ui->urlLabel->setText(QStringLiteral("访问 URL：（启动失败）"));
         return false;
     }
 
@@ -173,7 +133,7 @@ void RemoteControlDialog::onRefreshClicked()
     const QString ip = selectedIp();
     if (ip.isEmpty())
     {
-        m_statusLabel->setText(QStringLiteral("状态：无可用地址"));
+        ui->statusLabel->setText(QStringLiteral("状态：无可用地址"));
         return;
     }
 
@@ -184,9 +144,9 @@ void RemoteControlDialog::onRefreshClicked()
 
     if (!m_host->startSession(ip))
     {
-        m_statusLabel->setText(QStringLiteral("状态：启动失败 — %1").arg(m_host->lastError()));
-        m_qrLabel->clear();
-        m_urlLabel->setText(QStringLiteral("访问 URL：（启动失败）"));
+        ui->statusLabel->setText(QStringLiteral("状态：启动失败 — %1").arg(m_host->lastError()));
+        ui->qrLabel->clear();
+        ui->urlLabel->setText(QStringLiteral("访问 URL：（启动失败）"));
         return;
     }
 
@@ -206,9 +166,9 @@ void RemoteControlDialog::onDisconnectClicked()
 {
     if (m_host && m_host->isSessionActive())
         m_host->stopSession();
-    m_qrLabel->clear();
-    m_urlLabel->setText(QStringLiteral("访问 URL：（已断开）"));
-    m_statusLabel->setText(QStringLiteral("状态：已断开"));
+    ui->qrLabel->clear();
+    ui->urlLabel->setText(QStringLiteral("访问 URL：（已断开）"));
+    ui->statusLabel->setText(QStringLiteral("状态：已断开"));
 }
 
 void RemoteControlDialog::onHideClicked()
@@ -221,12 +181,12 @@ void RemoteControlDialog::onIpChanged(int /*index*/)
     if (!m_host || !m_host->isSessionActive())
         return;
     if (selectedIp() != m_host->sessionDisplayIp())
-        m_statusLabel->setText(QStringLiteral("状态：IP 已变更，须重新生成会话"));
+        ui->statusLabel->setText(QStringLiteral("状态：IP 已变更，须重新生成会话"));
 }
 
 void RemoteControlDialog::onSessionStarted(const QString &url)
 {
-    m_urlLabel->setText(QStringLiteral("访问 URL：%1").arg(url));
+    ui->urlLabel->setText(QStringLiteral("访问 URL：%1").arg(url));
     updateQrAndUrl();
     updateStatusText();
 }
@@ -237,31 +197,31 @@ void RemoteControlDialog::updateQrAndUrl()
         return;
 
     const QString url = m_host->mobileUrl();
-    m_urlLabel->setText(QStringLiteral("访问 URL：%1").arg(url.isEmpty() ? QStringLiteral("（无）") : url));
+    ui->urlLabel->setText(QStringLiteral("访问 URL：%1").arg(url.isEmpty() ? QStringLiteral("（无）") : url));
 
     const QImage qr = QrCodeHelper::generateQrImage(url);
     if (qr.isNull())
     {
-        m_qrLabel->setText(QStringLiteral("二维码生成失败"));
+        ui->qrLabel->setText(QStringLiteral("二维码生成失败"));
         return;
     }
-    m_qrLabel->setPixmap(QPixmap::fromImage(qr));
+    ui->qrLabel->setPixmap(QPixmap::fromImage(qr));
 }
 
 void RemoteControlDialog::updateStatusText()
 {
     if (!m_host || !m_host->isSessionActive())
     {
-        m_statusLabel->setText(QStringLiteral("状态：未启动"));
+        ui->statusLabel->setText(QStringLiteral("状态：未启动"));
         return;
     }
     if (selectedIp() != m_host->sessionDisplayIp())
     {
-        m_statusLabel->setText(QStringLiteral("状态：IP 已变更，须重新生成会话"));
+        ui->statusLabel->setText(QStringLiteral("状态：IP 已变更，须重新生成会话"));
         return;
     }
     if (m_host->isPhoneConnected())
-        m_statusLabel->setText(QStringLiteral("状态：客户端已连接"));
+        ui->statusLabel->setText(QStringLiteral("状态：客户端已连接"));
     else
-        m_statusLabel->setText(QStringLiteral("状态：等待客户端连接"));
+        ui->statusLabel->setText(QStringLiteral("状态：等待客户端连接"));
 }

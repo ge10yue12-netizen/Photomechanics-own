@@ -3,6 +3,7 @@
 #include <QBuffer>
 #include <QMutexLocker>
 
+// 写入缩放与质量参数，非法入参回退默认值
 void PreviewFrameCache::setEncodeOptions(int maxWidth, int maxHeight, int jpegQuality)
 {
     QMutexLocker lock(&m_mutex);
@@ -11,6 +12,7 @@ void PreviewFrameCache::setEncodeOptions(int maxWidth, int maxHeight, int jpegQu
     m_jpegQuality = jpegQuality >= 30 && jpegQuality <= 90 ? jpegQuality : 55;
 }
 
+// 锁外编码、锁内写入；同 frameSeq 跳过重复编码
 void PreviewFrameCache::updateFrame(const QImage &frame, quint64 frameSeq)
 {
     if (frame.isNull())
@@ -33,7 +35,7 @@ void PreviewFrameCache::updateFrame(const QImage &frame, quint64 frameSeq)
     {
         scaled = scaled.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::FastTransformation);
     }
-    // Mono8 为 Grayscale8；JPEG 编码须 RGB888，否则 save 静默失败导致预览为空。
+    // Grayscale8 须转 RGB888，否则 JPEG 编码静默失败
     if (scaled.format() == QImage::Format_Grayscale8)
         scaled = scaled.convertToFormat(QImage::Format_RGB888);
 
@@ -50,6 +52,7 @@ void PreviewFrameCache::updateFrame(const QImage &frame, quint64 frameSeq)
     m_jpeg = jpeg;
 }
 
+// 清空缓存 payload 与序号
 void PreviewFrameCache::clear()
 {
     QMutexLocker lock(&m_mutex);
@@ -57,8 +60,23 @@ void PreviewFrameCache::clear()
     m_lastFrameSeq = 0;
 }
 
+// 持锁拷贝最新 JPEG
 QByteArray PreviewFrameCache::getLatestJpeg() const
 {
     QMutexLocker lock(&m_mutex);
     return m_jpeg;
+}
+
+// 持锁读取帧序号
+quint64 PreviewFrameCache::lastFrameSeq() const
+{
+    QMutexLocker lock(&m_mutex);
+    return m_lastFrameSeq;
+}
+
+// 持锁组装 Snapshot，供 HTTP 单次响应
+PreviewFrameCache::Snapshot PreviewFrameCache::snapshot() const
+{
+    QMutexLocker lock(&m_mutex);
+    return {m_jpeg, m_lastFrameSeq};
 }

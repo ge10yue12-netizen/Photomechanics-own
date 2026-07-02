@@ -84,6 +84,10 @@ class WifiLink {
       this._previewTimer = null
     }
   }
+
+  async remoteOff(token) {
+    return this._http.remoteOff(token)
+  }
 }
 
 module.exports = WifiLink

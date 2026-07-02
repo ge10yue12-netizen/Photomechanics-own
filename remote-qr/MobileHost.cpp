@@ -4,6 +4,7 @@
 #include <QFile>
 #include <climits>
 
+// 初始化定时器、转发信号、注册 token/预览/配置提供者
 MobileHost::MobileHost(QObject *parent)
     : QObject(parent)
 {
@@ -25,10 +26,12 @@ MobileHost::MobileHost(QObject *parent)
     });
 
     m_server.setTokenVerifier([this](const QString &token) { return m_token.verifyToken(token); });
-    m_server.setPreviewProvider([this]() { return m_preview.getLatestJpeg(); });
+    m_server.setPreviewSnapshotProvider([this]() { return m_preview.snapshot(); });
+    m_server.setPreviewSeqProvider([this]() { return m_preview.lastFrameSeq(); });
     m_server.setConfigProvider([this]() { return buildClientConfigJson(); });
 }
 
+// 读取 mobile.ini 并应用到 token 与预览编码参数
 bool MobileHost::reloadSettings()
 {
     QString err;
@@ -43,6 +46,7 @@ bool MobileHost::reloadSettings()
     return true;
 }
 
+// 启动 HTTP 会话：配置、HTML、token、监听
 bool MobileHost::startSession(const QString &displayIp)
 {
     const QString ip = displayIp.trimmed();
@@ -81,6 +85,7 @@ bool MobileHost::startSession(const QString &displayIp)
     return true;
 }
 
+// 停止定时器、HTTP、失效 token、释放命令锁
 void MobileHost::stopSession()
 {
     m_phoneWatchTimer.stop();
@@ -90,16 +95,18 @@ void MobileHost::stopSession()
     m_displayIp.clear();
     m_phoneConnected = false;
     m_lastPhoneActivityMs = 0;
-    if (m_controlGuard)
-        m_controlGuard->release(RemoteControlSource::QrBrowser);
+    if (m_commandGuardHooks.isActive())
+        m_commandGuardHooks.release();
     emit sessionStopped();
 }
 
+// 监听中且 token 有效
 bool MobileHost::isSessionActive() const
 {
     return m_server.isListening() && m_token.hasValidToken();
 }
 
+// 监听中但 token 已失效时清理会话
 void MobileHost::syncExpiredSession()
 {
     if (m_server.isListening() && !m_token.hasValidToken())
@@ -109,6 +116,7 @@ void MobileHost::syncExpiredSession()
     }
 }
 
+// 拼接 http://{ip}:{port}/mobile?token={token}
 QString MobileHost::mobileUrl() const
 {
     if (m_displayIp.isEmpty() || !m_token.hasValidToken())
@@ -119,22 +127,38 @@ QString MobileHost::mobileUrl() const
         .arg(m_token.currentToken());
 }
 
+// 清空预览 JPEG 缓存
 void MobileHost::clearPreviewFrame()
 {
     m_preview.clear();
 }
 
+bool MobileHost::wantsPreviewEncoding() const
+{
+    if (!isSessionActive())
+        return false;
+    return m_server.isPreviewConsumerActive(previewEncodeIdleMs());
+}
+
+// 转发至 MobileWebServer
 void MobileHost::setStatusProvider(std::function<QJsonObject()> provider)
 {
     m_server.setStatusProvider(std::move(provider));
 }
 
-void MobileHost::setControlGuard(RemoteControlGuard *guard)
+// 保存钩子并转发至 MobileWebServer
+void MobileHost::setCommandGuardHooks(MobileCommandGuardHooks hooks)
 {
-    m_controlGuard = guard;
-    m_server.setControlGuard(guard, RemoteControlSource::QrBrowser);
+    m_commandGuardHooks = std::move(hooks);
+    m_server.setCommandGuardHooks(m_commandGuardHooks);
 }
 
+void MobileHost::setRemoteShutdownHandler(std::function<void()> handler)
+{
+    m_server.setRemoteShutdownHandler(std::move(handler));
+}
+
+// token 过期回调
 void MobileHost::onTokenExpired()
 {
     if (!m_server.isListening())
@@ -143,6 +167,7 @@ void MobileHost::onTokenExpired()
     stopSession();
 }
 
+// 无 HTTP 活动超过阈值时标记断开并释放命令锁
 void MobileHost::onPhoneIdleCheck()
 {
     if (!m_phoneConnected || !isSessionActive() || m_lastPhoneActivityMs <= 0)
@@ -153,11 +178,12 @@ void MobileHost::onPhoneIdleCheck()
 
     m_phoneConnected = false;
     m_lastPhoneActivityMs = 0;
-    if (m_controlGuard)
-        m_controlGuard->release(RemoteControlSource::QrBrowser);
+    if (m_commandGuardHooks.isActive())
+        m_commandGuardHooks.release();
     emit phoneDisconnected();
 }
 
+// 启动单次 token 过期定时器
 void MobileHost::scheduleTokenExpiry()
 {
     m_expiryTimer.stop();
@@ -166,12 +192,19 @@ void MobileHost::scheduleTokenExpiry()
         m_expiryTimer.start(static_cast<int>(qMin(ms, static_cast<qint64>(INT_MAX))));
 }
 
+// 空闲阈值：轮询间隔的 4 倍加 1s，限制在 [2s, 30s]
 int MobileHost::phoneIdleTimeoutMs() const
 {
     const int pollMax = qMax(m_cfg.previewPollMs, m_cfg.statusPollMs);
     return qBound(2000, pollMax * 4 + 1000, 30000);
 }
 
+int MobileHost::previewEncodeIdleMs() const
+{
+    return qBound(2000, m_cfg.previewPollMs * 4 + 1000, 30000);
+}
+
+// 自 qrc 读取 mobile.html 并注入 HTTP 服务
 bool MobileHost::loadMobileHtml()
 {
     if (!m_mobileHtml.isEmpty())
@@ -188,6 +221,7 @@ bool MobileHost::loadMobileHtml()
     return true;
 }
 
+// 返回浏览器轮询间隔配置
 QJsonObject MobileHost::buildClientConfigJson() const
 {
     return {

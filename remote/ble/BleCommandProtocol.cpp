@@ -54,6 +54,7 @@ QByteArray compactStatusJson(const QByteArray &json)
     const QJsonObject in = doc.object();
     QJsonObject out;
     out.insert(QStringLiteral("ok"), in.value(QStringLiteral("ok")).toBool(true) ? 1 : 0);
+    out.insert(QStringLiteral("ren"), in.value(QStringLiteral("remoteEnabled")).toBool(true) ? 1 : 0);
     out.insert(QStringLiteral("cam"), in.value(QStringLiteral("cameraOpen")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("lv"), in.value(QStringLiteral("liveViewActive")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("grab"), in.value(QStringLiteral("acquisitionActive")).toBool() ? 1 : 0);

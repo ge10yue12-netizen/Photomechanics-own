@@ -38,6 +38,10 @@
   <view class="error-slot" wx:if="{{errorHint}}">{{errorHint}}</view>
 
   <view class="section-title">图像预览</view>
+  <view class="btn-group" wx:if="{{connected && mode === 'wifi'}}">
+    <view class="tap-btn tap-btn--primary" hover-class="tap-btn--down" hover-stay-time="150" bindtap="onTogglePreview">{{previewBtnLabel}}</view>
+    <view class="tap-btn tap-btn--danger" hover-class="tap-btn--down" hover-stay-time="150" bindtap="onRemoteOff">关闭远程</view>
+  </view>
   <view class="preview-box">
     <image wx:if="{{previewUrl}}" class="preview-img" src="{{previewUrl}}" mode="aspectFit" />
     <view wx:else class="preview-hint">{{previewHint}}</view>
