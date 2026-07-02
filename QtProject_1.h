@@ -143,6 +143,7 @@ private:
     QTimer m_saveDirResyncTimer;     // 目录变化防抖，避免连续 resync
     QTimer m_saveCountPollTimer;     // 空闲时周期刷新总保存（子目录删文件 watcher 可能漏报）
     bool m_liveViewActive = false;   // 连续 grab 与预览定时器已启动（打开相机后常开）
+    bool m_remotePreviewActive = false; // 远程页（H5/小程序）是否开启预览拉流
     bool m_acquisitionActive = false; // 用户已点击「开始采集」，处于采集业务会话
     bool m_stageRunning = false;     // StageManager 正在执行阶段表
     bool m_shutdownDone = false;     // 退出标志；为 true 时禁止回调访问 UI 控件

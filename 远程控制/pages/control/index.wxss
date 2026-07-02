@@ -57,6 +57,8 @@
 .metric-wide { grid-column: span 2; }
 .metric-val { color: rgb(232, 232, 232); font-weight: 600; }
 .metric-ok { color: rgb(92, 184, 92); }
+.metric-warn { color: rgb(240, 173, 78); }
+.metric-err { color: rgb(217, 83, 79); }
 
 .conn-banner { border-radius: 12rpx; padding: 14rpx 18rpx; margin-bottom: 12rpx; font-size: 26rpx; }
 .conn-banner.connecting { background: rgb(253, 246, 239); color: rgb(202, 80, 16); }

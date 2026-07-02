@@ -12,20 +12,22 @@ const STORAGE_HOST = 'photomech_host'
 const STORAGE_TOKEN = 'photomech_token'
 const STORAGE_MODE = 'photomech_mode'
 
-/** 预览区占位文案（与交互顺序：连接主机 → 图像预览 → 打开相机） */
+/** 预览区占位文案（与交互顺序：连接 → 打开相机 → 开启预览） */
 const PREVIEW_HINT = {
-  NEED_CONNECT: '须先建立主机连接',
+  NEED_CONNECT: '须先连接主机',
   WIFI_ONLY: '图像预览仅支持 WiFi 通道',
-  PREVIEW_OFF: '预览已关闭',
-  NEED_OPEN_CAMERA: '须执行「打开相机」',
-  LIVE_NOT_READY: '实时预览未就绪',
-  NO_FRAME: '暂无图像数据'
+  PREVIEW_OFF: '须点击「开启预览」',
+  NEED_OPEN_CAMERA: '须先点击「打开相机」',
+  NO_FRAME: '等待图像数据…'
 }
 
 const EMPTY_METRICS = {
+  metricLink: '—',
+  metricLinkClass: '',
   metricCam: '—',
-  metricCalc: '—',
-  metricMsg: '—',
+  metricCamClass: '',
+  metricState: '—',
+  metricStateClass: '',
   previewUrl: '',
   previewHint: PREVIEW_HINT.NEED_CONNECT
 }
@@ -195,7 +197,7 @@ Page({
   _syncPreview(status, token) {
     const H = PREVIEW_HINT
     const open = !!(status && status.cameraOpen)
-    const live = !!(status && status.liveViewActive)
+    const remotePreview = !!(status && status.remotePreviewActive)
     if (this.data.mode === 'ble') {
       this.wifiLink.stopPreview()
       this._safeSetData({ previewUrl: '', previewHint: H.WIFI_ONLY })
@@ -211,9 +213,9 @@ Page({
       this._safeSetData({ previewUrl: '', previewHint: H.NEED_OPEN_CAMERA })
       return
     }
-    if (!live) {
+    if (!remotePreview) {
       this.wifiLink.stopPreview()
-      this._safeSetData({ previewUrl: '', previewHint: H.PREVIEW_OFF })
+      this._safeSetData({ previewUrl: '', previewHint: open ? H.PREVIEW_OFF : H.NEED_OPEN_CAMERA })
       return
     }
     this.wifiLink.startPreview(token, (path) => {
@@ -260,6 +262,10 @@ Page({
       connDisconnectDisabled: true,
       selectedDeviceId: '',
       ...EMPTY_METRICS,
+      metricLink: '异常',
+      metricLinkClass: 'metric-err',
+      metricState: '主机已断开',
+      metricStateClass: 'metric-err',
       previewHint: this._previewHintIdle(false)
     })
   },
@@ -267,21 +273,25 @@ Page({
   applyRemoteStatus(status) {
     if (!status || typeof status !== 'object') return
 
-    if (status.remoteEnabled === false) {
+    if (this.data.connected && isRemoteOffline(status)) {
+      if (this.data.mode === 'ble') {
+        this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
+        return
+      }
       this.wifiLink.stopPreview()
-      this._safeSetData({
-        previewUrl: '',
-        previewHint: PREVIEW_HINT.PREVIEW_OFF
-      })
-    }
-
-    if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
-      this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
+      this._lastStatus = status
+      const patch = formatMetrics(status, { connected: true })
+      patch.previewUrl = ''
+      patch.previewHint = PREVIEW_HINT.PREVIEW_OFF
+      patch.errorHint = status.message || status.msg ||
+        (status.remoteEnabled === false ? '主机远程服务已关闭' : '主机状态异常')
+      this._safeSetData(patch)
+      this._refreshBtnState()
       return
     }
 
     this._lastStatus = status
-    const patch = formatMetrics(status)
+    const patch = formatMetrics(status, { connected: this.data.connected })
 
     if (status.remoteControlBlocked) {
       patch.errorHint = status.remoteControlMessage || '命令通道被占用'
@@ -323,6 +333,10 @@ Page({
       connConnectDisabled: false,
       connDisconnectDisabled: true,
       ...EMPTY_METRICS,
+      metricLink: '异常',
+      metricLinkClass: 'metric-err',
+      metricState: '主机已断开',
+      metricStateClass: 'metric-err',
       previewHint: this._previewHintIdle(false)
     })
     this._lastStatus = {}
@@ -344,6 +358,10 @@ Page({
       connConnectDisabled: false,
       connDisconnectDisabled: true,
       ...EMPTY_METRICS,
+      metricLink: '异常',
+      metricLinkClass: 'metric-err',
+      metricState: '主机已断开',
+      metricStateClass: 'metric-err',
       previewHint: this._previewHintIdle(false)
     })
     this.bleLink.disconnect().catch(() => {})

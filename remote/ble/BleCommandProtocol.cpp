@@ -43,8 +43,8 @@ BleCommandParseResult parseBleCommand(const QByteArray &raw, const QString &expe
     return result;
 }
 
-// 紧凑 JSON 字段映射：cameraOpen→cam, liveViewActive→lv, acquisitionActive→grab,
-// stageRunning→stg, queueSize→q, queueCapacity→qc, totalSaved→tot, message→msg。
+// 紧凑 JSON 字段映射：cameraOpen→cam, liveViewActive→lv, remotePreviewActive→rp,
+// acquisitionActive→grab, calculateActive→calc, stageRunning→stg, remoteEnabled→re, ...
 QByteArray compactStatusJson(const QByteArray &json)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(json);
@@ -56,9 +56,11 @@ QByteArray compactStatusJson(const QByteArray &json)
     out.insert(QStringLiteral("ok"), in.value(QStringLiteral("ok")).toBool(true) ? 1 : 0);
     out.insert(QStringLiteral("cam"), in.value(QStringLiteral("cameraOpen")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("lv"), in.value(QStringLiteral("liveViewActive")).toBool() ? 1 : 0);
+    out.insert(QStringLiteral("rp"), in.value(QStringLiteral("remotePreviewActive")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("grab"), in.value(QStringLiteral("acquisitionActive")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("calc"), in.value(QStringLiteral("calculateActive")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("stg"), in.value(QStringLiteral("stageRunning")).toBool() ? 1 : 0);
+    out.insert(QStringLiteral("re"), in.value(QStringLiteral("remoteEnabled")).toBool() ? 1 : 0);
     out.insert(QStringLiteral("q"), in.value(QStringLiteral("queueSize")).toInt());
     out.insert(QStringLiteral("qc"), in.value(QStringLiteral("queueCapacity")).toInt());
     out.insert(QStringLiteral("tot"), in.value(QStringLiteral("totalSaved")).toInt());

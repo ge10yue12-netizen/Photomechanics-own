@@ -58,8 +58,11 @@ function normalizeStatus(raw) {
   const s = Object.assign({}, raw)
   if (s.cameraOpen === undefined && s.cam !== undefined) s.cameraOpen = !!s.cam
   if (s.liveViewActive === undefined && s.lv !== undefined) s.liveViewActive = !!s.lv
+  if (s.remotePreviewActive === undefined && s.rp !== undefined) s.remotePreviewActive = !!s.rp
   if (s.acquisitionActive === undefined && s.grab !== undefined) s.acquisitionActive = !!s.grab
+  if (s.calculateActive === undefined && s.calc !== undefined) s.calculateActive = !!s.calc
   if (s.stageRunning === undefined && s.stg !== undefined) s.stageRunning = !!s.stg
+  if (s.remoteEnabled === undefined && s.re !== undefined) s.remoteEnabled = !!s.re
   if (s.message === undefined && s.msg !== undefined) s.message = s.msg
   if (s.queueSize === undefined && s.q !== undefined) s.queueSize = s.q
   if (s.queueCapacity === undefined && s.qc !== undefined) s.queueCapacity = s.qc

@@ -44,10 +44,9 @@
   </view>
 
   <view class="metrics-grid" wx:if="{{connected}}">
-    <view class="metric-cell">链路：<text class="metric-val metric-ok">正常</text></view>
-    <view class="metric-cell">相机：<text class="metric-val">{{metricCam}}</text></view>
-    <view class="metric-cell">计算：<text class="metric-val">{{metricCalc}}</text></view>
-    <view class="metric-cell metric-wide">摘要：<text class="metric-val">{{metricMsg}}</text></view>
+    <view class="metric-cell">链路：<text class="metric-val {{metricLinkClass}}">{{metricLink}}</text></view>
+    <view class="metric-cell">相机：<text class="metric-val {{metricCamClass}}">{{metricCam}}</text></view>
+    <view class="metric-cell metric-wide">状态：<text class="metric-val {{metricStateClass}}">{{metricState}}</text></view>
   </view>
 
   <view class="section-title">相机</view>

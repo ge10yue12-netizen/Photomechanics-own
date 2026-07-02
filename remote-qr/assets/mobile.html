@@ -46,11 +46,15 @@
 
     .ok { color: #5cb85c; } .warn { color: #f0ad4e; } .err { color: #d9534f; }
 
+    .metric-warn { color: #f0ad4e; }
+
     .sec { font-size: 12px; color: #888; margin: 8px 0 4px; }
 
     .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
 
-    button { padding: 12px 8px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; color: #fff; }
+    button { padding: 12px 8px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; color: #fff; transition: transform 0.08s, filter 0.08s; }
+
+    button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88); }
 
     button:disabled { opacity: 0.35; }
 
@@ -59,6 +63,8 @@
     .b-danger { background: #a4262c; }
 
     .b-wide { grid-column: span 2; }
+
+    button.btn-flash { filter: brightness(1.25); transform: scale(0.96); }
 
     #feedback { min-height: 18px; font-size: 12px; color: #aaa; margin-top: 6px; }
 
@@ -84,9 +90,7 @@
 
     <div class="cell">相机：<span id="camStatus" class="warn">—</span></div>
 
-    <div class="cell">计算：<span id="calcStatus">—</span></div>
-
-    <div class="cell" style="grid-column: span 2">摘要：<span id="msgStatus">—</span></div>
+    <div class="cell">状态：<span id="calcStatus">—</span></div>
 
   </div>
 
@@ -170,8 +174,6 @@
 
       calc: document.getElementById('calcStatus'),
 
-      msg: document.getElementById('msgStatus'),
-
       fb: document.getElementById('feedback'),
 
       previewHint: document.getElementById('previewHint'),
@@ -236,25 +238,93 @@
 
 
 
+    function formatStateText(d) {
+
+      if (d.stageRunning) return '阶段采集中';
+
+      if (isCalcRunning(d)) return '计算中';
+
+      if (isRemotePreviewOn(d)) return '远程预览中';
+
+      if (d.cameraOpen) return '可开远程预览';
+
+      return '待机';
+
+    }
+
+
+
+    function formatStateClass(d) {
+
+      if (d.stageRunning || isCalcRunning(d) || isRemotePreviewOn(d)) return 'ok';
+
+      if (d.cameraOpen) return 'warn';
+
+      return '';
+
+    }
+
+
+
+    function isRemotePreviewOn(d) {
+
+      if (d.remotePreviewActive !== undefined) return !!d.remotePreviewActive;
+
+      return false;
+
+    }
+
+
+
+    function disableAllButtons() {
+
+      Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
+
+    }
+
+
+
+    function applyOfflineState(message) {
+
+      cmdLocked = false;
+
+      clearPreviewImage('主机已断开');
+
+      setText(els.link, '异常', 'err');
+
+      setText(els.cam, '—', 'warn');
+
+      setText(els.calc, '主机已断开', 'err');
+
+      disableAllButtons();
+
+      feedback(message || '主机已断开，轮询重试中');
+
+    }
+
+
+
     function applyBtnState(d) {
 
       var open = !!d.cameraOpen;
 
-      var live = !!d.liveViewActive;
+      var remotePreview = isRemotePreviewOn(d);
+
+      var calc = isCalcRunning(d);
 
       btns.open.disabled = open;
 
       btns.close.disabled = !open;
 
-      btns.calcStart.disabled = !open;
+      btns.previewOn.disabled = !open || remotePreview;
 
-      btns.calcStop.disabled = !open;
+      btns.previewOff.disabled = !open || !remotePreview;
+
+      btns.calcStart.disabled = !open || calc;
+
+      btns.calcStop.disabled = !open || !calc;
 
       btns.calibrate.disabled = !open;
-
-      btns.previewOn.disabled = !open || live;
-
-      btns.previewOff.disabled = !open || !live;
 
       if (cmdLocked)
 
@@ -334,17 +404,17 @@
 
       var open = !!d.cameraOpen;
 
-      var live = !!d.liveViewActive;
+      var remotePreview = isRemotePreviewOn(d);
 
-      if (!live) {
+      if (!remotePreview) {
 
         if (previewPolling)
 
-          clearPreviewImage(open ? '预览已关闭' : '无画面');
+          clearPreviewImage(open ? '远程预览已关闭' : '无画面');
 
         else
 
-          els.previewHint.textContent = open ? '预览已关闭' : '无画面';
+          els.previewHint.textContent = open ? '须开启远程预览' : '无画面';
 
         return;
 
@@ -382,17 +452,31 @@
 
     function applyStatus(d) {
 
+      if (!d || d.ok === false || d.remoteEnabled === false) {
+
+        var msg = (d && d.message) ? d.message : '';
+
+        if (d && d.remoteEnabled === false)
+
+          msg = msg || '远程服务已关闭';
+
+        else if (!msg)
+
+          msg = '主机响应异常';
+
+        applyOfflineState(msg);
+
+        return;
+
+      }
+
       cmdLocked = !!d.remoteControlBlocked;
 
       setText(els.link, '正常', 'ok');
 
       setText(els.cam, d.cameraOpen ? '已打开' : '未打开', d.cameraOpen ? 'ok' : 'warn');
 
-      var calc = isCalcRunning(d);
-
-      setText(els.calc, calc ? '进行中' : (d.liveViewActive ? '预览' : '空闲'), calc ? 'ok' : '');
-
-      els.msg.textContent = d.message || '—';
+      setText(els.calc, formatStateText(d), formatStateClass(d));
 
       applyBtnState(d);
 
@@ -410,21 +494,27 @@
 
         .then(function (r) {
 
-          if (!r.ok) throw new Error('status');
+          return r.json().then(function (d) {
 
-          return r.json();
+            if (!r.ok) {
+
+              applyOfflineState((d && d.message) ? d.message : ('HTTP ' + r.status));
+
+              throw new Error('offline');
+
+            }
+
+            applyStatus(d);
+
+          });
 
         })
 
-        .then(applyStatus)
+        .catch(function (err) {
 
-        .catch(function () {
+          if (err && err.message === 'offline') return;
 
-          clearPreviewImage('无画面');
-
-          setText(els.link, '异常', 'err');
-
-          els.msg.textContent = '连接中断，轮询重试中';
+          applyOfflineState('主机软件已结束或网络中断，轮询重试中');
 
         });
 
@@ -534,7 +624,15 @@
 
             }
 
-            if (!r.ok) throw new Error('post');
+            if (!r.ok) {
+
+              if (r.status === 403 || r.status >= 500)
+
+                applyOfflineState((d && d.message) ? d.message : ('HTTP ' + r.status));
+
+              throw new Error('post');
+
+            }
 
             return d;
 
@@ -552,9 +650,15 @@
 
         .catch(function (err) {
 
-          if (err && err.message !== 'blocked')
+          if (err && err.message === 'blocked') return;
 
-            feedback(label + '异常');
+          if (err && err.message !== 'post')
+
+            applyOfflineState('主机软件已结束或网络中断，轮询重试中');
+
+          else
+
+            feedback(label + '失败');
 
         });
 
@@ -582,6 +686,18 @@
 
 
 
+    function flashBtn(btn) {
+
+      if (!btn || btn.disabled) return;
+
+      btn.classList.add('btn-flash');
+
+      setTimeout(function () { btn.classList.remove('btn-flash'); }, 180);
+
+    }
+
+
+
     btns.open.onclick = function () { postCmd('/api/camera/open', '打开相机'); };
 
     btns.close.onclick = function () { postCmd('/api/camera/close', '关闭相机'); };
@@ -590,7 +706,13 @@
 
     btns.calcStop.onclick = function () { postCmd('/api/camera/calculate/stop', '停止计算'); };
 
-    btns.calibrate.onclick = function () { postCmd('/api/camera/calibrate', '标定'); };
+    btns.calibrate.onclick = function () {
+
+      flashBtn(btns.calibrate);
+
+      postCmd('/api/camera/calibrate', '标定');
+
+    };
 
     btns.previewOn.onclick = function () { setPreviewEnabled(true); };
 

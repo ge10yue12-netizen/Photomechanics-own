@@ -1,6 +1,6 @@
 /**
  * 遥控命令与按钮规则（与 PC RemoteCommands knownCommands 对齐）。
- * open_camera / close_camera / open_preview / close_preview / start_calculate / stop_calculate / calibrate
+ * 状态字段与 buildRemoteStatusJson / BLE 紧凑 JSON 对齐。
  */
 
 const CMD_LABELS = {
@@ -29,7 +29,6 @@ function isRemoteOffline(status) {
   return status.ok === false || status.ok === 0
 }
 
-/** 计算进行中：优先 calculateActive，兼容旧字段 acquisitionActive。 */
 function isCalculateRunning(status) {
   const s = status || {}
   if (s.calculateActive !== undefined) return !!s.calculateActive
@@ -37,29 +36,67 @@ function isCalculateRunning(status) {
   return !!s.acquisitionActive
 }
 
-function computeBtnState(status, locked) {
+function isRemotePreviewOn(status) {
   const s = status || {}
-  const open = !!s.cameraOpen
-  const live = !!s.liveViewActive
+  if (s.remotePreviewActive !== undefined) return !!s.remotePreviewActive
+  if (s.rp !== undefined) return !!s.rp
+  return false
+}
+
+function formatStateText(status) {
+  const s = status || {}
+  if (s.stageRunning) return '阶段采集中'
+  if (isCalculateRunning(s)) return '计算中'
+  if (isRemotePreviewOn(s)) return '远程预览中'
+  if (s.cameraOpen) return '可开远程预览'
+  return '待机'
+}
+
+function formatStateClass(status) {
+  const s = status || {}
+  if (s.stageRunning || isCalculateRunning(s) || isRemotePreviewOn(s)) return 'metric-ok'
+  if (s.cameraOpen) return 'metric-warn'
+  return ''
+}
+
+function formatMetrics(status, opts) {
+  const s = status || {}
+  const connected = !!(opts && opts.connected)
+  const offline = connected && isRemoteOffline(s)
+
+  let metricState = formatStateText(s)
+  let metricStateClass = formatStateClass(s)
+  if (offline) {
+    metricState = s.remoteEnabled === false ? '远程已关闭' : '主机异常'
+    metricStateClass = 'metric-err'
+  }
+
   return {
-    open_camera: locked || open,
-    close_camera: locked || !open,
-    open_preview: locked || !open || live,
-    close_preview: locked || !open || !live,
-    start_calculate: locked || !open,
-    stop_calculate: locked || !open,
-    calibrate: locked || !open
+    metricLink: !connected ? '—' : (offline ? '异常' : '正常'),
+    metricLinkClass: !connected ? '' : (offline ? 'metric-err' : 'metric-ok'),
+    metricCam: s.cameraOpen ? '已打开' : '未打开',
+    metricCamClass: s.cameraOpen ? 'metric-ok' : 'metric-warn',
+    metricState,
+    metricStateClass,
+    cameraOpen: !!s.cameraOpen
   }
 }
 
-function formatMetrics(status) {
+function computeBtnState(status, locked) {
   const s = status || {}
+  const offline = isRemoteOffline(s)
+  const lock = locked || offline
+  const open = !!s.cameraOpen
+  const remotePreview = isRemotePreviewOn(s)
   const calc = isCalculateRunning(s)
   return {
-    metricCam: s.cameraOpen ? '已打开' : '未打开',
-    metricCalc: calc ? '进行中' : (s.liveViewActive ? '预览' : '空闲'),
-    metricMsg: s.message || '—',
-    cameraOpen: !!s.cameraOpen
+    open_camera: lock || open,
+    close_camera: lock || !open,
+    open_preview: lock || !open || remotePreview,
+    close_preview: lock || !open || !remotePreview,
+    start_calculate: lock || !open || calc,
+    stop_calculate: lock || !open || !calc,
+    calibrate: lock || !open || calc
   }
 }
 
@@ -72,6 +109,7 @@ module.exports = {
   computeBtnState,
   isRemoteOffline,
   formatMetrics,
-  isCalculateRunning
+  formatStateText,
+  isCalculateRunning,
+  isRemotePreviewOn
 }
-

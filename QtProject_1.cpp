@@ -758,11 +758,11 @@ void QtProject_1::onOpenCamera()
     if (m_camera.open())
     {
         updateParamSpinLimits();
-        startLiveView(); // 打开相机后启动连续采集与预览定时器；「开始采集」为独立业务会话
+        startLiveView(); // 打开相机：PC 软件预览/grab 启动
         log(m_liveViewActive ? QStringLiteral("相机连接成功，预览已启动。")
                              : QStringLiteral("相机连接成功。"));
         if (m_startupGuide)
-            m_startupGuide->notifyCondition(QStringLiteral("camera_opened")); // 引导：刷新「打开相机」步下一步状态
+            m_startupGuide->notifyCondition(QStringLiteral("camera_opened"));
     }
     else
     {
@@ -782,6 +782,7 @@ void QtProject_1::onCloseCamera()
         m_savePath.endStageCapture();
     waitSaveQueueDrained();
     m_acquisitionActive = false;
+    m_remotePreviewActive = false;
     stopLiveView();
     m_camera.close();
     ui.imageLabel->clearImage();
@@ -1237,6 +1238,7 @@ QJsonObject QtProject_1::buildRemoteStatusJson() const
     obj.insert(QStringLiteral("remoteEnabled"), m_remoteEnabled);
     obj.insert(QStringLiteral("cameraOpen"), m_camera.isOpen());
     obj.insert(QStringLiteral("liveViewActive"), m_liveViewActive);
+    obj.insert(QStringLiteral("remotePreviewActive"), m_remotePreviewActive);
     obj.insert(QStringLiteral("acquisitionActive"), m_acquisitionActive);
     obj.insert(QStringLiteral("calculateActive"), m_acquisitionActive);
     obj.insert(QStringLiteral("stageRunning"), m_stageRunning);
@@ -1249,8 +1251,10 @@ QJsonObject QtProject_1::buildRemoteStatusJson() const
                      : (m_stageRunning ? QStringLiteral("运行中") : QStringLiteral("空闲")));
     obj.insert(QStringLiteral("message"), m_stageRunning ? QStringLiteral("阶段采集中")
                      : (m_acquisitionActive ? QStringLiteral("采集中")
-                                            : (m_camera.isOpen() ? QStringLiteral("预览中")
-                                                                   : QStringLiteral("未连接"))));
+                                            : (m_camera.isOpen()
+                                                   ? (m_liveViewActive ? QStringLiteral("预览中")
+                                                                       : QStringLiteral("已连接"))
+                                                   : QStringLiteral("未连接"))));
     return obj;
 }
 
@@ -1290,15 +1294,19 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
     }
     if (cmd == QStringLiteral("open_preview"))
     {
-        if (m_camera.isOpen() && !m_liveViewActive)
-            startLiveView();
+        if (m_camera.isOpen())
+        {
+            ensureLiveView(); // 保证 PC 侧有帧源
+            m_remotePreviewActive = true;
+        }
         pushRemoteStatus();
         return;
     }
     if (cmd == QStringLiteral("close_preview"))
     {
-        if (m_camera.isOpen() && !m_stageRunning && !m_acquisitionActive)
-            stopLiveView();
+        m_remotePreviewActive = false;
+        m_mobileHost.clearPreviewFrame();
+        m_remoteHost.clearPreviewFrame();
         pushRemoteStatus();
         return;
     }
@@ -1429,6 +1437,7 @@ void QtProject_1::applyRemoteService(bool enabled)
     else
     {
         m_remoteEnabled = false;
+        m_remotePreviewActive = false;
         m_mobileHost.stopSession();
         m_remoteHost.shutdown();
         m_mobileHost.clearPreviewFrame();

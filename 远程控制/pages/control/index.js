@@ -14,18 +14,20 @@ const STORAGE_TOKEN = 'rc_token'
 const STORAGE_MODE = 'rc_mode'
 
 const PREVIEW_HINT = {
-  NEED_CONNECT: '须先建立主机连接',
+  NEED_CONNECT: '须先连接主机',
   WIFI_ONLY: '图像预览仅支持 WiFi 通道',
-  PREVIEW_OFF: '预览已关闭',
-  NEED_OPEN_CAMERA: '须执行「打开相机」',
-  LIVE_NOT_READY: '实时预览未就绪',
-  NO_FRAME: '暂无图像数据'
+  PREVIEW_OFF: '须点击「开启预览」',
+  NEED_OPEN_CAMERA: '须先点击「打开相机」',
+  NO_FRAME: '等待图像数据…'
 }
 
 const EMPTY_METRICS = {
+  metricLink: '—',
+  metricLinkClass: '',
   metricCam: '—',
-  metricCalc: '—',
-  metricMsg: '—',
+  metricCamClass: '',
+  metricState: '—',
+  metricStateClass: '',
   previewUrlA: '',
   previewUrlB: '',
   previewActive: 0,
@@ -217,7 +219,7 @@ Page({
   _syncPreview(status) {
     const H = PREVIEW_HINT
     const open = !!(status && status.cameraOpen)
-    const live = !!(status && status.liveViewActive)
+    const remotePreview = !!(status && status.remotePreviewActive)
     if (this.data.mode === 'ble') {
       this._stopPreviewUi(H.WIFI_ONLY)
       return
@@ -230,8 +232,8 @@ Page({
       this._stopPreviewUi(H.NEED_OPEN_CAMERA)
       return
     }
-    if (!live) {
-      this._stopPreviewUi(H.PREVIEW_OFF)
+    if (!remotePreview) {
+      this._stopPreviewUi(open ? H.PREVIEW_OFF : H.NEED_OPEN_CAMERA)
       return
     }
     if (!this._previewStream.isRunning()) {
@@ -297,6 +299,10 @@ Page({
       selectedDeviceId: '',
       linkPanelOpen: true,
       ...EMPTY_METRICS,
+      metricLink: '异常',
+      metricLinkClass: 'metric-err',
+      metricState: '主机已断开',
+      metricStateClass: 'metric-err',
       previewHint: this._previewHintIdle(false)
     })
   },
@@ -304,17 +310,23 @@ Page({
   applyRemoteStatus(status) {
     if (!status || typeof status !== 'object') return
 
-    if (status.remoteEnabled === false) {
+    if (this.data.connected && isRemoteOffline(status)) {
+      if (this.data.mode === 'ble') {
+        this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
+        return
+      }
+      this._lastStatus = status
+      const patch = formatMetrics(status, { connected: true })
+      patch.errorHint = status.message || status.msg ||
+        (status.remoteEnabled === false ? '主机远程服务已关闭' : '主机状态异常')
       this._stopPreviewUi(PREVIEW_HINT.PREVIEW_OFF)
-    }
-
-    if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
-      this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
+      this._safeSetData(patch)
+      this._refreshBtnState()
       return
     }
 
     this._lastStatus = status
-    const patch = formatMetrics(status)
+    const patch = formatMetrics(status, { connected: this.data.connected })
 
     if (status.remoteControlBlocked) {
       patch.errorHint = status.remoteControlMessage || '命令通道被占用'
@@ -359,6 +371,10 @@ Page({
       connDisconnectDisabled: true,
       linkPanelOpen: true,
       ...EMPTY_METRICS,
+      metricLink: '异常',
+      metricLinkClass: 'metric-err',
+      metricState: '主机已断开',
+      metricStateClass: 'metric-err',
       previewHint: this._previewHintIdle(false)
     })
   },
@@ -381,6 +397,10 @@ Page({
       connDisconnectDisabled: true,
       linkPanelOpen: true,
       ...EMPTY_METRICS,
+      metricLink: '异常',
+      metricLinkClass: 'metric-err',
+      metricState: '主机已断开',
+      metricStateClass: 'metric-err',
       previewHint: this._previewHintIdle(false)
     })
     this.bleLink.disconnect().catch(() => {})

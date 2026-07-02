@@ -66,6 +66,8 @@
 .metric-wide { grid-column: span 2; }
 .metric-val { color: rgb(34, 34, 34); font-weight: 600; }
 .metric-ok { color: rgb(16, 124, 16); }
+.metric-warn { color: rgb(202, 80, 16); }
+.metric-err { color: rgb(196, 43, 28); }
 
 .conn-banner { border-radius: 12rpx; padding: 16rpx 20rpx; margin-bottom: 12rpx; font-size: 26rpx; }
 .conn-banner.connecting { background: rgb(253, 246, 239); color: rgb(202, 80, 16); }

@@ -75,7 +75,7 @@
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -93,7 +93,7 @@
       <PreprocessorDefinitions>QT_PROJECT_USE_PYLON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
