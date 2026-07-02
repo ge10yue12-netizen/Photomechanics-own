@@ -164,6 +164,50 @@
 
     var cmdLocked = false;
 
+    var hostOnline = false;
+
+    var statusFailStreak = 0;
+
+    var fetchTimeoutMs = 5000;
+
+    var lastHostProbeMs = 0;
+
+
+
+    function fetchWithTimeout(url, options) {
+
+      options = options || {};
+
+      if (typeof AbortController === 'undefined')
+
+        return fetch(url, options);
+
+      var controller = new AbortController();
+
+      var timer = setTimeout(function () { controller.abort(); }, fetchTimeoutMs);
+
+      var opts = Object.assign({}, options, { signal: controller.signal });
+
+      return fetch(url, opts).finally(function () { clearTimeout(timer); });
+
+    }
+
+
+
+    function probeHostSoon() {
+
+      var now = Date.now();
+
+      if (now - lastHostProbeMs < 300)
+
+        return;
+
+      lastHostProbeMs = now;
+
+      fetchStatus();
+
+    }
+
 
 
     var els = {
@@ -286,6 +330,10 @@
 
     function applyOfflineState(message) {
 
+      hostOnline = false;
+
+      statusFailStreak += 1;
+
       cmdLocked = false;
 
       clearPreviewImage('主机已断开');
@@ -329,6 +377,30 @@
       if (cmdLocked)
 
         Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
+
+    }
+
+
+
+    function applyOnlineStatus(d) {
+
+      hostOnline = true;
+
+      statusFailStreak = 0;
+
+      cmdLocked = !!d.remoteControlBlocked;
+
+      setText(els.link, '正常', 'ok');
+
+      setText(els.cam, d.cameraOpen ? '已打开' : '未打开', d.cameraOpen ? 'ok' : 'warn');
+
+      setText(els.calc, formatStateText(d), formatStateClass(d));
+
+      applyBtnState(d);
+
+      feedback(cmdLocked ? (d.remoteControlMessage || '') : '');
+
+      syncPreviewFromStatus(d);
 
     }
 
@@ -470,19 +542,7 @@
 
       }
 
-      cmdLocked = !!d.remoteControlBlocked;
-
-      setText(els.link, '正常', 'ok');
-
-      setText(els.cam, d.cameraOpen ? '已打开' : '未打开', d.cameraOpen ? 'ok' : 'warn');
-
-      setText(els.calc, formatStateText(d), formatStateClass(d));
-
-      applyBtnState(d);
-
-      feedback(cmdLocked ? (d.remoteControlMessage || '') : '');
-
-      syncPreviewFromStatus(d);
+      applyOnlineStatus(d);
 
     }
 
@@ -490,7 +550,7 @@
 
     function fetchStatus() {
 
-      return fetch(apiUrl('/api/status'))
+      return fetchWithTimeout(apiUrl('/api/status'))
 
         .then(function (r) {
 
@@ -514,7 +574,13 @@
 
           if (err && err.message === 'offline') return;
 
-          applyOfflineState('主机软件已结束或网络中断，轮询重试中');
+          var hint = '主机软件已结束或网络中断，轮询重试中';
+
+          if (err && err.name === 'AbortError')
+
+            hint = '连接超时，主机可能已关闭';
+
+          applyOfflineState(hint);
 
         });
 
@@ -534,7 +600,7 @@
 
       var img = els.img;
 
-      var next = function () {
+      var next = function (ev) {
 
         clearPreviewWatchdog();
 
@@ -544,6 +610,10 @@
 
           return;
 
+        if (ev && ev.type === 'error')
+
+          probeHostSoon();
+
         if (img.src && img.complete && img.naturalWidth > 0)
 
           img.classList.remove('no-image');
@@ -552,7 +622,9 @@
 
       };
 
-      img.onload = img.onerror = next;
+      img.onload = next;
+
+      img.onerror = next;
 
       img.src = apiUrl('/api/preview.jpg') + '&t=' + Date.now();
 
@@ -606,7 +678,7 @@
 
       feedback(label + '…');
 
-      fetch(apiUrl(path), { method: 'POST' })
+      fetchWithTimeout(apiUrl(path), { method: 'POST' })
 
         .then(function (r) {
 
@@ -677,6 +749,8 @@
           if (c.previewPollMs) previewPollMs = c.previewPollMs;
 
           if (c.statusPollMs) statusPollMs = c.statusPollMs;
+
+          if (c.fetchTimeoutMs) fetchTimeoutMs = c.fetchTimeoutMs;
 
         })
 

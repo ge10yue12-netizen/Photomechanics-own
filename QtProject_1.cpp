@@ -1231,6 +1231,16 @@ void QtProject_1::onClearStages()
 // 组装遥控状态 JSON：设备标志、队列长度与摘要 message。
 QJsonObject QtProject_1::buildRemoteStatusJson() const
 {
+    if (m_shutdownDone || !m_remoteEnabled)
+    {
+        QJsonObject obj;
+        obj.insert(QStringLiteral("ok"), false);
+        obj.insert(QStringLiteral("remoteEnabled"), false);
+        obj.insert(QStringLiteral("message"), m_shutdownDone ? QStringLiteral("主机已关闭")
+                                                             : QStringLiteral("远程服务已关闭"));
+        return obj;
+    }
+
     const int qSize = m_saveThread.queueSize();
     const int qCap = m_saveThread.capacity();
     QJsonObject obj;
