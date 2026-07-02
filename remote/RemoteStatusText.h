@@ -2,20 +2,23 @@
 
 #include <QString>
 
-/** PC 端状态行文案：已启动 / 未启动 / 失败原因（header-only，无额外链接依赖）。 */
+// PC 端 HTTP/BLE 状态行文案生成（header-only）。
 namespace RemoteStatusText
 {
 
+// 通道已启动时的状态文案。
 inline QString started()
 {
     return QStringLiteral("已启动");
 }
 
+// 通道未启动且无错误时的状态文案。
 inline QString stopped()
 {
     return QStringLiteral("未启动");
 }
 
+// 将 Qt 监听错误翻译为中文配置提示。
 inline QString humanizeHttpListenError(const QString &raw)
 {
     if (raw.isEmpty())
@@ -24,11 +27,12 @@ inline QString humanizeHttpListenError(const QString &raw)
     {
         return QStringLiteral(
             "监听地址不可用：须将 config/netconfig.ini 中 http/bind"
-            "设为主机局域网 IPv4（与客户端同网段）");
+            "设为本机局域网 IPv4（与客户端同网段）");
     }
     return raw;
 }
 
+// 根据 HTTP 监听状态与 lastError 生成摘要文案。
 inline QString httpSummary(bool listening, const QString &lastError)
 {
     if (listening)
@@ -37,6 +41,7 @@ inline QString httpSummary(bool listening, const QString &lastError)
     return err.isEmpty() ? stopped() : err;
 }
 
+// 根据 BLE 运行状态与 lastError 生成摘要文案。
 inline QString bleSummary(bool running, const QString &lastError)
 {
     if (running)

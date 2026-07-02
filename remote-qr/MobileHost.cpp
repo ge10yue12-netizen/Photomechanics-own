@@ -4,6 +4,7 @@
 #include <QFile>
 #include <climits>
 
+// 构造：初始化定时器、HTTP 回调与 token/预览/配置提供函数。
 MobileHost::MobileHost(QObject *parent)
     : QObject(parent)
 {
@@ -29,6 +30,7 @@ MobileHost::MobileHost(QObject *parent)
     m_server.setConfigProvider([this]() { return buildClientConfigJson(); });
 }
 
+// 读取 mobile.ini 并更新 token 有效期与预览编码参数。
 bool MobileHost::reloadSettings()
 {
     QString err;
@@ -43,6 +45,7 @@ bool MobileHost::reloadSettings()
     return true;
 }
 
+// 在指定 IP 上启动 HTTP 会话并刷新 token。
 bool MobileHost::startSession(const QString &displayIp)
 {
     const QString ip = displayIp.trimmed();
@@ -81,6 +84,7 @@ bool MobileHost::startSession(const QString &displayIp)
     return true;
 }
 
+// 停止 HTTP 服务、失效 token 并释放命令占用。
 void MobileHost::stopSession()
 {
     m_phoneWatchTimer.stop();
@@ -95,11 +99,13 @@ void MobileHost::stopSession()
     emit sessionStopped();
 }
 
+// 判断 HTTP 监听中且 token 有效。
 bool MobileHost::isSessionActive() const
 {
     return m_server.isListening() && m_token.hasValidToken();
 }
 
+// token 过期且 HTTP 仍在监听时停止会话。
 void MobileHost::syncExpiredSession()
 {
     if (m_server.isListening() && !m_token.hasValidToken())
@@ -109,6 +115,7 @@ void MobileHost::syncExpiredSession()
     }
 }
 
+// 拼接当前会话的 mobile 页面 URL。
 QString MobileHost::mobileUrl() const
 {
     if (m_displayIp.isEmpty() || !m_token.hasValidToken())
@@ -119,22 +126,34 @@ QString MobileHost::mobileUrl() const
         .arg(m_token.currentToken());
 }
 
+// 清空预览 JPEG 缓存。
 void MobileHost::clearPreviewFrame()
 {
     m_preview.clear();
 }
 
+// 向 HTTP 服务注册状态 JSON 提供函数。
 void MobileHost::setStatusProvider(std::function<QJsonObject()> provider)
 {
     m_server.setStatusProvider(std::move(provider));
 }
 
+// 注入命令互斥 guard 并绑定 QrBrowser 来源。
 void MobileHost::setControlGuard(RemoteControlGuard *guard)
 {
     m_controlGuard = guard;
     m_server.setControlGuard(guard, RemoteControlSource::QrBrowser);
 }
 
+// 查询 HTTP 预览请求是否在 TTL 窗口内。
+bool MobileHost::hadRecentPreviewRequest(qint64 nowMs, int ttlMs) const
+{
+    if (!m_server.isListening())
+        return false;
+    return m_server.hadRecentPreviewRequest(nowMs, ttlMs);
+}
+
+// token 过期定时器回调：停止会话。
 void MobileHost::onTokenExpired()
 {
     if (!m_server.isListening())
@@ -143,6 +162,7 @@ void MobileHost::onTokenExpired()
     stopSession();
 }
 
+// 检测浏览器客户端空闲超时并发出 phoneDisconnected。
 void MobileHost::onPhoneIdleCheck()
 {
     if (!m_phoneConnected || !isSessionActive() || m_lastPhoneActivityMs <= 0)
@@ -158,6 +178,7 @@ void MobileHost::onPhoneIdleCheck()
     emit phoneDisconnected();
 }
 
+// 按 tokenLifetimeSec 启动单次过期定时器。
 void MobileHost::scheduleTokenExpiry()
 {
     m_expiryTimer.stop();
@@ -166,12 +187,14 @@ void MobileHost::scheduleTokenExpiry()
         m_expiryTimer.start(static_cast<int>(qMin(ms, static_cast<qint64>(INT_MAX))));
 }
 
+// 根据状态/预览轮询间隔计算空闲判定阈值。
 int MobileHost::phoneIdleTimeoutMs() const
 {
     const int pollMax = qMax(m_cfg.previewPollMs, m_cfg.statusPollMs);
     return qBound(2000, pollMax * 4 + 1000, 30000);
 }
 
+// 从 Qt 资源加载 mobile.html。
 bool MobileHost::loadMobileHtml()
 {
     if (!m_mobileHtml.isEmpty())
@@ -188,6 +211,7 @@ bool MobileHost::loadMobileHtml()
     return true;
 }
 
+// 构建客户端轮询间隔配置 JSON。
 QJsonObject MobileHost::buildClientConfigJson() const
 {
     return {
@@ -195,3 +219,4 @@ QJsonObject MobileHost::buildClientConfigJson() const
         {QStringLiteral("statusPollMs"), m_cfg.statusPollMs},
     };
 }
+

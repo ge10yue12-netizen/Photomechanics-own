@@ -3,11 +3,7 @@
 #include <QtGlobal>
 #include <QString>
 
-/**
- * @brief 扫码遥控通信与预览参数（独立配置文件 config/mobile.ini）。
- *
- * 与 remote/netconfig.ini 分离：本模块仅读取 [mobile] 与 [preview] 段。
- */
+// config/mobile.ini 解析结果：HTTP 端口、会话有效期与预览参数。
 struct MobileConfig
 {
     quint16 httpPort = 8080;
@@ -20,12 +16,14 @@ struct MobileConfig
     int statusPollMs = 800;
 };
 
-/**
- * @brief 自 exe 目录向上查找 config/mobile.ini 并解析。
- */
+// config/mobile.ini 定位与解析。
+// 配置文件缺失时使用结构体默认值。
 class MobileConfigHelper
 {
 public:
+    // 返回首个存在的 config/mobile.ini 绝对路径；未找到时返回空字符串。
     static QString configFilePath();
+
+    // 读取 mobile.ini 并校验数值范围；失败时通过 error 返回原因。
     static bool load(MobileConfig &cfg, QString *error = nullptr);
 };

@@ -127,54 +127,38 @@ QtProject_1::QtProject_1(QWidget *parent)
     connect(&m_saveThread, &ImageSaveThread::queueBacklog, this, &QtProject_1::onSaveQueueBacklog);
     connect(&m_saveThread, &ImageSaveThread::queueFull, this, &QtProject_1::onSaveQueueFull);
     connect(&m_camera, &CameraController::errorOccurred, this, &QtProject_1::onCameraError);
-    // --- 遥控服务初始化：BLE/HTTP 状态行、命令转发与配置加载 ---
-    auto *bleRow = new QWidget(this);
-    auto *bleLayout = new QHBoxLayout(bleRow);
-    bleLayout->setContentsMargins(0, 0, 0, 0);
-    bleLayout->addWidget(new QLabel(QStringLiteral("BLE 遥控"), bleRow));
-    m_bleStatusLabel = new QLabel(QStringLiteral("未启动"), bleRow);
-    m_bleStatusLabel->setMinimumWidth(220);
-    bleLayout->addWidget(m_bleStatusLabel, 1);
-    ui.logLayout->insertWidget(0, bleRow);
-
-    auto *httpRow = new QWidget(this);
-    auto *httpLayout = new QHBoxLayout(httpRow);
-    httpLayout->setContentsMargins(0, 0, 0, 0);
-    httpLayout->addWidget(new QLabel(QStringLiteral("HTTP 遥控"), httpRow));
-    m_httpStatusLabel = new QLabel(QStringLiteral("未启动"), httpRow);
-    m_httpStatusLabel->setMinimumWidth(220);
-    httpLayout->addWidget(m_httpStatusLabel, 1);
-    ui.logLayout->insertWidget(1, httpRow);
-
-    auto *mobileRow = new QWidget(this);
-    auto *mobileLayout = new QHBoxLayout(mobileRow);
-    mobileLayout->setContentsMargins(0, 0, 0, 0);
-    mobileLayout->addWidget(new QLabel(QStringLiteral("扫码遥控"), mobileRow));
-    auto *mobileBtn = new QPushButton(QStringLiteral("手机扫码控制"), mobileRow);
-    mobileLayout->addWidget(mobileBtn);
-    m_mobileStatusLabel = new QLabel(QStringLiteral("未启动"), mobileRow);
-    m_mobileStatusLabel->setMinimumWidth(160);
-    mobileLayout->addWidget(m_mobileStatusLabel, 1);
-    ui.logLayout->insertWidget(2, mobileRow);
-    connect(mobileBtn, &QPushButton::clicked, this, &QtProject_1::onMobileRemoteControl);
+    // --- 远程控制：主界面入口、门面接线与命令分发 ---
+    auto *remoteRow = new QWidget(this);
+    auto *remoteLayout = new QHBoxLayout(remoteRow);
+    remoteLayout->setContentsMargins(0, 0, 0, 0);
+    remoteLayout->addWidget(new QLabel(QStringLiteral("远程控制"), remoteRow));
+    auto *remoteBtn = new QPushButton(QStringLiteral("打开远程控制"), remoteRow);
+    remoteLayout->addWidget(remoteBtn);
+    m_remoteSummaryLabel = new QLabel(QStringLiteral("未启用"), remoteRow);
+    m_remoteSummaryLabel->setMinimumWidth(200);
+    remoteLayout->addWidget(m_remoteSummaryLabel, 1);
+    ui.logLayout->insertWidget(0, remoteRow);
+    connect(remoteBtn, &QPushButton::clicked, this, &QtProject_1::onRemoteControl);
 
     m_remoteHost.setControlGuard(&m_remoteGuard);
     m_mobileHost.setControlGuard(&m_remoteGuard);
     m_mobileHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
     connect(&m_mobileHost, &MobileHost::commandReceived, this, &QtProject_1::onRemoteCommand);
-    connect(&m_mobileHost, &MobileHost::sessionStarted, this, &QtProject_1::refreshMobileStatusLabel);
-    connect(&m_mobileHost, &MobileHost::sessionStopped, this, &QtProject_1::refreshMobileStatusLabel);
-    connect(&m_mobileHost, &MobileHost::phoneConnected, this, &QtProject_1::refreshMobileStatusLabel);
-    connect(&m_mobileHost, &MobileHost::phoneDisconnected, this, &QtProject_1::refreshMobileStatusLabel);
+    connect(&m_mobileHost, &MobileHost::sessionStarted, this, [this](const QString &url) {
+        refreshRemoteSummaryLabel();
+        if (!url.isEmpty())
+            log(QStringLiteral("扫码网页已就绪：%1").arg(url));
+    });
+    connect(&m_mobileHost, &MobileHost::sessionStopped, this, &QtProject_1::refreshRemoteSummaryLabel);
+    connect(&m_mobileHost, &MobileHost::phoneConnected, this, &QtProject_1::refreshRemoteSummaryLabel);
+    connect(&m_mobileHost, &MobileHost::phoneDisconnected, this, &QtProject_1::refreshRemoteSummaryLabel);
 
-    m_remoteHost.setStatusLabels(m_bleStatusLabel, m_httpStatusLabel);
     m_remoteHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
     connect(&m_remoteHost, &RemoteHost::commandReceived, this, &QtProject_1::onRemoteCommand);
     connect(&m_remoteHost, &RemoteHost::notify, this, [this](const QString &msg) {
         if (!msg.isEmpty())
             log(msg);
     });
-
 
     // 六个主操作按钮样式固定：正向 primary=蓝，停止/关闭 danger=红
     applyButtonRole(ui.openCameraBtn, "primary");
@@ -212,21 +196,8 @@ QtProject_1::QtProject_1(QWidget *parent)
     log(m_camera.initPylon() ? QStringLiteral("Pylon 初始化成功。")
                               : QStringLiteral("[警告] Pylon 初始化失败。"));
     log(QStringLiteral("软件启动。"));
-    if (!m_remoteHost.bootstrap())
-    {
-        if (!m_remoteHost.kit().lastError().isEmpty())
-            log(QStringLiteral("遥控：%1").arg(m_remoteHost.kit().lastError()));
-    }
-    for (const QString &line : m_remoteHost.startupWarnings())
-        log(line);
-    if (m_remoteHost.kit().http().isListening())
-    {
-        log(QStringLiteral("HTTP 遥控已启动，手机可连接 %1")
-                .arg(m_remoteHost.kit().httpEndpoint()));
-    }
-    if (m_remoteHost.kit().ble().isRunning())
-        log(QStringLiteral("BLE 遥控已启动，设备名：%1")
-                .arg(m_remoteHost.kit().config().bleDeviceName));
+    log(QStringLiteral("远程服务默认关闭；打开「远程控制」→ 选择「开启」后启动 HTTP/BLE，扫码须切至「扫码网页」页。"));
+    refreshRemoteSummaryLabel();
     qDebug() << QImageWriter::supportedImageFormats();  // 检查是否包含 "jpeg"
 
     setupStartupGuide();
@@ -291,14 +262,15 @@ void QtProject_1::shutdownAll()
     m_shutdownDone = true;
 
     m_mobileHost.stopSession();
-    if (m_mobileDialog)
+    if (m_remoteCenter)
     {
-        m_mobileDialog->hide();
-        delete m_mobileDialog;
-        m_mobileDialog = nullptr;
+        m_remoteCenter->hide();
+        delete m_remoteCenter;
+        m_remoteCenter = nullptr;
     }
 
-    m_remoteHost.shutdown();
+    if (m_remoteEnabled)
+        m_remoteHost.shutdown();
 
     if (m_stageRunning)
     {
@@ -867,8 +839,15 @@ void QtProject_1::onDisplayTimer()
     if (!m_camera.copyLatestImage(frame, &frameSeq) || frame.isNull())
         return;
 
-    m_mobileHost.previewCache().updateFrame(frame, frameSeq);
-    m_remoteHost.previewCache().updateFrame(frame, frameSeq);
+    if (m_remoteEnabled)
+    {
+        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        const int previewTtlMs = 400;
+        if (m_remoteHost.hadRecentPreviewRequest(nowMs, previewTtlMs))
+            m_remoteHost.previewCache().updateFrame(frame, frameSeq);
+        if (m_mobileHost.isSessionActive() && m_mobileHost.hadRecentPreviewRequest(nowMs, previewTtlMs))
+            m_mobileHost.previewCache().updateFrame(frame, frameSeq);
+    }
 
     const QSize viewSize = ui.imageLabel->size();
     // 帧序号与预览区尺寸均未变化时跳过重绘，以降低界面刷新开销
@@ -1248,13 +1227,14 @@ void QtProject_1::onClearStages()
         ui.stageTable->setRowCount(0);
 }
 
-// 遥控状态快照：相机/采集/阶段标志、存图队列与摘要 message。
+// 组装遥控状态 JSON：设备标志、队列长度与摘要 message。
 QJsonObject QtProject_1::buildRemoteStatusJson() const
 {
     const int qSize = m_saveThread.queueSize();
     const int qCap = m_saveThread.capacity();
     QJsonObject obj;
     obj.insert(QStringLiteral("ok"), true);
+    obj.insert(QStringLiteral("remoteEnabled"), m_remoteEnabled);
     obj.insert(QStringLiteral("cameraOpen"), m_camera.isOpen());
     obj.insert(QStringLiteral("liveViewActive"), m_liveViewActive);
     obj.insert(QStringLiteral("acquisitionActive"), m_acquisitionActive);
@@ -1274,12 +1254,13 @@ QJsonObject QtProject_1::buildRemoteStatusJson() const
     return obj;
 }
 
+// 触发 BLE 状态 Notify 推送。
 void QtProject_1::pushRemoteStatus()
 {
     m_remoteHost.pushBleStatus();
 }
 
-// 遥控命令分发：映射至现有 onOpenCamera 等槽，前置条件与主界面一致。
+// 遥控命令分发：映射至相机/采集/计算/标定槽函数；前置条件与主界面操作一致。
 void QtProject_1::onRemoteCommand(const QString &cmd)
 {
     if (m_shutdownDone)
@@ -1366,37 +1347,117 @@ void QtProject_1::onRemoteCommand(const QString &cmd)
     }
     if (cmd == QStringLiteral("calibrate"))
     {
-        log(QStringLiteral("[提示] 远程标定命令已受理（业务逻辑待宿主实现）。"));
+        log(QStringLiteral("[提示] 远程标定命令已受理（业务逻辑待实现）。"));
         pushRemoteStatus();
         return;
     }
 
-    // log(QStringLiteral("[警告] 未知远程命令：%1").arg(cmd));
     pushRemoteStatus();
 }
 
-void QtProject_1::onMobileRemoteControl()
+// 显示或创建远程控制管理对话框。
+void QtProject_1::onRemoteControl()
 {
     if (m_shutdownDone)
         return;
-    if (!m_mobileDialog)
-        m_mobileDialog = new RemoteControlDialog(&m_mobileHost, this);
-    m_mobileDialog->show();
-    m_mobileDialog->raise();
-    m_mobileDialog->activateWindow();
+    if (!m_remoteCenter)
+    {
+        m_remoteCenter = new RemoteControlCenter(this);
+        m_remoteCenter->bindRemoteHost(&m_remoteHost);
+        m_remoteCenter->bindMobileHost(&m_mobileHost);
+        m_remoteCenter->setRemoteEnabled(m_remoteEnabled);
+        connect(m_remoteCenter, &RemoteControlCenter::remoteEnabledChanged,
+                this, &QtProject_1::applyRemoteService);
+    }
+    m_remoteCenter->show();
+    m_remoteCenter->raise();
+    m_remoteCenter->activateWindow();
 }
 
-void QtProject_1::refreshMobileStatusLabel()
+// 启用或关闭远程服务：bootstrap/shutdown 双门面并更新 UI 与状态 JSON。
+void QtProject_1::applyRemoteService(bool enabled)
 {
-    if (!m_mobileStatusLabel)
+    if (m_shutdownDone || m_remoteEnabled == enabled)
         return;
-    if (!m_mobileHost.isSessionActive())
+
+    if (enabled)
     {
-        m_mobileStatusLabel->setText(QStringLiteral("未启动"));
+        if (!m_remoteHost.bootstrap())
+        {
+            if (!m_remoteHost.kit().lastError().isEmpty())
+                log(QStringLiteral("遥控：%1").arg(m_remoteHost.kit().lastError()));
+        }
+        for (const QString &line : m_remoteHost.startupWarnings())
+            log(line);
+
+        const bool httpUp = m_remoteHost.kit().http().isListening();
+        const bool bleUp = m_remoteHost.kit().ble().isRunning();
+        if (!httpUp && !bleUp)
+        {
+            log(QStringLiteral("[警告] 远程服务启动失败，请检查 config/netconfig.ini。"));
+            if (m_remoteCenter)
+                m_remoteCenter->setRemoteEnabled(false);
+            return;
+        }
+
+        m_remoteEnabled = true;
+        if (httpUp)
+        {
+            log(QStringLiteral("HTTP 遥控已启动，手机可连接 %1")
+                    .arg(m_remoteHost.kit().httpEndpoint()));
+        }
+        if (bleUp)
+        {
+            log(QStringLiteral("BLE 遥控已启动，设备名：%1")
+                    .arg(m_remoteHost.kit().config().bleDeviceName));
+        }
+    }
+    else
+    {
+        m_remoteEnabled = false;
+        m_mobileHost.stopSession();
+        m_remoteHost.shutdown();
+        m_mobileHost.clearPreviewFrame();
+        m_remoteHost.clearPreviewFrame();
+        log(QStringLiteral("远程控制已关闭。"));
+    }
+
+    refreshRemoteSummaryLabel();
+    if (m_remoteCenter)
+        m_remoteCenter->setRemoteEnabled(m_remoteEnabled);
+    pushRemoteStatus();
+}
+
+// 判断预览帧是否应编码为 JPEG：远程总闸开启且存在近期 preview 请求。
+bool QtProject_1::wantsPreviewEncoding() const
+{
+    if (!m_remoteEnabled)
+        return false;
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const int previewTtlMs = 400;
+    if (m_remoteHost.hadRecentPreviewRequest(nowMs, previewTtlMs))
+        return true;
+    return m_mobileHost.isSessionActive() && m_mobileHost.hadRecentPreviewRequest(nowMs, previewTtlMs);
+}
+
+// 更新主界面远程控制摘要标签（WiFi/BLE/扫码通道状态）。
+void QtProject_1::refreshRemoteSummaryLabel()
+{
+    if (!m_remoteSummaryLabel)
+        return;
+    if (!m_remoteEnabled)
+    {
+        m_remoteSummaryLabel->setText(QStringLiteral("未启用"));
         return;
     }
-    if (m_mobileHost.isPhoneConnected())
-        m_mobileStatusLabel->setText(QStringLiteral("运行中 · 已连接"));
-    else
-        m_mobileStatusLabel->setText(QStringLiteral("运行中 · 等待手机"));
+    QStringList parts;
+    if (m_remoteHost.kit().http().isListening())
+        parts << QStringLiteral("WiFi");
+    if (m_remoteHost.kit().ble().isRunning())
+        parts << QStringLiteral("BLE");
+    if (m_mobileHost.isSessionActive())
+        parts << QStringLiteral("扫码");
+    m_remoteSummaryLabel->setText(parts.isEmpty()
+                                      ? QStringLiteral("运行中")
+                                      : QStringLiteral("运行中 · %1").arg(parts.join(QStringLiteral("/"))));
 }

@@ -9,7 +9,7 @@
 #include "remote/RemoteHost.h"
 #include "remote/RemoteControlGuard.h"
 #include "remote-qr/MobileHost.h"
-#include "remote-qr/RemoteControlDialog.h"
+#include "host-remote/RemoteControlCenter.h"
 #include "core/AppLogger.h"
 #include "stage/StageManager.h"
 #include "save/ImageSaveThread.h"
@@ -46,7 +46,7 @@ private slots:
     void onCameraError(const QString &message);
     // HTTP/BLE 遥控命令入口，与主界面按钮共用同一套业务槽。
     void onRemoteCommand(const QString &cmd);
-    void onMobileRemoteControl();
+    void onRemoteControl();
 
     // 阶段表编辑
     void onAddStage();
@@ -109,10 +109,20 @@ private:
     void updateGlobalStatus();             // 刷新底部状态栏四段摘要
     void setupStartupGuide();         // 创建 GuideManager 并填充测试引导步骤
     void populateBasicCaptureGuide(); // 注册 basic_capture 的 7 步引导配置（宿主样例）
-    // 组装遥控状态 JSON，供 HTTP 响应与 BLE Notify 共用。
+    // 组装遥控状态 JSON，供 HTTP 响应与 BLE Notify 使用。
     QJsonObject buildRemoteStatusJson() const;
+
+    // 向 BLE 已连接客户端推送一次状态 Notify。
     void pushRemoteStatus();
-    void refreshMobileStatusLabel();
+
+    // 启用或关闭远程服务总闸；控制 HTTP/BLE/扫码会话生命周期。
+    void applyRemoteService(bool enabled);
+
+    // 判断当前是否应对预览帧执行 JPEG 编码。
+    bool wantsPreviewEncoding() const;
+
+    // 刷新主界面远程控制摘要标签。
+    void refreshRemoteSummaryLabel();
 
     Ui::QtProject_1Class ui;
     CameraController m_camera;
@@ -120,13 +130,12 @@ private:
     ImageSaveThread m_saveThread;
     SavePathHelper m_savePath;
     AppLogger m_logger;              // 运行日志写入 Log/run_*.log；log() 同步写入文件与界面控件
-    RemoteHost m_remoteHost;
-    MobileHost m_mobileHost;
-    RemoteControlGuard m_remoteGuard;
-    RemoteControlDialog *m_mobileDialog = nullptr;
-    QLabel *m_bleStatusLabel = nullptr;
-    QLabel *m_httpStatusLabel = nullptr;
-    QLabel *m_mobileStatusLabel = nullptr;
+    RemoteHost m_remoteHost;         // WiFi/BLE 遥控门面
+    MobileHost m_mobileHost;         // 扫码 HTTP 遥控门面
+    RemoteControlGuard m_remoteGuard; // 跨客户端命令通道互斥
+    RemoteControlCenter *m_remoteCenter = nullptr; // 远程控制管理对话框
+    QLabel *m_remoteSummaryLabel = nullptr;        // 主界面远程状态摘要标签
+    bool m_remoteEnabled = false;    // 远程服务总闸；为 false 时不监听 HTTP/BLE/扫码
     GuideManager *m_startupGuide = nullptr;       // GuideKit 实例
     bool m_startupGuideScheduled = false;         // showEvent 中仅调度一次 startIfNeeded
     QTimer m_displayTimer;           // 预览刷新定时器，间隔约 33 ms（约 30 Hz）

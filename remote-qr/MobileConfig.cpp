@@ -10,6 +10,7 @@ namespace
 
 const QString kConfigRel = QStringLiteral("config/mobile.ini");
 
+// 写入 error 并返回 false。
 bool fail(QString *error, const QString &msg)
 {
     if (error)
@@ -17,6 +18,7 @@ bool fail(QString *error, const QString &msg)
     return false;
 }
 
+// 将 value 限制在 [minVal, maxVal]；越界时返回 fallback。
 int clampInt(int value, int minVal, int maxVal, int fallback)
 {
     if (value < minVal || value > maxVal)
@@ -24,6 +26,7 @@ int clampInt(int value, int minVal, int maxVal, int fallback)
     return value;
 }
 
+// 写入 MobileConfig 默认值。
 void applyDefaults(MobileConfig &cfg)
 {
     cfg.httpPort = 8080;
@@ -37,6 +40,7 @@ void applyDefaults(MobileConfig &cfg)
 
 } // namespace
 
+// 自 exe 目录向上查找 mobile.ini。
 QString MobileConfigHelper::configFilePath()
 {
     QDir dir(QCoreApplication::applicationDirPath());
@@ -51,6 +55,7 @@ QString MobileConfigHelper::configFilePath()
     return QString();
 }
 
+// 读取 mobile.ini 各段并校验数值范围。
 bool MobileConfigHelper::load(MobileConfig &cfg, QString *error)
 {
     applyDefaults(cfg);

@@ -8,21 +8,26 @@
 
 namespace
 {
+
 const QString kConfigRel = QStringLiteral("config/netconfig.ini");
 
+// 写入 error 并返回 false。
 bool fail(QString *error, const QString &msg)
 {
     if (error)
         *error = msg;
     return false;
 }
-}
 
+} // namespace
+
+// 拼接 httpBind 与 httpPort 为对外 endpoint 字符串。
 QString RemoteConfig::httpEndpoint() const
 {
     return httpBind.trimmed() + QLatin1Char(':') + QString::number(httpPort);
 }
 
+// 自 exe 目录向上查找 netconfig.ini。
 QString NetConfigHelper::configFilePath()
 {
     QDir dir(QCoreApplication::applicationDirPath());
@@ -37,6 +42,7 @@ QString NetConfigHelper::configFilePath()
     return QString();
 }
 
+// 解析 netconfig.ini 各段并校验必填项与 bind 地址格式。
 bool NetConfigHelper::load(RemoteConfig &cfg, QString *error)
 {
     const QString path = configFilePath();

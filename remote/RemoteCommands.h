@@ -3,13 +3,12 @@
 #include <QSet>
 #include <QString>
 
-/**
- * 项目命令表 — 移植时只改本文件。
- * 命令名须与小程序 CMD、onRemoteCommand 分支一致；须包含 status。
- */
+// HTTP/BLE 遥控命令名注册表与中文标签。
+// 供 RemoteControlServer、BleControlServer 校验 POST 命令合法性。
 namespace RemoteCommands
 {
 
+// 返回全部已注册的命令名集合。
 inline const QSet<QString> &knownCommands()
 {
     static const QSet<QString> kTable = {
@@ -27,11 +26,13 @@ inline const QSet<QString> &knownCommands()
     return kTable;
 }
 
+// 判断 cmd 是否在已注册命令表中。
 inline bool accepts(const QString &cmd)
 {
     return knownCommands().contains(cmd);
 }
 
+// 返回命令的中文展示标签；未知命令原样返回。
 inline QString label(const QString &cmd)
 {
     if (cmd == QStringLiteral("open_camera")) return QStringLiteral("打开相机");
@@ -50,12 +51,13 @@ inline QString label(const QString &cmd)
 
 } // namespace RemoteCommands
 
-// 全局便捷函数：HTTP/BLE/宿主统一通过此处校验命令与取中文标签。
+// 校验遥控命令是否在 RemoteCommands 注册表中。
 inline bool isKnownRemoteCommand(const QString &cmd)
 {
     return RemoteCommands::accepts(cmd);
 }
 
+// 返回遥控命令的中文标签。
 inline QString remoteCommandLabel(const QString &cmd)
 {
     return RemoteCommands::label(cmd);

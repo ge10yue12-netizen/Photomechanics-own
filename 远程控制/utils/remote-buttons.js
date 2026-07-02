@@ -23,6 +23,7 @@ function defaultBtnState(disabled) {
 
 function isRemoteOffline(status) {
   if (!status || typeof status !== 'object') return false
+  if (status.remoteEnabled === false) return true
   return status.ok === false || status.ok === 0
 }
 

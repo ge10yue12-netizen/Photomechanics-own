@@ -6,6 +6,7 @@
 namespace
 {
 
+// 判断网卡是否为常见虚拟或回环接口。
 bool isVirtualInterface(const QNetworkInterface &iface)
 {
     const QString hint = iface.humanReadableName() + QLatin1Char(' ') + iface.name();
@@ -28,6 +29,7 @@ bool isVirtualInterface(const QNetworkInterface &iface)
     return false;
 }
 
+// 判断网卡是否为无线接口。
 bool isWifiInterface(const QNetworkInterface &iface)
 {
     const QString hint = iface.humanReadableName() + QLatin1Char(' ') + iface.name();
@@ -36,6 +38,7 @@ bool isWifiInterface(const QNetworkInterface &iface)
         || hint.contains(QStringLiteral("无线"), Qt::CaseInsensitive);
 }
 
+// 去重追加 IP 至列表。
 void appendIp(QStringList &list, const QString &ip)
 {
     if (!list.contains(ip))
@@ -44,6 +47,7 @@ void appendIp(QStringList &list, const QString &ip)
 
 } // namespace
 
+// 枚举已启用网卡的 IPv4 地址，无线地址优先。
 QStringList NetworkHelper::getLocalIPv4List()
 {
     QStringList wifiIps;
@@ -81,6 +85,7 @@ QStringList NetworkHelper::getLocalIPv4List()
     return wifiIps + otherIps;
 }
 
+// 返回 getLocalIPv4List 的首项。
 QString NetworkHelper::preferredDefaultIp()
 {
     const QStringList ips = getLocalIPv4List();

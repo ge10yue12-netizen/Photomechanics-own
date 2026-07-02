@@ -3,6 +3,7 @@
 #include <QtGlobal>
 #include <QString>
 
+// netconfig.ini 解析结果：认证口令、HTTP 绑定、BLE 广播名。
 struct RemoteConfig
 {
     QString token;
@@ -10,16 +11,18 @@ struct RemoteConfig
     quint16 httpPort = 0;
     QString bleDeviceName;
 
-    // 返回 netconfig.ini 中 http/bind 与 http/port，供日志与手机填写。
+    // 返回配置中的 HTTP 对外地址，格式为 bind:port。
     QString httpEndpoint() const;
 };
 
+// config/netconfig.ini 定位与解析。
+// 自可执行文件目录向上最多 8 层查找配置文件。
 class NetConfigHelper
 {
 public:
-    // 从 exe 所在目录向上查找 config/netconfig.ini，返回首个存在的绝对路径；未找到返回空字符串。
+    // 返回首个存在的 config/netconfig.ini 绝对路径；未找到时返回空字符串。
     static QString configFilePath();
 
-    // 读取 netconfig.ini 填入 cfg；校验必填项与 bind 格式，失败返回 false 并通过 error 说明原因。
+    // 读取并校验 netconfig.ini，结果写入 cfg；失败时通过 error 返回原因。
     static bool load(RemoteConfig &cfg, QString *error = nullptr);
 };

@@ -3,16 +3,10 @@
 #include <QImage>
 #include <QString>
 
-/**
- * @brief 将文本编码为 QR 码 QImage（Nayuki qrcodegen）。
- */
+// * QR 码图像生成（Nayuki qrcodegen）。
 class QrCodeHelper
 {
 public:
-    /**
-     * @param text   通常为 mobile URL
-     * @param scale  模块像素倍率
-     * @param border 静区模块宽度
-     */
+    // 将 text 编码为 QR 码 QImage；失败时返回空 QImage。
     static QImage generateQrImage(const QString &text, int scale = 8, int border = 4);
 };

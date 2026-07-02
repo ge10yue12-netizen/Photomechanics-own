@@ -44,28 +44,32 @@
   </view>
 
   <view class="metrics-grid" wx:if="{{connected}}">
+    <view class="metric-cell">链路：<text class="metric-val metric-ok">正常</text></view>
     <view class="metric-cell">相机：<text class="metric-val">{{metricCam}}</text></view>
-    <view class="metric-cell">采集：<text class="metric-val">{{metricGrab}}</text></view>
-    <view class="metric-cell">阶段：<text class="metric-val">{{metricStage}}</text></view>
+    <view class="metric-cell">计算：<text class="metric-val">{{metricCalc}}</text></view>
     <view class="metric-cell metric-wide">摘要：<text class="metric-val">{{metricMsg}}</text></view>
   </view>
 
-  <view class="section-title">连接相机</view>
+  <view class="section-title">相机</view>
   <view class="btn-grid">
     <view class="tap-btn tap-btn--primary {{pendingAction === 'open_camera' ? 'tap-btn--pending' : ''}} {{btnState.open_camera ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.open_camera ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="open_camera">打开相机</view>
     <view class="tap-btn tap-btn--danger {{pendingAction === 'close_camera' ? 'tap-btn--pending' : ''}} {{btnState.close_camera ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.close_camera ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="close_camera">关闭相机</view>
   </view>
 
-  <view class="section-title">采集与存图</view>
+  <view class="section-title">图像预览开关</view>
   <view class="btn-grid">
-    <view class="tap-btn tap-btn--primary {{pendingAction === 'start_capture' ? 'tap-btn--pending' : ''}} {{btnState.start_capture ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.start_capture ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="start_capture">开始采集</view>
-    <view class="tap-btn tap-btn--danger {{pendingAction === 'stop_capture' ? 'tap-btn--pending' : ''}} {{btnState.stop_capture ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.stop_capture ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="stop_capture">停止采集</view>
-    <view class="tap-btn tap-btn--primary {{pendingAction === 'save_one' ? 'tap-btn--pending' : ''}} {{btnState.save_one ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.save_one ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="save_one">保存单张 BMP</view>
+    <view class="tap-btn tap-btn--primary {{previewOn ? 'tap-btn--disabled' : ''}} {{!connected ? 'tap-btn--disabled' : ''}}" hover-class="{{previewOn || !connected ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onPreviewOn">开启预览</view>
+    <view class="tap-btn tap-btn--danger {{!previewOn ? 'tap-btn--disabled' : ''}} {{!connected ? 'tap-btn--disabled' : ''}}" hover-class="{{!previewOn || !connected ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onPreviewOff">关闭预览</view>
   </view>
 
-  <view class="section-title">阶段采集</view>
+  <view class="section-title">计算</view>
   <view class="btn-grid">
-    <view class="tap-btn tap-btn--primary {{pendingAction === 'start_stage' ? 'tap-btn--pending' : ''}} {{btnState.start_stage ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.start_stage ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="start_stage">开始阶段采集</view>
-    <view class="tap-btn tap-btn--danger {{pendingAction === 'stop_stage' ? 'tap-btn--pending' : ''}} {{btnState.stop_stage ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.stop_stage ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="stop_stage">停止阶段</view>
+    <view class="tap-btn tap-btn--primary {{pendingAction === 'start_calculate' ? 'tap-btn--pending' : ''}} {{btnState.start_calculate ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.start_calculate ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="start_calculate">开始计算</view>
+    <view class="tap-btn tap-btn--danger {{pendingAction === 'stop_calculate' ? 'tap-btn--pending' : ''}} {{btnState.stop_calculate ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.stop_calculate ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="stop_calculate">停止计算</view>
+  </view>
+
+  <view class="section-title">标定</view>
+  <view class="btn-grid btn-grid--single">
+    <view class="tap-btn tap-btn--primary tap-btn--wide {{pendingAction === 'calibrate' ? 'tap-btn--pending' : ''}} {{btnState.calibrate ? 'tap-btn--disabled' : ''}}" hover-class="{{btnState.calibrate ? 'none' : 'tap-btn--down'}}" hover-stay-time="150" bindtap="onCmdTap" data-cmd="calibrate">标定</view>
   </view>
 </view>

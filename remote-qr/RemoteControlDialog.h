@@ -7,7 +7,7 @@ class QLabel;
 class MobileHost;
 class QPushButton;
 
-/** @brief 扫码遥控对话框（可选 UI；会话由 MobileHost 维护）。 */
+// @brief 扫码遥控对话框（可选 UI；会话由 MobileHost 维护）。
 class RemoteControlDialog : public QDialog
 {
     Q_OBJECT

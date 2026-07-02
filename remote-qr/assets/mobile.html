@@ -84,9 +84,7 @@
 
     <div class="cell">相机：<span id="camStatus" class="warn">—</span></div>
 
-    <div class="cell">采集：<span id="grabStatus">—</span></div>
-
-    <div class="cell">阶段：<span id="stageStatus">—</span></div>
+    <div class="cell">计算：<span id="calcStatus">—</span></div>
 
     <div class="cell" style="grid-column: span 2">摘要：<span id="msgStatus">—</span></div>
 
@@ -102,25 +100,31 @@
 
   </div>
 
-  <div class="sec">采集</div>
+  <div class="sec">图像预览</div>
 
   <div class="btns">
 
-    <button class="b-primary" id="btnStart">开始采集</button>
+    <button class="b-primary" id="btnPreviewOn">开启预览</button>
 
-    <button class="b-danger" id="btnStop">停止采集</button>
-
-    <button class="b-primary b-wide" id="btnSnap">保存单张</button>
+    <button class="b-danger" id="btnPreviewOff">关闭预览</button>
 
   </div>
 
-  <div class="sec">阶段</div>
+  <div class="sec">计算</div>
 
   <div class="btns">
 
-    <button class="b-primary" id="btnStageStart">开始阶段采集</button>
+    <button class="b-primary" id="btnCalcStart">开始计算</button>
 
-    <button class="b-danger" id="btnStageStop">停止阶段采集</button>
+    <button class="b-danger" id="btnCalcStop">停止计算</button>
+
+  </div>
+
+  <div class="sec">标定</div>
+
+  <div class="btns">
+
+    <button class="b-primary b-wide" id="btnCalibrate">标定</button>
 
   </div>
 
@@ -150,6 +154,8 @@
 
     var previewPolling = false;
 
+    var previewUserEnabled = false;
+
     var previewWatchdog = null;
 
     var statusTimer = null;
@@ -164,9 +170,7 @@
 
       cam: document.getElementById('camStatus'),
 
-      grab: document.getElementById('grabStatus'),
-
-      stage: document.getElementById('stageStatus'),
+      calc: document.getElementById('calcStatus'),
 
       msg: document.getElementById('msgStatus'),
 
@@ -184,15 +188,15 @@
 
       close: document.getElementById('btnClose'),
 
-      start: document.getElementById('btnStart'),
+      calcStart: document.getElementById('btnCalcStart'),
 
-      stop: document.getElementById('btnStop'),
+      calcStop: document.getElementById('btnCalcStop'),
 
-      snap: document.getElementById('btnSnap'),
+      calibrate: document.getElementById('btnCalibrate'),
 
-      stageStart: document.getElementById('btnStageStart'),
+      previewOn: document.getElementById('btnPreviewOn'),
 
-      stageStop: document.getElementById('btnStageStop')
+      previewOff: document.getElementById('btnPreviewOff')
 
     };
 
@@ -224,27 +228,31 @@
 
 
 
+    function isCalcRunning(d) {
+
+      if (d.calculateActive !== undefined) return !!d.calculateActive;
+
+      return !!d.acquisitionActive;
+
+    }
+
+
+
     function applyBtnState(d) {
 
       var open = !!d.cameraOpen;
 
-      var acq = !!d.acquisitionActive;
-
-      var stage = !!d.stageRunning;
+      var calc = isCalcRunning(d);
 
       btns.open.disabled = open;
 
-      btns.close.disabled = !open || stage;
+      btns.close.disabled = !open || calc;
 
-      btns.start.disabled = !open || acq || stage;
+      btns.calcStart.disabled = !open || calc;
 
-      btns.stop.disabled = !acq && !stage;
+      btns.calcStop.disabled = !open || !calc;
 
-      btns.snap.disabled = !open || !acq || stage;
-
-      btns.stageStart.disabled = !open || acq || stage;
-
-      btns.stageStop.disabled = !stage;
+      btns.calibrate.disabled = !open || calc;
 
       if (cmdLocked)
 
@@ -320,15 +328,59 @@
 
 
 
-    function syncPreview(cameraOpen) {
+    function syncPreviewFromStatus(cameraOpen) {
 
-      if (!cameraOpen)
+      if (!previewUserEnabled) {
+
+        if (previewPolling)
+
+          clearPreviewImage('预览已关闭');
+
+        else
+
+          els.previewHint.textContent = '预览已关闭';
+
+        return;
+
+      }
+
+      if (!cameraOpen) {
 
         clearPreviewImage('无画面');
 
-      else
+        return;
+
+      }
+
+      if (!previewPolling)
 
         startPreviewPolling();
+
+    }
+
+
+
+    function setPreviewEnabled(on) {
+
+      previewUserEnabled = !!on;
+
+      btns.previewOn.disabled = previewUserEnabled;
+
+      btns.previewOff.disabled = !previewUserEnabled;
+
+      if (!previewUserEnabled) {
+
+        clearPreviewImage('预览已关闭');
+
+        return;
+
+      }
+
+      btns.previewOn.disabled = true;
+
+      btns.previewOff.disabled = false;
+
+      fetchStatus();
 
     }
 
@@ -342,25 +394,9 @@
 
       setText(els.cam, d.cameraOpen ? '已打开' : '未打开', d.cameraOpen ? 'ok' : 'warn');
 
-      if (d.stageRunning) {
+      var calc = isCalcRunning(d);
 
-        setText(els.grab, '—', '');
-
-        setText(els.stage, '运行中', 'ok');
-
-      } else if (d.acquisitionActive) {
-
-        setText(els.grab, '进行中', 'ok');
-
-        setText(els.stage, '空闲', '');
-
-      } else {
-
-        setText(els.grab, d.liveViewActive ? '预览' : '空闲', d.liveViewActive ? 'ok' : '');
-
-        setText(els.stage, '空闲', '');
-
-      }
+      setText(els.calc, calc ? '进行中' : (d.liveViewActive ? '预览' : '空闲'), calc ? 'ok' : '');
 
       els.msg.textContent = d.message || '—';
 
@@ -368,7 +404,7 @@
 
       feedback(cmdLocked ? (d.remoteControlMessage || '') : '');
 
-      syncPreview(!!d.cameraOpen);
+      syncPreviewFromStatus(!!d.cameraOpen);
 
     }
 
@@ -556,15 +592,19 @@
 
     btns.close.onclick = function () { postCmd('/api/camera/close', '关闭相机'); };
 
-    btns.start.onclick = function () { postCmd('/api/camera/start', '开始采集'); };
+    btns.calcStart.onclick = function () { postCmd('/api/camera/calculate/start', '开始计算'); };
 
-    btns.stop.onclick = function () { postCmd('/api/camera/stop', '停止采集'); };
+    btns.calcStop.onclick = function () { postCmd('/api/camera/calculate/stop', '停止计算'); };
 
-    btns.snap.onclick = function () { postCmd('/api/camera/snap', '保存单张'); };
+    btns.calibrate.onclick = function () { postCmd('/api/camera/calibrate', '标定'); };
 
-    btns.stageStart.onclick = function () { postCmd('/api/camera/stage/start', '开始阶段采集'); };
+    btns.previewOn.onclick = function () { setPreviewEnabled(true); };
 
-    btns.stageStop.onclick = function () { postCmd('/api/camera/stage/stop', '停止阶段采集'); };
+    btns.previewOff.onclick = function () { setPreviewEnabled(false); };
+
+    btns.previewOn.disabled = false;
+
+    btns.previewOff.disabled = true;
 
 
 

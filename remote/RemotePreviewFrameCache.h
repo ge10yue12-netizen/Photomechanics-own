@@ -4,18 +4,21 @@
 #include <QImage>
 #include <QMutex>
 
-/**
- * remote/ 模块 WiFi 预览 JPEG 缓存（类名与 remote-qr/PreviewFrameCache 区分，避免同 TU 重定义与 .obj 冲突）。
- */
+// WiFi HTTP 预览 JPEG 缓存。
+// 职责：按帧序号去重、缩放编码、供 GET /api/preview.jpg 只读访问。
 class RemotePreviewFrameCache
 {
 public:
+    // 设置 JPEG 缩放上限与质量系数。
     void setEncodeOptions(int maxWidth, int maxHeight, int jpegQuality);
 
+    // 写入最新帧；frameSeq 相同时跳过重复编码。
     void updateFrame(const QImage &frame, quint64 frameSeq = 0);
 
+    // 清空缓存与帧序号记录。
     void clear();
 
+    // 返回最新 JPEG 字节；无数据时为空。
     QByteArray getLatestJpeg() const;
 
 private:

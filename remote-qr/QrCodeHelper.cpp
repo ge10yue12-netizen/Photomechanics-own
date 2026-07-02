@@ -8,6 +8,7 @@
 using qrcodegen::QrCode;
 using qrcodegen::QrSegment;
 
+// 将文本编码为 QR 码 QImage；参数非法或编码失败时返回空图像。
 QImage QrCodeHelper::generateQrImage(const QString &text, int scale, int border)
 {
     if (text.isEmpty() || scale < 1 || border < 0)

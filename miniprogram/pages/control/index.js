@@ -16,6 +16,7 @@ const STORAGE_MODE = 'photomech_mode'
 const PREVIEW_HINT = {
   NEED_CONNECT: '须先建立主机连接',
   WIFI_ONLY: '图像预览仅支持 WiFi 通道',
+  PREVIEW_OFF: '预览已关闭',
   NEED_OPEN_CAMERA: '须执行「打开相机」',
   LIVE_NOT_READY: '实时预览未就绪',
   NO_FRAME: '暂无图像数据'
@@ -23,8 +24,7 @@ const PREVIEW_HINT = {
 
 const EMPTY_METRICS = {
   metricCam: '—',
-  metricGrab: '—',
-  metricStage: '—',
+  metricCalc: '—',
   metricMsg: '—',
   previewUrl: '',
   previewHint: PREVIEW_HINT.NEED_CONNECT
@@ -47,6 +47,7 @@ Page({
     connConnectDisabled: false,
     connDisconnectDisabled: true,
     uiLocked: false,
+    previewOn: false,
     ...EMPTY_METRICS
   },
 
@@ -194,6 +195,14 @@ Page({
 
   _syncPreview(status, token) {
     const H = PREVIEW_HINT
+    if (!this.data.previewOn) {
+      this.wifiLink.stopPreview()
+      this._safeSetData({
+        previewUrl: '',
+        previewHint: this.data.connected ? H.PREVIEW_OFF : H.NEED_CONNECT
+      })
+      return
+    }
     if (this.data.mode === 'ble') {
       this.wifiLink.stopPreview()
       this._safeSetData({ previewUrl: '', previewHint: H.WIFI_ONLY })
@@ -252,6 +261,7 @@ Page({
       errorHint: '',
       pendingAction: '',
       uiLocked: false,
+      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -263,6 +273,15 @@ Page({
 
   applyRemoteStatus(status) {
     if (!status || typeof status !== 'object') return
+
+    if (status.remoteEnabled === false) {
+      this.wifiLink.stopPreview()
+      this._safeSetData({
+        previewOn: false,
+        previewUrl: '',
+        previewHint: PREVIEW_HINT.PREVIEW_OFF
+      })
+    }
 
     if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
       this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
@@ -308,6 +327,7 @@ Page({
       errorHint: humanizeError(reason, 'lost'),
       pendingAction: '',
       uiLocked: false,
+      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -329,6 +349,7 @@ Page({
       errorHint: hint,
       pendingAction: '',
       uiLocked: false,
+      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -531,6 +552,22 @@ Page({
       } catch (err) {
         this._safeSetData({ errorHint: humanizeError(err, 'command') })
       }
+    })
+  },
+
+  onPreviewOn() {
+    if (!this.data.connected || this.data.previewOn) return
+    this._safeSetData({ previewOn: true })
+    this._syncPreview(this._lastStatus, (this.data.token || '').trim())
+  },
+
+  onPreviewOff() {
+    if (!this.data.previewOn) return
+    this.wifiLink.stopPreview()
+    this._safeSetData({
+      previewOn: false,
+      previewUrl: '',
+      previewHint: PREVIEW_HINT.PREVIEW_OFF
     })
   }
 })

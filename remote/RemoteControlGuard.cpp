@@ -3,13 +3,14 @@
 namespace
 {
 
+// 判断来源是否属于 WiFi/BLE 客户端组。
 bool isMiniProgramSource(RemoteControlSource source)
 {
     return source == RemoteControlSource::MiniProgramHttp
            || source == RemoteControlSource::MiniProgramBle;
 }
 
-/** 小程序 HTTP/BLE 为同一客户端组；扫码 Web 与小程序之间仍互斥。 */
+// 判断两来源是否属于同一互斥组。
 bool sameClientGroup(RemoteControlSource a, RemoteControlSource b)
 {
     if (a == b)
@@ -19,6 +20,7 @@ bool sameClientGroup(RemoteControlSource a, RemoteControlSource b)
 
 } // namespace
 
+// 尝试占用命令通道；异组已占用时拒绝。
 RemoteControlGuard::Decision RemoteControlGuard::tryCommand(RemoteControlGuard *guard,
                                                             RemoteControlSource source)
 {
@@ -37,6 +39,7 @@ RemoteControlGuard::Decision RemoteControlGuard::tryCommand(RemoteControlGuard *
     return {};
 }
 
+// 合并命令占用信息至状态 JSON。
 QJsonObject RemoteControlGuard::statusWithGuard(RemoteControlGuard *guard,
                                                   RemoteControlSource source,
                                                   const QJsonObject &base)
@@ -55,6 +58,7 @@ QJsonObject RemoteControlGuard::statusWithGuard(RemoteControlGuard *guard,
     return obj;
 }
 
+// 释放与 source 同组的命令占用。
 void RemoteControlGuard::release(RemoteControlSource source)
 {
     QMutexLocker lock(&m_mutex);
@@ -62,12 +66,14 @@ void RemoteControlGuard::release(RemoteControlSource source)
         m_cmdOwner = RemoteControlSource::None;
 }
 
+// 清空命令占用方。
 void RemoteControlGuard::releaseAll()
 {
     QMutexLocker lock(&m_mutex);
     m_cmdOwner = RemoteControlSource::None;
 }
 
+// 将枚举映射为 JSON 协议键。
 QString RemoteControlGuard::sourceKey(RemoteControlSource source)
 {
     switch (source)
@@ -83,6 +89,7 @@ QString RemoteControlGuard::sourceKey(RemoteControlSource source)
     }
 }
 
+// 将枚举映射为 UI 展示标签。
 QString RemoteControlGuard::sourceLabel(RemoteControlSource source)
 {
     switch (source)
@@ -90,14 +97,15 @@ QString RemoteControlGuard::sourceLabel(RemoteControlSource source)
     case RemoteControlSource::QrBrowser:
         return QStringLiteral("Web 客户端");
     case RemoteControlSource::MiniProgramHttp:
-        return QStringLiteral("小程序 WiFi");
+        return QStringLiteral("WiFi 客户端");
     case RemoteControlSource::MiniProgramBle:
-        return QStringLiteral("小程序 BLE");
+        return QStringLiteral("BLE 客户端");
     default:
         return QStringLiteral("无占用");
     }
 }
 
+// 构造占用冲突提示文案。
 QString RemoteControlGuard::blockedMessage(RemoteControlSource owner) const
 {
     return QStringLiteral("命令通道被 %1 占用，须先释放连接").arg(sourceLabel(owner));

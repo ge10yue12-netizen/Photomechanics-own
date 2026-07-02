@@ -3,6 +3,7 @@
 
 #include <QHostAddress>
 #include <QJsonDocument>
+#include <QDateTime>
 #include <QTcpSocket>
 #include <QUrl>
 #include <QUrlQuery>
@@ -13,6 +14,7 @@ namespace
 
 const char *kRequestDataProperty = "mobileRequestData";
 
+// 规范化 HTTP 路径，保证以 / 开头。
 QString normalizePath(QString path)
 {
     if (path.isEmpty())
@@ -22,6 +24,7 @@ QString normalizePath(QString path)
     return path;
 }
 
+// 从请求行 target 解析路径与查询串。
 void parseRequestTarget(const QString &target, QString *outPath, QString *outQuery)
 {
     if (target.startsWith(QStringLiteral("http://"), Qt::CaseInsensitive)
@@ -42,12 +45,14 @@ void parseRequestTarget(const QString &target, QString *outPath, QString *outQue
 
 } // namespace
 
+// 构造：连接 newConnection 至连接处理槽。
 MobileWebServer::MobileWebServer(QObject *parent)
     : QObject(parent)
 {
     connect(&m_server, &QTcpServer::newConnection, this, &MobileWebServer::onNewConnection);
 }
 
+// 在指定端口绑定 QHostAddress::Any 监听。
 bool MobileWebServer::start(quint16 port)
 {
     if (m_server.isListening())
@@ -62,47 +67,56 @@ bool MobileWebServer::start(quint16 port)
     return false;
 }
 
+// 关闭 TCP 监听。
 void MobileWebServer::stop()
 {
     m_server.close();
 }
 
+// 返回 m_server 是否正在监听。
 bool MobileWebServer::isListening() const
 {
     return m_server.isListening();
 }
 
+// 注册 token 校验函数。
 void MobileWebServer::setTokenVerifier(std::function<bool(const QString &)> verifier)
 {
     m_tokenVerifier = std::move(verifier);
 }
 
+// 注册状态 JSON 提供函数。
 void MobileWebServer::setStatusProvider(std::function<QJsonObject()> provider)
 {
     m_statusProvider = std::move(provider);
 }
 
+// 注册预览 JPEG 提供函数。
 void MobileWebServer::setPreviewProvider(std::function<QByteArray()> provider)
 {
     m_previewProvider = std::move(provider);
 }
 
+// 注册客户端配置 JSON 提供函数。
 void MobileWebServer::setConfigProvider(std::function<QJsonObject()> provider)
 {
     m_configProvider = std::move(provider);
 }
 
+// 设置 GET /mobile 返回的 HTML 内容。
 void MobileWebServer::setMobileHtml(const QByteArray &html)
 {
     m_mobileHtml = html;
 }
 
+// 注册命令互斥 guard 与本服务来源标识。
 void MobileWebServer::setControlGuard(RemoteControlGuard *guard, RemoteControlSource source)
 {
     m_controlGuard = guard;
     m_controlSource = source;
 }
 
+// 接受 pending 连接并为每个 socket 绑定 readyRead。
 void MobileWebServer::onNewConnection()
 {
     while (auto *socket = m_server.nextPendingConnection())
@@ -113,6 +127,7 @@ void MobileWebServer::onNewConnection()
     }
 }
 
+// 按 Content-Length 累积完整 HTTP 请求后调用 handleRequest。
 void MobileWebServer::onSocketReadyRead(QTcpSocket *socket)
 {
     QByteArray request = socket->property(kRequestDataProperty).toByteArray();
@@ -139,6 +154,7 @@ void MobileWebServer::onSocketReadyRead(QTcpSocket *socket)
     socket->setProperty(kRequestDataProperty, QByteArray());
 }
 
+// 解析请求行，校验 token 并按路径分发 API。
 void MobileWebServer::handleRequest(QTcpSocket *socket, const QByteArray &request)
 {
     const int headerEnd = request.indexOf("\r\n\r\n");
@@ -209,6 +225,7 @@ void MobileWebServer::handleRequest(QTcpSocket *socket, const QByteArray &reques
 
     if (method == QStringLiteral("GET") && path == QStringLiteral("/api/preview.jpg"))
     {
+        m_lastPreviewRequestMs = QDateTime::currentMSecsSinceEpoch();
         const QByteArray jpeg = m_previewProvider ? m_previewProvider() : QByteArray();
         writeResponse(socket, 200, QByteArrayLiteral("OK"),
                       QByteArrayLiteral("image/jpeg"), jpeg);
@@ -245,6 +262,7 @@ void MobileWebServer::handleRequest(QTcpSocket *socket, const QByteArray &reques
               404, QByteArrayLiteral("Not Found"));
 }
 
+// 发出 commandReceived 并写回带占用信息的状态 JSON。
 void MobileWebServer::replyCommand(QTcpSocket *socket, const QString &cmd)
 {
     emit commandReceived(cmd);
@@ -253,12 +271,14 @@ void MobileWebServer::replyCommand(QTcpSocket *socket, const QString &cmd)
     writeJson(socket, response);
 }
 
+// 将 JSON 对象序列化并写入 HTTP 响应。
 void MobileWebServer::writeJson(QTcpSocket *socket, const QJsonObject &obj, int statusCode, const QByteArray &statusText) const
 {
     const QByteArray body = QJsonDocument(obj).toJson(QJsonDocument::Compact);
     writeResponse(socket, statusCode, statusText, QByteArrayLiteral("application/json; charset=utf-8"), body);
 }
 
+// 组装 HTTP/1.1 响应头与正文并关闭连接。
 void MobileWebServer::writeResponse(QTcpSocket *socket,
                                     int statusCode,
                                     const QByteArray &statusText,
@@ -277,6 +297,7 @@ void MobileWebServer::writeResponse(QTcpSocket *socket,
     socket->disconnectFromHost();
 }
 
+// 校验 query 中的 token；未注册 verifier 时拒绝。
 bool MobileWebServer::verifyToken(const QString &query) const
 {
     if (!m_tokenVerifier)
@@ -285,9 +306,25 @@ bool MobileWebServer::verifyToken(const QString &query) const
     return m_tokenVerifier(urlQuery.queryItemValue(QStringLiteral("token")));
 }
 
+// 调用 statusProvider；未注册时返回占位 JSON。
 QJsonObject MobileWebServer::currentStatus() const
 {
     if (m_statusProvider)
         return m_statusProvider();
     return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("状态提供者未接入")}};
 }
+
+// 返回最近一次 preview 请求时间戳。
+qint64 MobileWebServer::lastPreviewRequestMs() const
+{
+    return m_lastPreviewRequestMs;
+}
+
+// 判断 nowMs 向前 ttlMs 内是否存在 preview 请求。
+bool MobileWebServer::hadRecentPreviewRequest(qint64 nowMs, int ttlMs) const
+{
+    if (m_lastPreviewRequestMs <= 0 || ttlMs <= 0)
+        return false;
+    return nowMs - m_lastPreviewRequestMs <= static_cast<qint64>(ttlMs);
+}
+

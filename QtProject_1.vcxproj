@@ -103,6 +103,7 @@
     <QtRcc Include="QtProject_1.qrc" />
     <QtRcc Include="remote-qr\remote-qr.qrc" />
     <QtUic Include="QtProject_1.ui" />
+    <QtUic Include="host-remote\RemoteControlCenter.ui" />
     <QtMoc Include="QtProject_1.h" />
     <QtMoc Include="camera\CameraController.h" />
     <QtMoc Include="save\ImageSaveThread.h" />
@@ -110,12 +111,14 @@
     <QtMoc Include="ui\PreviewWidget.h" />
     <QtMoc Include="guide\GuideBubbleWidget.h" />
     <QtMoc Include="guide\GuideManager.h" />
+    <QtMoc Include="host-remote\RemoteControlCenter.h" />
     <ClCompile Include="remote\RemotePreviewFrameCache.cpp" />
     <ClCompile Include="ui\PreviewWidget.cpp" />
     <ClCompile Include="guide\GuideBubbleWidget.cpp" />
     <ClCompile Include="guide\GuideManager.cpp" />
     <ClCompile Include="guide\GuideOverlay.cpp" />
     <ClCompile Include="QtProject_1.cpp" />
+    <ClCompile Include="host-remote\RemoteControlCenter.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="camera\CameraController.cpp">
       <DisableSpecificWarnings>26812;26495;26451;%(DisableSpecificWarnings)</DisableSpecificWarnings>

@@ -4,6 +4,7 @@
 #include <QHostAddress>
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QDateTime>
 #include <QTcpSocket>
 #include <QUrlQuery>
 #include <utility>
@@ -12,14 +13,14 @@ namespace
 {
 const char *kRequestDataProperty = "remoteRequestData";
 
-// 从请求行 target 中截取路径部分（去掉 ? 后查询串）。
+// 从 HTTP 请求行 target 截取路径（不含查询串）。
 QString requestPath(const QString &target)
 {
     const int queryPos = target.indexOf(QLatin1Char('?'));
     return queryPos >= 0 ? target.left(queryPos) : target;
 }
 
-// 从请求行 target 中截取查询串（不含前导 ?）。
+// 从 HTTP 请求行 target 截取查询串（不含前导 ?）。
 QString requestQuery(const QString &target)
 {
     const int queryPos = target.indexOf(QLatin1Char('?'));
@@ -27,13 +28,14 @@ QString requestQuery(const QString &target)
 }
 }
 
+// 构造：连接 newConnection 至连接处理槽。
 RemoteControlServer::RemoteControlServer(QObject *parent)
     : QObject(parent)
 {
     connect(&m_server, &QTcpServer::newConnection, this, &RemoteControlServer::onNewConnection);
 }
 
-// 优先按 ini 的 bind/port 监听；移植到新电脑时 IP 不匹配则回退到所有网卡。
+// 按配置 bind/port 监听；bind 失败时回退至 QHostAddress::Any。
 bool RemoteControlServer::start(const RemoteConfig &cfg)
 {
     if (m_server.isListening())
@@ -62,37 +64,44 @@ bool RemoteControlServer::start(const RemoteConfig &cfg)
     return true;
 }
 
+// 关闭 TCP 监听。
 void RemoteControlServer::stop()
 {
     m_server.close();
 }
 
+// 返回 m_server 是否正在监听。
 bool RemoteControlServer::isListening() const
 {
     return m_server.isListening();
 }
 
+// 返回实际监听端口。
 quint16 RemoteControlServer::serverPort() const
 {
     return m_server.serverPort();
 }
 
+// 注册状态 JSON 提供函数。
 void RemoteControlServer::setStatusProvider(std::function<QJsonObject()> provider)
 {
     m_statusProvider = std::move(provider);
 }
 
+// 注册命令互斥 guard 与本服务来源标识。
 void RemoteControlServer::setControlGuard(RemoteControlGuard *guard, RemoteControlSource source)
 {
     m_controlGuard = guard;
     m_controlSource = source;
 }
 
+// 注册预览 JPEG 提供函数。
 void RemoteControlServer::setPreviewProvider(std::function<QByteArray()> provider)
 {
     m_previewProvider = std::move(provider);
 }
 
+// 接受 pending 连接并为每个 socket 绑定 readyRead。
 void RemoteControlServer::onNewConnection()
 {
     while (auto *socket = m_server.nextPendingConnection())
@@ -103,6 +112,7 @@ void RemoteControlServer::onNewConnection()
     }
 }
 
+// 按 Content-Length 累积完整 HTTP 请求后调用 handleRequest。
 void RemoteControlServer::onSocketReadyRead(QTcpSocket *socket)
 {
     QByteArray request = socket->property(kRequestDataProperty).toByteArray();
@@ -128,6 +138,7 @@ void RemoteControlServer::onSocketReadyRead(QTcpSocket *socket)
     handleRequest(socket, request.left(headerEnd + 4 + contentLength));
 }
 
+// 解析请求行与 body，校验 token 并按路径分发 API。
 void RemoteControlServer::handleRequest(QTcpSocket *socket, const QByteArray &request)
 {
     const int headerEnd = request.indexOf("\r\n\r\n");
@@ -192,6 +203,7 @@ void RemoteControlServer::handleRequest(QTcpSocket *socket, const QByteArray &re
 
     if (method == QStringLiteral("GET") && path == QStringLiteral("/api/preview.jpg"))
     {
+        m_lastPreviewRequestMs = QDateTime::currentMSecsSinceEpoch();
         const QByteArray jpeg = m_previewProvider ? m_previewProvider() : QByteArray();
         writeResponse(socket, 200, QByteArrayLiteral("OK"),
                       QByteArrayLiteral("image/jpeg"), jpeg);
@@ -236,12 +248,14 @@ void RemoteControlServer::handleRequest(QTcpSocket *socket, const QByteArray &re
     writeJson(socket, {{QStringLiteral("ok"), false}, {QStringLiteral("message"), QStringLiteral("接口不存在")}}, 404, QByteArrayLiteral("Not Found"));
 }
 
+// 将 JSON 对象序列化并写入 HTTP 响应。
 void RemoteControlServer::writeJson(QTcpSocket *socket, const QJsonObject &obj, int statusCode, const QByteArray &statusText) const
 {
     const QByteArray body = QJsonDocument(obj).toJson(QJsonDocument::Compact);
     writeResponse(socket, statusCode, statusText, QByteArrayLiteral("application/json; charset=utf-8"), body);
 }
 
+// 组装 HTTP/1.1 响应头与正文并关闭连接。
 void RemoteControlServer::writeResponse(QTcpSocket *socket,
                                         int statusCode,
                                         const QByteArray &statusText,
@@ -260,6 +274,7 @@ void RemoteControlServer::writeResponse(QTcpSocket *socket,
     socket->disconnectFromHost();
 }
 
+// 校验 query 或 body 中的 token 是否与 m_token 一致；m_token 为空时不校验。
 bool RemoteControlServer::hasValidToken(const QString &query, const QJsonObject &body) const
 {
     if (m_token.isEmpty())
@@ -270,9 +285,24 @@ bool RemoteControlServer::hasValidToken(const QString &query, const QJsonObject 
     return queryToken == m_token || bodyToken == m_token;
 }
 
+// 调用 statusProvider；未注册时返回占位 JSON。
 QJsonObject RemoteControlServer::currentStatus() const
 {
     if (m_statusProvider)
         return m_statusProvider();
     return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("状态提供者未接入")}};
+}
+
+// 返回最近一次 preview 请求时间戳。
+qint64 RemoteControlServer::lastPreviewRequestMs() const
+{
+    return m_lastPreviewRequestMs;
+}
+
+// 判断 nowMs 向前 ttlMs 内是否存在 preview 请求。
+bool RemoteControlServer::hadRecentPreviewRequest(qint64 nowMs, int ttlMs) const
+{
+    if (m_lastPreviewRequestMs <= 0 || ttlMs <= 0)
+        return false;
+    return nowMs - m_lastPreviewRequestMs <= static_cast<qint64>(ttlMs);
 }

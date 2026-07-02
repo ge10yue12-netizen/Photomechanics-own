@@ -16,6 +16,7 @@ const STORAGE_MODE = 'rc_mode'
 const PREVIEW_HINT = {
   NEED_CONNECT: '须先建立主机连接',
   WIFI_ONLY: '图像预览仅支持 WiFi 通道',
+  PREVIEW_OFF: '预览已关闭',
   NEED_OPEN_CAMERA: '须执行「打开相机」',
   LIVE_NOT_READY: '实时预览未就绪',
   NO_FRAME: '暂无图像数据'
@@ -49,6 +50,7 @@ Page({
     connDisconnectDisabled: true,
     uiLocked: false,
     linkPanelOpen: true,
+    previewOn: false,
     ...EMPTY_METRICS
   },
 
@@ -215,6 +217,10 @@ Page({
 
   _syncPreview(status) {
     const H = PREVIEW_HINT
+    if (!this.data.previewOn) {
+      this._stopPreviewUi(this.data.connected ? H.PREVIEW_OFF : H.NEED_CONNECT)
+      return
+    }
     if (this.data.mode === 'ble') {
       this._stopPreviewUi(H.WIFI_ONLY)
       return
@@ -287,6 +293,7 @@ Page({
       errorHint: '',
       pendingAction: '',
       uiLocked: false,
+      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -299,6 +306,11 @@ Page({
 
   applyRemoteStatus(status) {
     if (!status || typeof status !== 'object') return
+
+    if (status.remoteEnabled === false) {
+      this._stopPreviewUi(PREVIEW_HINT.PREVIEW_OFF)
+      this._safeSetData({ previewOn: false })
+    }
 
     if (this.data.mode === 'ble' && this.data.connected && isRemoteOffline(status)) {
       this.handleBlePcOffline(status.message || status.msg || '主机服务已停止')
@@ -346,6 +358,7 @@ Page({
       errorHint: humanizeError(reason, 'lost'),
       pendingAction: '',
       uiLocked: false,
+      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -368,6 +381,7 @@ Page({
       errorHint: hint,
       pendingAction: '',
       uiLocked: false,
+      previewOn: false,
       btnState: defaultBtnState(true),
       connConnectDisabled: false,
       connDisconnectDisabled: true,
@@ -588,5 +602,17 @@ Page({
         this._safeSetData({ errorHint: humanizeError(err, 'command') })
       }
     })
+  },
+
+  onPreviewOn() {
+    if (!this.data.connected || this.data.previewOn) return
+    this._safeSetData({ previewOn: true })
+    this._syncPreview(this._lastStatus)
+  },
+
+  onPreviewOff() {
+    if (!this.data.previewOn) return
+    this._stopPreviewUi(PREVIEW_HINT.PREVIEW_OFF)
+    this._safeSetData({ previewOn: false })
   }
 })
