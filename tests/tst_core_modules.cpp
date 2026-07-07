@@ -3,8 +3,11 @@
 #include "../save/SavePathHelper.h"
 #include "../save/ImageSaveThread.h"
 #include "../stage/StageManager.h"
+#include "../recorder/RecorderKit.h"
+#include "../recorder/RecorderUiBinder.h"
 
 #include <QtTest>
+#include <QCoreApplication>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
@@ -53,6 +56,11 @@ void TestSavePathHelper::stagePicContinuesAcrossLoops()
     const QString p1 = helper.nextFilePath(&ok);
     QVERIFY(ok);
     QVERIFY(p1.contains(QStringLiteral("Pic001.bmp")));
+    {
+        QFile file(p1);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("x");
+    }
     helper.onFileSaved();
     helper.setStageContext(2, QStringLiteral("阶段1"));
     bool ok2 = false;
@@ -182,8 +190,8 @@ void TestImageSaveThread::capacityIs48()
 void TestImageSaveThread::trySubmitRejectsWhenFull()
 {
     ImageSaveThread thread;
-    thread.start();
     QSignalSpy fullSpy(&thread, &ImageSaveThread::queueFull);
+    // 先填满队列再启动线程，避免消费者 dequeue 导致用例不稳定。
     for (int i = 0; i < thread.capacity(); ++i)
     {
         SaveTask task = makeGrayTask(QStringLiteral("C:/unused/pic%1.bmp").arg(i));
@@ -192,6 +200,7 @@ void TestImageSaveThread::trySubmitRejectsWhenFull()
     SaveTask overflow = makeGrayTask(QStringLiteral("C:/unused/overflow.bmp"));
     QVERIFY(!thread.trySubmit(overflow));
     QCOMPARE(fullSpy.count(), 1);
+    thread.start();
     thread.requestStopAndWait(5000);
 }
 
@@ -200,11 +209,12 @@ void TestImageSaveThread::acceptsTaskWhenNotFull()
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     ImageSaveThread thread;
+    QSignalSpy finishedSpy(&thread, &ImageSaveThread::saveFinished);
     thread.start();
     const QString bmpPath = temp.filePath(QStringLiteral("Pic001.bmp"));
     SaveTask task = makeGrayTask(bmpPath);
     QVERIFY(thread.trySubmit(task));
-    thread.waitUntilEmpty(10000);
+    QVERIFY(QTest::qWaitFor([&]() { return finishedSpy.count() >= 1; }, 10000));
     QVERIFY(QFile::exists(bmpPath));
     thread.requestStopAndWait(5000);
 }
@@ -279,8 +289,95 @@ void TestStageManager::zeroFpsSkipsTimer()
     QVERIFY(QTest::qWaitFor([&]() { return finishedSpy.count() >= 1; }, 2000));
 }
 
+// --- Recorder validateConfig（无 Q_OBJECT，避免破坏 tst_core_modules.moc 流程）---
+
+namespace
+{
+
+bool recorderValidateTests()
+{
+    {
+        recorder::RecorderConfig cfg;
+        cfg.output.filePath = "D:/tmp/test.avi";
+        cfg.video.fps = 0;
+        recorder::RecorderErrorCode code = recorder::RecorderErrorCode::None;
+        std::string message;
+        if (recorder::validateConfig(cfg, &code, &message))
+            return false;
+        if (code != recorder::RecorderErrorCode::InvalidConfig)
+            return false;
+    }
+    {
+        recorder::RecorderConfig cfg;
+        cfg.output.filePath = "D:/tmp/test.avi";
+        cfg.video.fps = 30;
+        recorder::RecorderErrorCode code = recorder::RecorderErrorCode::None;
+        std::string message;
+        if (!recorder::validateConfig(cfg, &code, &message))
+            return false;
+    }
+    {
+        recorder::RecorderConfig cfg;
+        cfg.output.format = recorder::VideoFormat::Mp4;
+        cfg.output.filePath = "D:/tmp/test.mp4";
+        cfg.video.fps = 25;
+        recorder::RecorderErrorCode code = recorder::RecorderErrorCode::None;
+        std::string message;
+        if (!recorder::validateConfig(cfg, &code, &message))
+            return false;
+        if (!recorder::isFormatSupported(recorder::VideoFormat::Mp4))
+            return false;
+    }
+    {
+        recorder::RecorderConfig cfg;
+        cfg.mode = recorder::CaptureMode::Region;
+        cfg.region.width = 50;
+        cfg.region.height = 50;
+        cfg.output.filePath = "D:/tmp/test.avi";
+        cfg.video.fps = 30;
+        recorder::RecorderErrorCode code = recorder::RecorderErrorCode::None;
+        std::string message;
+        if (recorder::validateConfig(cfg, &code, &message))
+            return false;
+        if (code != recorder::RecorderErrorCode::InvalidRegion)
+            return false;
+    }
+    if (RecorderUiBinder::previewCaptureMode(recorder::CaptureMode::FullScreen, false) !=
+        recorder::CaptureMode::FullScreen)
+        return false;
+    if (RecorderUiBinder::previewCaptureMode(recorder::CaptureMode::Region, false) !=
+        recorder::CaptureMode::FullScreen)
+        return false;
+    if (RecorderUiBinder::previewCaptureMode(recorder::CaptureMode::Region, true) !=
+        recorder::CaptureMode::Region)
+        return false;
+    {
+        recorder::Rect region;
+        region.width = 801;
+        region.height = 601;
+        const QSize sz = RecorderUiBinder::captureSourceSize(recorder::CaptureMode::Region, region, true);
+        if (sz.width() != 800 || sz.height() != 600)
+            return false;
+    }
+    {
+        const int suggested = recorder::suggestScreenBitrateKbps(1920, 1080, 25);
+        if (suggested < 8000 || suggested > 50000)
+            return false;
+        if (recorder::effectiveScreenBitrateKbps(3000, 1920, 1080, 25) != suggested)
+            return false;
+        if (recorder::effectiveScreenBitrateKbps(20000, 1920, 1080, 25) != 20000)
+            return false;
+    }
+    return true;
+}
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
+    // 全程复用同一 QCoreApplication，避免多次 qExec 销毁事件循环导致 QTimer 失效。
+    QCoreApplication app(argc, argv);
+
     int status = 0;
     {
         TestSavePathHelper suite;
@@ -294,6 +391,8 @@ int main(int argc, char *argv[])
         TestStageManager suite;
         status |= QTest::qExec(&suite, argc, argv);
     }
+    if (!recorderValidateTests())
+        status |= 1;
     return status;
 }
 

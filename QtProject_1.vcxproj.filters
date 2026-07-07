@@ -43,6 +43,30 @@
     <Filter Include="guide">
       <UniqueIdentifier>{A9D35C7A-1D5A-4B53-AE16-4E6A04A8D1D4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="host-remote">
+      <UniqueIdentifier>{B1HOST01-4D5E-4F6A-9012-345678901234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="recorder">
+      <UniqueIdentifier>{C1REC001-4D5E-4F6A-9012-345678901234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="recorder\include">
+      <UniqueIdentifier>{C1REC002-4D5E-4F6A-9012-345678901235}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="recorder\src">
+      <UniqueIdentifier>{C1REC003-4D5E-4F6A-9012-345678901236}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="recorder\src\Capture">
+      <UniqueIdentifier>{C1REC004-4D5E-4F6A-9012-345678901237}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="recorder\src\Encoder">
+      <UniqueIdentifier>{C1REC005-4D5E-4F6A-9012-345678901238}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="recorder\dialog">
+      <UniqueIdentifier>{C1REC006-4D5E-4F6A-9012-345678901239}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="recorder\ui">
+      <UniqueIdentifier>{C1REC007-4D5E-4F6A-9012-345678901240}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtRcc Include="QtProject_1.qrc">
@@ -258,6 +282,162 @@
     <ClCompile Include="remote-qr\thirdparty\qrcodegen.cpp">
       <Filter>remote-qr\thirdparty</Filter>
     </ClCompile>
+    <QtUic Include="host-remote\RemoteControlCenter.ui">
+      <Filter>host-remote</Filter>
+    </QtUic>
+    <QtUic Include="recorder\ui\ScreenRecorderDialog.ui">
+      <Filter>recorder\ui</Filter>
+    </QtUic>
+    <QtUic Include="recorder\ui\ScreenRecorderSettingsDialog.ui">
+      <Filter>recorder\ui</Filter>
+    </QtUic>
+    <QtUic Include="recorder\ui\RecorderNavSidebar.ui">
+      <Filter>recorder\ui</Filter>
+    </QtUic>
+    <QtUic Include="recorder\ui\RecorderControlBar.ui">
+      <Filter>recorder\ui</Filter>
+    </QtUic>
+    <QtUic Include="recorder\ui\RecorderOutputListWidget.ui">
+      <Filter>recorder\ui</Filter>
+    </QtUic>
+    <QtMoc Include="host-remote\RemoteControlCenter.h">
+      <Filter>host-remote</Filter>
+    </QtMoc>
+    <ClCompile Include="host-remote\RemoteControlCenter.cpp">
+      <Filter>host-remote</Filter>
+    </ClCompile>
+    <QtMoc Include="recorder\RecorderControlBar.h">
+      <Filter>recorder</Filter>
+    </QtMoc>
+    <QtMoc Include="recorder\RecorderNavSidebar.h">
+      <Filter>recorder</Filter>
+    </QtMoc>
+    <QtMoc Include="recorder\RecorderHost.h">
+      <Filter>recorder</Filter>
+    </QtMoc>
+    <QtMoc Include="recorder\RegionSelectorWidget.h">
+      <Filter>recorder</Filter>
+    </QtMoc>
+    <ClCompile Include="recorder\RecorderControlBar.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RecorderNavSidebar.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RecorderHost.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RecorderUiBinder.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RegionSelectorWidget.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <None Include="recorder\README.md">
+      <Filter>recorder</Filter>
+    </None>
+    <ClInclude Include="recorder\RecorderKit.h">
+      <Filter>recorder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\RecorderQtKit.h">
+      <Filter>recorder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\RecorderStatusText.h">
+      <Filter>recorder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\RecorderUiBinder.h">
+      <Filter>recorder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\RecorderPathHelper.h">
+      <Filter>recorder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\RecorderOutputStore.h">
+      <Filter>recorder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\RecorderPreviewCapture.h">
+      <Filter>recorder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\include\RecorderTypes.h">
+      <Filter>recorder\include</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\include\RecorderError.h">
+      <Filter>recorder\include</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\include\ScreenRecorder.h">
+      <Filter>recorder\include</Filter>
+    </ClInclude>
+    <ClCompile Include="recorder\src\ScreenRecorder.cpp">
+      <Filter>recorder\src</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\src\RecorderError.cpp">
+      <Filter>recorder\src</Filter>
+    </ClCompile>
+    <ClInclude Include="recorder\src\Capture\IScreenCapture.h">
+      <Filter>recorder\src\Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\src\Capture\GdiScreenCapture.h">
+      <Filter>recorder\src\Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\src\Capture\DxgiScreenCapture.h">
+      <Filter>recorder\src\Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\src\Capture\CaptureCommon.h">
+      <Filter>recorder\src\Capture</Filter>
+    </ClInclude>
+    <ClCompile Include="recorder\src\Capture\GdiScreenCapture.cpp">
+      <Filter>recorder\src\Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\src\Capture\DxgiScreenCapture.cpp">
+      <Filter>recorder\src\Capture</Filter>
+    </ClCompile>
+    <ClInclude Include="recorder\src\Encoder\IVideoEncoder.h">
+      <Filter>recorder\src\Encoder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\src\Encoder\MjpegAviEncoder.h">
+      <Filter>recorder\src\Encoder</Filter>
+    </ClInclude>
+    <ClInclude Include="recorder\src\Encoder\Mp4MfEncoder.h">
+      <Filter>recorder\src\Encoder</Filter>
+    </ClInclude>
+    <ClCompile Include="recorder\src\Encoder\MjpegAviEncoder.cpp">
+      <Filter>recorder\src\Encoder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\src\Encoder\Mp4MfEncoder.cpp">
+      <Filter>recorder\src\Encoder</Filter>
+    </ClCompile>
+    <QtMoc Include="recorder\dialog\ScreenRecorderDialog.h">
+      <Filter>recorder\dialog</Filter>
+    </QtMoc>
+    <QtMoc Include="recorder\dialog\ScreenRecorderSettingsDialog.h">
+      <Filter>recorder\dialog</Filter>
+    </QtMoc>
+    <ClCompile Include="recorder\dialog\ScreenRecorderDialog.cpp">
+      <Filter>recorder\dialog</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\dialog\ScreenRecorderSettingsDialog.cpp">
+      <Filter>recorder\dialog</Filter>
+    </ClCompile>
+    <QtMoc Include="recorder\RecorderPreviewWidget.h">
+      <Filter>recorder</Filter>
+    </QtMoc>
+    <ClCompile Include="recorder\RecorderPreviewWidget.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RecorderPathHelper.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RecorderOutputStore.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RecorderPreviewCapture.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <ClCompile Include="recorder\RecorderOutputListWidget.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
+    <QtMoc Include="recorder\RecorderOutputListWidget.h">
+      <Filter>recorder</Filter>
+    </QtMoc>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="remote\RemotePreviewFrameCache.cpp">

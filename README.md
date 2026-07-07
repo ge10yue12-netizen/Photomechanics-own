@@ -90,6 +90,7 @@ flowchart TD
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit`；`writeBmpFile` 写入 8 位灰度或 24 位 RGB BMP |
 | **远程遥控** | `RemoteKit` + `RemoteControlGuard`（命令互斥）；扫码见 `remote-qr/`；说明见 [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) |
+| **屏幕录制** | `RecorderHost` + `ScreenRecorderDialog`；核心见 `recorder/`；说明见 [recorder/README.md](recorder/README.md) |
 | **新手引导** | 复制 `guide/` + `#include "guide/GuideKit.h"`；说明见 [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) |
 | **日志** | `AppLogger` — `Log/run_*.log` 落盘；主窗口 `log()` 同步写文件与界面 |
 | **遥控配置** | 项目根 `config/netconfig.ini`（见 [remote/README.md](remote/README.md)） |
@@ -164,6 +165,15 @@ flowchart TB
 
 详见 **[docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md)** §5。
 
+## 屏幕录制
+
+1. 主界面日志区上方点 **「打开屏幕录制」**。
+2. 选择全屏或区域（区域需 **选择区域** 拖拽确认）。
+3. 设置帧率、分辨率（0=自动）、码率、格式（首版 **AVI**）、保存路径。
+4. **开始录制** → **暂停/继续/停止**；停止后可打开保存目录。
+
+移植与 API 说明 → **[recorder/README.md](recorder/README.md)**
+
 ## 详细文档
 
 | 文档 | 内容 |
@@ -171,6 +181,7 @@ flowchart TB
 | [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | 相机采集、阶段、存图（主手册） |
 | [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) | 新手引导 GuideKit |
 | [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) | 远程控制（小程序 §4 · 扫码网页 §5） |
+| [recorder/README.md](recorder/README.md) | 屏幕录制套件（移植、API、集成） |
 | [docs/README.md](docs/README.md) | 文档索引 |
 
 ---
@@ -187,10 +198,12 @@ flowchart TB
 | 目标张数计算 | `enterCurrentStage` 内 `qRound(duration×fps)` | `stage/StageManager.cpp` |
 | 阶段结束日志 | `onStageFinished` | `QtProject_1.cpp` |
 | 非阻塞入队 | `ImageSaveThread::trySubmit` | `save/ImageSaveThread.cpp` |
-| 写 BMP | `ImageSaveThread::run`
+| 写 BMP | `ImageSaveThread::run` → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
 | **BLE 遥控命令** | `onRemoteCommand` ← `BleControlServer` | `QtProject_1.cpp` / `remote/ble/` |
+| **打开屏幕录制** | `onScreenRecorder` → `ScreenRecorderDialog` | `QtProject_1.cpp` / `recorder/dialog/` |
+| **录屏核心** | `RecorderHost` → `recorder::ScreenRecorder` | `recorder/RecorderHost.h` |
 | **新手引导组件** | `GuideKit.h` → `GuideManager` + `GuideStep` | [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) |
-| **微信小程序** | `miniprogram/` — WiFi/BLE 遥控 | [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) §4 | → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
+| **微信小程序** | `miniprogram/` — WiFi/BLE 遥控 | [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) §4 |
 
 ---
 
@@ -234,6 +247,11 @@ QtProject_1/
 │   └── REMOTE_CONTROL_GUIDE.md       ← 远程控制（小程序 + 扫码网页）
 ├── guide/                    ← GuideKit（复制即用）
 │   └── GuideKit.h          ← 对外入口
+├── recorder/               ← 屏幕录制套件（复制即用，单目录）
+│   ├── RecorderKit.h       ← 纯 C++ 入口
+│   ├── RecorderQtKit.h     ← Qt 集成入口
+│   ├── dialog/             ← 管理对话框（可选 UI）
+│   └── README.md
 ├── main.cpp
 ├── QtProject_1.h/cpp/ui
 ├── camera/   CameraController
@@ -249,7 +267,8 @@ QtProject_1/
 
 | 版本 | 说明 |
 |------|------|
-| **当前** | 统一开发文档：`docs/GUIDEKIT_DEVELOPMENT_GUIDE.md`（新手引导）、`docs/REMOTE_CONTROL_GUIDE.md`（远程控制，含小程序与扫码网页） |
+| **当前** | 新增可移植屏幕录制套件 `recorder/` + 主界面「打开屏幕录制」；详见 [recorder/README.md](recorder/README.md) |
+| 上一版 | 统一开发文档：`docs/GUIDEKIT_DEVELOPMENT_GUIDE.md`（新手引导）、`docs/REMOTE_CONTROL_GUIDE.md`（远程控制，含小程序与扫码网页） |
 | 上一版 | 新增 Qt Widgets 新手引导组件库 `guide/` |
 | 上上版 | 微信小程序遥控；HTTP/BLE 双通道 |
 | 更早 | 预览区滚轮缩放、拖拽平移、双击适应/1:1、悬停显示像素灰度值 |

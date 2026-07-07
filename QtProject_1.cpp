@@ -140,6 +140,27 @@ QtProject_1::QtProject_1(QWidget *parent)
     ui.logLayout->insertWidget(0, remoteRow);
     connect(remoteBtn, &QPushButton::clicked, this, &QtProject_1::onRemoteControl);
 
+    auto *recorderRow = new QWidget(this);
+    auto *recorderLayout = new QHBoxLayout(recorderRow);
+    recorderLayout->setContentsMargins(0, 0, 0, 0);
+    recorderLayout->addWidget(new QLabel(QStringLiteral("屏幕录制"), recorderRow));
+    auto *recorderBtn = new QPushButton(QStringLiteral("打开屏幕录制"), recorderRow);
+    recorderLayout->addWidget(recorderBtn);
+    m_recorderSummaryLabel = new QLabel(QStringLiteral("未开始"), recorderRow);
+    m_recorderSummaryLabel->setMinimumWidth(200);
+    recorderLayout->addWidget(m_recorderSummaryLabel, 1);
+    ui.logLayout->insertWidget(1, recorderRow);
+    connect(recorderBtn, &QPushButton::clicked, this, &QtProject_1::onScreenRecorder);
+    connect(&m_recorderHost, &RecorderHost::stateChanged, this, [this](recorder::RecorderState st) {
+        refreshRecorderSummaryLabel();
+        if (st == recorder::RecorderState::Error && !m_recorderHost.lastError().isEmpty())
+            log(QStringLiteral("录屏：%1").arg(m_recorderHost.lastError()));
+    });
+    connect(&m_recorderHost, &RecorderHost::logMessage, this, [this](const QString &msg) {
+        if (!msg.isEmpty())
+            log(QStringLiteral("录屏：%1").arg(msg));
+    });
+
     m_remoteHost.setControlGuard(&m_remoteGuard);
     m_mobileHost.setControlGuard(&m_remoteGuard);
     m_mobileHost.setStatusProvider([this]() { return buildRemoteStatusJson(); });
@@ -262,6 +283,13 @@ void QtProject_1::shutdownAll()
     m_shutdownDone = true;
 
     m_mobileHost.stopSession();
+    if (m_recorderDialog)
+    {
+        m_recorderDialog->hide();
+        delete m_recorderDialog;
+        m_recorderDialog = nullptr;
+    }
+    m_recorderHost.stop();
     if (m_remoteCenter)
     {
         m_remoteCenter->hide();
@@ -1404,6 +1432,31 @@ void QtProject_1::onRemoteControl()
     m_remoteCenter->show();
     m_remoteCenter->raise();
     m_remoteCenter->activateWindow();
+}
+
+// 显示或创建屏幕录制管理对话框。
+void QtProject_1::onScreenRecorder()
+{
+    if (m_shutdownDone)
+        return;
+    if (!m_recorderDialog)
+    {
+        m_recorderDialog = new ScreenRecorderDialog(this);
+        m_recorderDialog->bindRecorderHost(&m_recorderHost);
+    }
+    m_recorderDialog->show();
+    m_recorderDialog->raise();
+    m_recorderDialog->activateWindow();
+}
+
+void QtProject_1::refreshRecorderSummaryLabel()
+{
+    if (!m_recorderSummaryLabel)
+        return;
+    const QString text = RecorderStatusText::sessionSummary(
+        recorder::stateLabel(m_recorderHost.state()),
+        m_recorderHost.lastError());
+    m_recorderSummaryLabel->setText(text);
 }
 
 // 启用或关闭远程服务：bootstrap/shutdown 双门面并更新 UI 与状态 JSON。

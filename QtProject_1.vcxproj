@@ -78,7 +78,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;windowscodecs.lib;ole32.lib;d3d11.lib;dxgi.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;strmiids.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
@@ -96,7 +96,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(PYLON_DEV)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>PylonBase_v5_2.lib;PylonUtility_v5_2.lib;GenApi_MD_VC141_v3_1_Basler_pylon.lib;GCBase_MD_VC141_v3_1_Basler_pylon.lib;windowsapp.lib;windowscodecs.lib;ole32.lib;d3d11.lib;dxgi.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;strmiids.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -104,6 +104,11 @@
     <QtRcc Include="remote-qr\remote-qr.qrc" />
     <QtUic Include="QtProject_1.ui" />
     <QtUic Include="host-remote\RemoteControlCenter.ui" />
+    <QtUic Include="recorder\ui\ScreenRecorderDialog.ui" />
+    <QtUic Include="recorder\ui\ScreenRecorderSettingsDialog.ui" />
+    <QtUic Include="recorder\ui\RecorderNavSidebar.ui" />
+    <QtUic Include="recorder\ui\RecorderControlBar.ui" />
+    <QtUic Include="recorder\ui\RecorderOutputListWidget.ui" />
     <QtMoc Include="QtProject_1.h" />
     <QtMoc Include="camera\CameraController.h" />
     <QtMoc Include="save\ImageSaveThread.h" />
@@ -112,6 +117,14 @@
     <QtMoc Include="guide\GuideBubbleWidget.h" />
     <QtMoc Include="guide\GuideManager.h" />
     <QtMoc Include="host-remote\RemoteControlCenter.h" />
+    <QtMoc Include="recorder\RecorderControlBar.h" />
+    <QtMoc Include="recorder\RecorderNavSidebar.h" />
+    <QtMoc Include="recorder\RecorderHost.h" />
+    <QtMoc Include="recorder\RegionSelectorWidget.h" />
+    <QtMoc Include="recorder\RecorderPreviewWidget.h" />
+    <QtMoc Include="recorder\RecorderOutputListWidget.h" />
+    <QtMoc Include="recorder\dialog\ScreenRecorderDialog.h" />
+    <QtMoc Include="recorder\dialog\ScreenRecorderSettingsDialog.h" />
     <ClCompile Include="remote\RemotePreviewFrameCache.cpp" />
     <ClCompile Include="ui\PreviewWidget.cpp" />
     <ClCompile Include="guide\GuideBubbleWidget.cpp" />
@@ -119,11 +132,48 @@
     <ClCompile Include="guide\GuideOverlay.cpp" />
     <ClCompile Include="QtProject_1.cpp" />
     <ClCompile Include="host-remote\RemoteControlCenter.cpp" />
+    <ClCompile Include="recorder\dialog\ScreenRecorderDialog.cpp" />
+    <ClCompile Include="recorder\dialog\ScreenRecorderSettingsDialog.cpp" />
+    <ClCompile Include="recorder\RecorderControlBar.cpp" />
+    <ClCompile Include="recorder\RecorderNavSidebar.cpp" />
+    <ClCompile Include="recorder\RecorderHost.cpp" />
+    <ClCompile Include="recorder\RecorderUiBinder.cpp" />
+    <ClCompile Include="recorder\RecorderPathHelper.cpp" />
+    <ClCompile Include="recorder\RecorderOutputStore.cpp" />
+    <ClCompile Include="recorder\RecorderPreviewCapture.cpp" />
+    <ClCompile Include="recorder\RecorderPreviewWidget.cpp" />
+    <ClCompile Include="recorder\RecorderOutputListWidget.cpp" />
+    <ClCompile Include="recorder\RegionSelectorWidget.cpp" />
+    <ClCompile Include="recorder\src\ScreenRecorder.cpp" />
+    <ClCompile Include="recorder\src\RecorderError.cpp" />
+    <ClCompile Include="recorder\src\Capture\CaptureOpen.cpp" />
+    <ClCompile Include="recorder\src\Capture\GdiScreenCapture.cpp" />
+    <ClCompile Include="recorder\src\Capture\DxgiScreenCapture.cpp" />
+    <ClCompile Include="recorder\src\Encoder\MjpegAviEncoder.cpp" />
+    <ClCompile Include="recorder\src\Encoder\Mp4MfEncoder.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="camera\CameraController.cpp">
       <DisableSpecificWarnings>26812;26495;26451;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ClInclude Include="core\AppTypes.h" />
+    <ClInclude Include="recorder\RecorderKit.h" />
+    <ClInclude Include="recorder\RecorderQtKit.h" />
+    <ClInclude Include="recorder\RecorderStatusText.h" />
+    <ClInclude Include="recorder\RecorderPathHelper.h" />
+    <ClInclude Include="recorder\RecorderOutputStore.h" />
+    <ClInclude Include="recorder\RecorderPreviewCapture.h" />
+    <ClInclude Include="recorder\RecorderUiBinder.h" />
+    <ClInclude Include="recorder\include\RecorderTypes.h" />
+    <ClInclude Include="recorder\include\RecorderError.h" />
+    <ClInclude Include="recorder\include\ScreenRecorder.h" />
+    <ClInclude Include="recorder\src\Capture\IScreenCapture.h" />
+    <ClInclude Include="recorder\src\Capture\GdiScreenCapture.h" />
+    <ClInclude Include="recorder\src\Capture\DxgiScreenCapture.h" />
+    <ClInclude Include="recorder\src\Capture\CaptureOpen.h" />
+    <ClInclude Include="recorder\src\Capture\CaptureCommon.h" />
+    <ClInclude Include="recorder\src\Encoder\IVideoEncoder.h" />
+    <ClInclude Include="recorder\src\Encoder\MjpegAviEncoder.h" />
+    <ClInclude Include="recorder\src\Encoder\Mp4MfEncoder.h" />
     <ClInclude Include="core\AppLogger.h" />
     <ClInclude Include="guide\GuideKit.h" />
     <ClInclude Include="guide\GuideOverlay.h" />

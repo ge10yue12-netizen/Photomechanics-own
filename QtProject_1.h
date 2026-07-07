@@ -10,6 +10,7 @@
 #include "remote/RemoteControlGuard.h"
 #include "remote-qr/MobileHost.h"
 #include "host-remote/RemoteControlCenter.h"
+#include "recorder/RecorderQtKit.h"
 #include "core/AppLogger.h"
 #include "stage/StageManager.h"
 #include "save/ImageSaveThread.h"
@@ -47,6 +48,7 @@ private slots:
     // HTTP/BLE 遥控命令入口，与主界面按钮共用同一套业务槽。
     void onRemoteCommand(const QString &cmd);
     void onRemoteControl();
+    void onScreenRecorder();
 
     // 阶段表编辑
     void onAddStage();
@@ -124,6 +126,9 @@ private:
     // 刷新主界面远程控制摘要标签。
     void refreshRemoteSummaryLabel();
 
+    // 刷新主界面录屏摘要标签。
+    void refreshRecorderSummaryLabel();
+
     Ui::QtProject_1Class ui;
     CameraController m_camera;
     StageManager m_stageMgr;
@@ -135,6 +140,9 @@ private:
     RemoteControlGuard m_remoteGuard; // 跨客户端命令通道互斥
     RemoteControlCenter *m_remoteCenter = nullptr; // 远程控制管理对话框
     QLabel *m_remoteSummaryLabel = nullptr;        // 主界面远程状态摘要标签
+    RecorderHost m_recorderHost;                   // 屏幕录制门面
+    ScreenRecorderDialog *m_recorderDialog = nullptr; // 屏幕录制管理对话框
+    QLabel *m_recorderSummaryLabel = nullptr;      // 主界面录屏状态摘要标签
     bool m_remoteEnabled = false;    // 远程服务总闸；为 false 时不监听 HTTP/BLE/扫码
     GuideManager *m_startupGuide = nullptr;       // GuideKit 实例
     bool m_startupGuideScheduled = false;         // showEvent 中仅调度一次 startIfNeeded

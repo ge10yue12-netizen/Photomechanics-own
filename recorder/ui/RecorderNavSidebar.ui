@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>RecorderNavSidebar</class>
+ <widget class="QWidget" name="RecorderNavSidebar">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>96</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>96</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>96</width>
+    <height>16777215</height>
+   </size>
+  </property>
+  <property name="styleSheet">
+   <string>background: #FAFAFA; border-right: 1px solid #E0E0E0;</string>
+  </property>
+  <layout class="QVBoxLayout" name="navLayout">
+   <property name="spacing">
+    <number>2</number>
+   </property>
+   <property name="leftMargin">
+    <number>6</number>
+   </property>
+   <property name="topMargin">
+    <number>10</number>
+   </property>
+   <property name="rightMargin">
+    <number>6</number>
+   </property>
+   <property name="bottomMargin">
+    <number>10</number>
+   </property>
+   <item alignment="Qt::AlignLeft">
+    <widget class="QPushButton" name="generalBtn">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="styleSheet">
+      <string>QPushButton {
+  border: none; border-radius: 6px; padding: 10px 8px;
+  text-align: left; font-size: 13px; color: #666; background: transparent;
+}
+QPushButton:checked {
+  color: #1976D2; background: #E3F2FD; font-weight: bold;
+}
+QPushButton:hover:!checked {
+  background: #F5F5F5;
+}</string>
+     </property>
+     <property name="text">
+      <string>常规</string>
+     </property>
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item alignment="Qt::AlignLeft">
+    <widget class="QPushButton" name="settingsBtn">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="styleSheet">
+      <string>QPushButton {
+  border: none; border-radius: 6px; padding: 10px 8px;
+  text-align: left; font-size: 13px; color: #555; background: transparent;
+}
+QPushButton:checked {
+  color: #1976D2; background: #E3F2FD; font-weight: bold;
+}
+QPushButton:hover:!checked {
+  background: #F5F5F5; color: #1976D2;
+}
+QPushButton:disabled {
+  color: #BBB;
+}</string>
+     </property>
+     <property name="text">
+      <string>参数设置</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="navMidSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Fixed</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>6</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item alignment="Qt::AlignLeft">
+    <widget class="QPushButton" name="listBtn">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="styleSheet">
+      <string>QPushButton {
+  border: none; border-radius: 6px; padding: 10px 8px;
+  text-align: left; font-size: 13px; color: #666; background: transparent;
+}
+QPushButton:checked {
+  color: #1976D2; background: #E3F2FD; font-weight: bold;
+}
+QPushButton:hover:!checked {
+  background: #F5F5F5;
+}</string>
+     </property>
+     <property name="text">
+      <string>列表</string>
+     </property>
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="navBottomSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -20,5 +20,6 @@
 |------|--------|
 | `guide/` | 见 [GUIDEKIT_DEVELOPMENT_GUIDE.md](GUIDEKIT_DEVELOPMENT_GUIDE.md) |
 | `remote/` | [remote/README.md](../remote/README.md) |
+| `recorder/` | [recorder/README.md](../recorder/README.md) |
 | `remote-qr/` | [remote-qr/README.md](../remote-qr/README.md) |
 | `miniprogram/` | [miniprogram/README.md](../miniprogram/README.md) |

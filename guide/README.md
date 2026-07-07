@@ -1,337 +1,387 @@
-# GuideKit 新手引导 — 开发说明（本目录）
+# GuideKit 使用说明（新手版）
 
-> **读者**：要在本工程或移植工程中**自己改步骤、改文案、改高亮、改条件**的开发者。  
-> **库位置**：`guide/`（可复制整目录到其他 Qt Widgets 工程）。  
-> **本仓库业务样例**：`QtProject_1.cpp` → `setupStartupGuide()`、`populateBasicCaptureGuide()`。  
-> **补充文档**：根目录 [`docs/GUIDEKIT_DEVELOPMENT_GUIDE.md`](../docs/GUIDEKIT_DEVELOPMENT_GUIDE.md)（契约与测试清单）。
+## 这是什么？
+
+复制 `guide` 文件夹到你的 Qt 工程里，在主窗口加几段代码，软件**第一次打开**时会出现：
+
+- 屏幕变暗（遮罩）
+- 中间有个**气泡**写说明文字
+- 某个控件外面有**蓝色高亮框**
+- 底部有：**上一步 / 下一步 / 跳过**（最后一步是 **完成**）
+
+用户点 **完成** 或 **跳过** 之后，下次打开**不再自动弹出**。
+
+**你要写的**：每一步写什么字、高亮哪个按钮。  
+**不用改的**：`guide` 文件夹里的库代码（遮罩、气泡怎么画，库已经写好）。
 
 ---
 
-## 1. 一分钟理解
-
-GuideKit 做三件事：
-
-1. **半透明遮罩** + **高亮洞**（指向某个控件）
-2. **气泡**（标题 / 说明 / 操作提示 + 上一步 / 下一步 / 跳过 / 完成）
-3. **完成记录**（QSettings，用户点「完成」或「跳过」后不再自动弹出）
-
-**重要**：库**不拦截**鼠标，用户可以在引导进行时照常点界面；高亮只是「建议看这里」。  
-若某步必须「先操作再下一步」，用 `requireCanProceed` + `canProceed` + `notifyCondition` 只**灰掉「下一步」**，不禁用其它控件。
+## 一共 4 件事
 
 ```text
-用户首次启动
-    → showEvent 布局完成后 startIfNeeded()
-    → 显示第 1 步气泡
-    → 用户点「下一步」手动切步（不会自动跳）
-    → 末步点「完成」→ 写 QSettings → 下次不再弹出
+① 把 guide 文件夹拷进工程
+② Visual Studio 里加入 3 个 cpp、2 个头文件做 Moc
+③ 主窗口 .h / .cpp 里粘贴下面「小 Demo」代码
+④ 编译运行
 ```
+
+小 Demo 跑通 = 移植成功。后面「完整 Demo」是可选进阶。
 
 ---
 
-## 2. 目录与文件职责
+## ① 复制 guide 文件夹
 
-```text
-guide/
-  GuideKit.h              ← 对外唯一 #include 入口
-  GuideStep.h             ← 单步配置结构体（改步骤主要改这里填的字段）
-  GuideTheme.h            ← 遮罩/高亮/气泡颜色字体
-  GuideManager.h/.cpp     ← 流程：切步、完成记录、notifyCondition
-  GuideOverlay.h/.cpp     ← 遮罩 + 高亮洞绘制（一般不用改）
-  GuideBubbleWidget.h/.cpp← 气泡 UI（改按钮文案/布局才动这里）
-  README.md               ← 本文件
-```
-
-| 你想改… | 改哪里 |
-|--------|--------|
-| 步骤顺序、文案、高亮控件 | 业务工程里 `addStep()`（见 §5） |
-| 颜色、字体、圆角 | `GuideTheme` 或 `setTheme()`（§8） |
-| 「下一步」何时可点 | `canProceed` + 业务里 `notifyCondition()`（§6） |
-| 用户重新看到引导 | `setVersion()` 递增（§7） |
-| 气泡按钮文字/布局 | `GuideBubbleWidget.cpp`（少见） |
+把整个 `guide` 目录复制到你的工程根目录（和 `main.cpp` 放一起即可）。
 
 ---
 
-## 3. 接入工程（Visual Studio + Qt 5.15）
+## ② Visual Studio 设置
 
-### 3.1 复制与编译
+**加进工程编译的文件（3 个 cpp）：**
 
-1. 复制整个 `guide/` 到目标工程。
-2. **ClCompile** 加入：
-   - `guide/GuideManager.cpp`
-   - `guide/GuideOverlay.cpp`
-   - `guide/GuideBubbleWidget.cpp`
-3. **Qt Moc** 加入：
-   - `guide/GuideManager.h`
-   - `guide/GuideBubbleWidget.h`
-4. C++ 标准：**C++14 及以上**（库内未用 C++17 特性）。
+- `guide/GuideManager.cpp`
+- `guide/GuideOverlay.cpp`
+- `guide/GuideBubbleWidget.cpp`
 
-本仓库已在 `QtProject_1.vcxproj` 中配置，可直接对照。
+**要做 Moc 的头文件（2 个）：**
 
-### 3.2 头文件
+- `guide/GuideManager.h`
+- `guide/GuideBubbleWidget.h`
 
-业务代码只需：
+**项目属性里还要做 2 件事：**
+
+1. C++ 标准选 **C++14** 或更高  
+2. **C/C++ → 命令行 → 其他选项** 里填 **`/utf-8`**（Debug 和 Release 都要填，否则中文会编译报错）
+
+---
+
+## ③ 小 Demo：粘贴代码（2 步引导，最容易测）
+
+下面代码假设你的主窗口类叫 `MainWindow`（如果你叫别的，全局替换即可）。
+
+### 第 1 步：改 .h 文件
+
+在文件最上面加：
 
 ```cpp
 #include "guide/GuideKit.h"
 ```
 
----
-
-## 4. 本仓库接入点（改引导从这里下手）
-
-| 位置 | 作用 |
-|------|------|
-| `QtProject_1.h` | 成员 `GuideManager *m_startupGuide` |
-| `QtProject_1.cpp` 构造函数 | 调用 `setupStartupGuide()` |
-| `QtProject_1.cpp` `showEvent` | 布局完成后 `startIfNeeded()`（**必须等布局完成**，否则高亮坐标错） |
-| `QtProject_1.cpp` `setupStartupGuide()` | 创建 `GuideManager`、设 `productId` |
-| `QtProject_1.cpp` `populateBasicCaptureGuide()` | **7 步样例**，移植时整段替换为你的步骤 |
-| `onOpenCamera()` 等 | 业务成功后 `notifyCondition("xxx")` |
-
-当前样例配置：
+在 `class MainWindow` 里面加：
 
 ```cpp
-m_startupGuide->setProductId(QStringLiteral("QtProject_1"));
-m_startupGuide->setGuideId(QStringLiteral("basic_capture"));
-m_startupGuide->setVersion(4);   // 改步骤内容后请 +1
+GuideManager *m_guide = nullptr;
+bool m_guideStarted = false;
+
+void setupGuide();
 ```
 
-完成键（Windows 注册表 / QSettings）形如：
+如果还没有 `showEvent`，加上：
 
-```text
-GuideKit/QtProject_1/basic_capture/v4/Completed = true
+```cpp
+void showEvent(QShowEvent *event) override;
 ```
 
 ---
 
-## 5. 如何新增 / 修改一步（逐步操作）
+### 第 2 步：改 .cpp 文件
 
-### 5.1 最小一步（无门控）
-
-在 `populateBasicCaptureGuide()`（或你的注册函数）里：
+文件顶部加：
 
 ```cpp
-GuideStep step;
-step.id = QStringLiteral("my_step");           // 唯一 ID，用于 stepChanged 信号
-step.title = QStringLiteral("步骤标题");
-step.description = QStringLiteral("正文说明，可多行语义。");
-step.actionHint = QStringLiteral("您可在此操作；完成后点击「下一步」。");  // 可留空，库会生成默认句
-
-// 高亮哪个控件（二选一，推荐 targetGetter）
-step.targetGetter = [this]() -> QWidget * { return ui.myButton; };
-// step.targetObjectName = QStringLiteral("myButton");  // 需控件 setObjectName
-
-m_startupGuide->addStep(step);
+#include <QShowEvent>
+#include <QTimer>
 ```
 
-### 5.2 高亮前先滚到可见区域
-
-本仓库工作流在 `QScrollArea` 里，切步时用 `ensureWidgetVisible`：
+**在构造函数最后加一行：**
 
 ```cpp
-auto ensureVisible = [this](QWidget *widget) {
-    if (widget)
-        ui.workflowScroll->ensureWidgetVisible(widget, 24, 24);
+setupGuide();
+```
+
+**把下面整个函数复制到 .cpp 里：**
+
+```cpp
+void MainWindow::setupGuide()
+{
+    if (m_guide)
+        return;
+
+    // 创建引导管理器（两个 this 都传主窗口即可）
+    m_guide = new GuideManager(this, this);
+
+    // ↓↓↓ 只改这一行：换成你的产品名，随便起，英文即可 ↓↓↓
+    m_guide->setProductId(QStringLiteral("MyApp"));
+
+    m_guide->setGuideId(QStringLiteral("first_run"));
+    m_guide->setVersion(1);
+    m_guide->clearSteps();
+
+    // ---------- 第 1 步引导 ----------
+    GuideStep step1;
+    step1.title = QStringLiteral("欢迎");
+    step1.description = QStringLiteral("这是第 1 步。点「下一步」继续。");
+    // 高亮哪里：centralWidget 是主窗口中间区域，任何 QMainWindow 都有，不用找按钮名
+    step1.targetGetter = [this]() -> QWidget * {
+        return centralWidget();
+    };
+    m_guide->addStep(step1);
+
+    // ---------- 第 2 步引导（最后一步，按钮会自动变成「完成」）----------
+    GuideStep step2;
+    step2.title = QStringLiteral("结束");
+    step2.description = QStringLiteral("点「完成」。下次启动不会再弹出。");
+    step2.targetGetter = [this]() -> QWidget * {
+        return centralWidget();
+    };
+    m_guide->addStep(step2);
+}
+```
+
+**如果 .cpp 里还没有 showEvent，再复制下面这个函数：**
+
+```cpp
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+
+    // 必须等窗口布局画完再启动，否则高亮框位置会错
+    if (m_guide && !m_guideStarted)
+    {
+        m_guideStarted = true;
+        QTimer::singleShot(0, m_guide, &GuideManager::startIfNeeded);
+    }
+}
+```
+
+> **注意**：如果你本来就有 `showEvent`，不要整段覆盖，只把 `if (m_guide && !m_guideStarted) { ... }` 那几行**合并进去**。
+
+---
+
+### 第 3 步：编译运行，对照下面检查
+
+| 你做的操作 | 应该看到 |
+|------------|----------|
+| 第一次打开软件 | 屏幕变暗，出现气泡「欢迎」 |
+| 点「下一步」 | 变成「结束」 |
+| 点「完成」 | 引导消失 |
+| 关掉软件再打开 | **不再**自动弹出引导 |
+
+以上 4 条都对 = **小 Demo 成功**。
+
+---
+
+### 想高亮某个按钮怎么办？
+
+把上面两处 `return centralWidget();` 改成，例如：
+
+```cpp
+return ui->openButton;   // openButton 换成你 Designer 里的按钮名
+```
+
+---
+
+## ④ 以后怎么改引导？
+
+### 加一步
+
+在 `setupGuide()` 里，在最后一个 `addStep` **前面**再写一段：
+
+```cpp
+GuideStep stepX;
+stepX.title = QStringLiteral("新步骤标题");
+stepX.description = QStringLiteral("新步骤说明");
+stepX.targetGetter = [this]() -> QWidget * {
+    return ui->你的控件;
 };
-
-step.beforeShow = [this, ensureVisible]() {
-    ensureVisible(ui.cameraConnectGroup);
-};
+m_guide->addStep(stepX);
 ```
 
-### 5.3 要求用户先操作，再允许「下一步」
+然后找到 `setVersion(1)`，数字 **加 1**（改成 2、3、4…）。  
+**不改 version，用户看不到新文案。**
 
-以「打开相机」步为例（见 `QtProject_1.cpp`）：
+### 改文字
 
-**步骤侧：**
+改对应步骤的 `title`、`description`，`setVersion` 数字 **加 1**。
+
+### 删一步
+
+删掉那一段 `GuideStep` 和后面的 `addStep`，`setVersion` **加 1**。
+
+---
+
+## 进阶：完整 Demo（小 Demo 跑通后再看）
+
+这一节把库提供的功能**都写进示例**，你用不上的整段删掉即可。
+
+### 额外功能有哪些？
+
+| 功能 | 干什么 | 小 Demo 有没有 |
+|------|--------|----------------|
+| `setTheme` | 改颜色、字体 | 无 |
+| 信号 connect | 引导开始/切步/结束时打日志 | 无 |
+| 门控 | 必须先点某个按钮，「下一步」才亮 | 无 |
+| `notifyCondition` | 按钮点完后通知引导 | 无 |
+| `beforeShow` | 进入某步前滚屏、切页 | 无 |
+| `actionHint` | 气泡里多一行蓝色提示 | 无 |
+
+### 头文件再多加
 
 ```cpp
-openCamera.requireCanProceed = true;
-openCamera.conditionId = QStringLiteral("camera_opened");
-openCamera.canProceed = [this]() { return m_camera.isOpen(); };
+bool m_buttonClicked = false;
+void onGuideButtonClicked();
 ```
 
-**业务侧**（相机打开成功后）：
+### 用下面函数替换小 Demo 的 setupGuide
+
+**还要在构造函数里加**（把 `ui->pushButton` 换成你界面上的真实按钮）：
 
 ```cpp
-if (m_startupGuide)
-    m_startupGuide->notifyCondition(QStringLiteral("camera_opened"));
+connect(ui->pushButton, &QPushButton::clicked, this, &MainWindow::onGuideButtonClicked);
 ```
-
-说明：
-
-- `conditionId` 与 `notifyCondition` 参数字符串**必须一致**。
-- 库每 **350ms** 轮询一次 `canProceed`；`notifyCondition` 会立刻刷新按钮。
-- 条件不满足时仅 **「下一步」变灰**，用户仍可点高亮按钮去操作。
-
-### 5.4 删除一步
-
-在 `populateBasicCaptureGuide()` 里删掉对应 `addStep(...)` 块，**并** `setVersion(n+1)`。
-
-### 5.5 调整顺序
-
-调整多个 `addStep` 的先后顺序即可，**并** `setVersion(n+1)`。
-
-### 5.6 末步
-
-最后一步气泡按钮自动显示 **「完成」**（不是「下一步」），点击后写完成标记。
-
----
-
-## 6. GuideStep 字段速查
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | `QString` | 步骤 ID |
-| `title` | `QString` | 气泡标题 |
-| `description` | `QString` | 正文 |
-| `actionHint` | `QString` | 蓝色操作提示行；空则用库默认 |
-| `targetObjectName` | `QString` | 按 objectName 找控件 |
-| `targetGetter` | `function<QWidget*()>` | **推荐**，动态返回要高亮的控件 |
-| `beforeShow` | `function<void()>` | 进入本步前：切 Tab、滚屏、临时 disable 等 |
-| `afterLeave` | `function<void()>` | 离开本步后：恢复 enable 等 |
-| `conditionId` | `QString` | 与 `notifyCondition` 配对 |
-| `canProceed` | `function<bool()>` | 返回 true 时「下一步」可点 |
-| `requireCanProceed` | `bool` | true 时启用上门控 |
-| `allowSkip` | `bool` | 是否显示「跳过」，默认 true |
-| `allowPrevious` | `bool` | 是否显示「上一步」，默认 true |
-| `margin` | `int` | 高亮洞相对控件外扩像素，默认 8 |
-| `maxBubbleWidth` | `int` | 气泡最大宽度，默认 380 |
-
----
-
-## 7. GuideManager API（业务常用）
-
-| 方法 | 何时调用 |
-|------|----------|
-| `setProductId(name)` | 创建后一次，如 `"QtProject_1"` |
-| `setGuideId(name)` | 每组引导一个 ID，如 `"basic_capture"` |
-| `setVersion(n)` | **每次改步骤内容后递增** |
-| `clearSteps()` + `addStep()` | 注册步骤前清空 |
-| `startIfNeeded()` | 首次启动且未完成时显示（本仓库在 `showEvent`） |
-| `start()` | 调试：强制显示（忽略完成标记） |
-| `stop()` | 中止，**不**写完成标记 |
-| `skip()` | 用户跳过，写完成标记 |
-| `complete()` | 正常完成（一般由气泡「完成」触发） |
-| `notifyCondition(id)` | 业务动作成功后刷新「下一步」 |
-| `isCompleted()` | 是否已完成 |
-| `resetCompletion()` | 清除完成标记（调试） |
-| `setTheme(theme)` | 换肤 |
-
-**信号**（可选连接）：
-
-- `started()` — 引导开始
-- `stopped(bool completed)` — 结束
-- `skipped()` — 跳过
-- `stepChanged(stepId, index, total)` — 切步
-
----
-
-## 8. 主题 GuideTheme
 
 ```cpp
-GuideTheme theme;
-theme.maskColor = QColor(0, 0, 0, 155);           // 遮罩透明度
-theme.highlightColor = QColor(64, 158, 255);      // 高亮边框
-theme.hintColor = QColor(24, 144, 255);           // 操作提示行
-theme.titleFont.setPointSize(11);
-m_startupGuide->setTheme(theme);
+void MainWindow::setupGuide()
+{
+    if (m_guide)
+        return;
+
+    m_guide = new GuideManager(this, this);
+    m_guide->setProductId(QStringLiteral("MyApp"));
+    m_guide->setGuideId(QStringLiteral("full_demo"));
+    m_guide->setVersion(1);
+
+    // --- 主题（整段不需要就删掉）---
+    GuideTheme theme;
+    theme.maskColor = QColor(0, 0, 0, 155);
+    theme.highlightColor = QColor(64, 158, 255);
+    m_guide->setTheme(theme);
+
+    // --- 信号（整段不需要就删掉）---
+    connect(m_guide, &GuideManager::stepChanged, this,
+            [](const QString &, int index, int total) {
+        qDebug() << "当前第" << (index + 1) << "步，共" << total << "步";
+    });
+
+    m_guide->clearSteps();
+
+    // 第 1 步：普通介绍
+    GuideStep s1;
+    s1.title = QStringLiteral("第 1 步");
+    s1.description = QStringLiteral("直接点下一步即可。");
+    s1.actionHint = QStringLiteral("");  // 留空用默认提示
+    s1.targetGetter = [this]() -> QWidget * { return centralWidget(); };
+    m_guide->addStep(s1);
+
+    // 第 2 步：必须先点按钮（门控）
+    GuideStep s2;
+    s2.title = QStringLiteral("第 2 步");
+    s2.description = QStringLiteral("请先点高亮的按钮。");
+    s2.targetGetter = [this]() -> QWidget * { return ui->pushButton; };
+    s2.requireCanProceed = true;
+    s2.conditionId = QStringLiteral("btn_clicked");
+    s2.canProceed = [this]() { return m_buttonClicked; };
+    m_guide->addStep(s2);
+
+    // 第 3 步：最后一步
+    GuideStep s3;
+    s3.title = QStringLiteral("第 3 步");
+    s3.description = QStringLiteral("点完成。");
+    s3.targetGetter = [this]() -> QWidget * { return centralWidget(); };
+    m_guide->addStep(s3);
+}
+
+void MainWindow::onGuideButtonClicked()
+{
+    m_buttonClicked = true;
+    if (m_guide)
+        m_guide->notifyCondition(QStringLiteral("btn_clicked"));
+}
 ```
 
-字段定义见 `GuideTheme.h`；引导运行中也可 `setTheme` 热更新。
+门控原理就三句：
+
+1. 步骤里写 `requireCanProceed = true`  
+2. `conditionId` 和下面 `notifyCondition` 里的字符串**完全一样**  
+3. 用户点按钮成功后调用 `notifyCondition`
+
+`showEvent` 代码和小 Demo **相同**，不用改。
 
 ---
 
-## 9. 本仓库 7 步样例对照表
+## 出错了怎么办？
 
-| 序号 | `id` | 高亮目标 | 门控 |
-|------|------|----------|------|
-| 1 | `select_camera` | `cameraSelectCombo` | 无 |
-| 2 | `open_camera` | `openCameraBtn` | `camera_opened` ← `m_camera.isOpen()` |
-| 3 | `camera_params` | `cameraParamGroup` | 无 |
-| 4 | `start_capture` | `startGrabBtn` | `capture_started` ← `m_acquisitionActive` |
-| 5 | `save_one` | `saveOneBmpBtn` | 无（介绍型） |
-| 6 | `stage_capture` | `stageGroup` | 无 |
-| 7 | `save_path` | `saveSettingGroup` | 无（末步） |
-
-改 UI 控件名时，同步改 `targetGetter` 里返回的 `ui.xxx`。
+| 报错或现象 | 原因 | 解决办法 |
+|------------|------|----------|
+| C4819、C2001 | 没加 utf-8 | 项目属性命令行加 `/utf-8` |
+| 高亮框在左上角 | 启动太早 | 必须在 `showEvent` 里调 `startIfNeeded` |
+| 改了文字没变化 | 没升版本 | `setVersion` 数字加 1 |
+| 「下一步」一直灰色 | 门控没配对 | 检查 `conditionId` 和 `notifyCondition` 是否一字不差 |
+| 编译说找不到 GuideKit.h | 路径不对 | 确认 `guide` 文件夹位置，或加包含目录 |
 
 ---
 
-## 10. 调试与测试
+## 调试：想再看一次引导
 
-### 10.1 强制再次显示引导
+任选一种：
 
-**方法一（推荐）**：`setVersion(5)`（或当前 +1），重新编译运行。
+```cpp
+m_guide->setVersion(2);          // 把 version 改大，重新编译（推荐）
+```
 
-**方法二**：代码里临时 `m_startupGuide->resetCompletion();` 再 `start()`。
+或临时：
 
-**方法三**：删注册表/QSettings 键（见 §4 完成键路径）。
-
-### 10.2 自检清单
-
-| 操作 | 预期 |
-|------|------|
-| 首次启动 | 出现第 1 步 |
-| 已完成后再开 | 不出现 |
-| 引导中点击高亮按钮 | 与无引导时相同 |
-| 门控步未满足条件 | 「下一步」灰，其它可操作 |
-| 满足条件 / notifyCondition | 「下一步」亮 |
-| 拖窗口大小 | 遮罩与气泡跟随 |
-| 高亮控件被销毁 | 不崩溃（库监听 destroy） |
-
-### 10.3 常见问题
-
-| 现象 | 原因 | 处理 |
-|------|------|------|
-| 高亮框位置错/在 (0,0) | 布局未完成就 `start` | 像本仓库一样在 `showEvent` + `singleShot(0)` |
-| 改了文案用户看不到 | 未升 `version` | `setVersion(n+1)` |
-| 「下一步」一直灰 | `canProceed` 一直 false 或 `conditionId` 不一致 | 检查 lambda 与 `notifyCondition` 字符串 |
-| 找不到高亮控件 | `targetGetter` 返回 nullptr | 确认指针、objectName、是否已 create |
-| 滚动区里看不到高亮 | 控件在可视区外 | `beforeShow` 里 `ensureWidgetVisible` |
+```cpp
+m_guide->resetCompletion();
+m_guide->start();
+```
 
 ---
 
-## 11. 移植到新工程（替换样例）
+## 词义表（查 API 用）
 
-1. 复制 `guide/` + 按 §3 加入工程。
-2. 主窗口持有 `GuideManager *`，构造里 `new GuideManager(this, this)`（root 一般为窗口自身或 central widget）。
-3. 写 `populateYourGuide()` 替换 `populateBasicCaptureGuide()` 内容。
-4. `showEvent` 末尾 `startIfNeeded()`。
-5. 在业务成功回调里 `notifyCondition`。
-6. **不要**把业务步骤写进 `guide/` 库目录；库保持通用，步骤全在宿主 `.cpp`。
+### GuideManager 常用方法
+
+| 方法 | 一句话 |
+|------|--------|
+| `new GuideManager(this, this)` | 创建 |
+| `setProductId` | 产品名，记完成状态用 |
+| `setGuideId` | 这组引导的名字 |
+| `setVersion` | 版本号，改步骤要加 1 |
+| `clearSteps` / `addStep` | 清空 / 添加一步 |
+| `setSteps` | 一次性设置多步（和 addStep 二选一） |
+| `setTheme` | 改颜色字体 |
+| `startIfNeeded` | 第一次未完成才显示 |
+| `start` | 强制显示（调试用） |
+| `notifyCondition` | 门控：操作完成后调用 |
+| `resetCompletion` | 清除「已完成」记录 |
+
+### GuideStep 常用字段
+
+| 字段 | 一句话 |
+|------|--------|
+| `title` | 标题 |
+| `description` | 正文 |
+| `targetGetter` | 高亮哪个控件 |
+| `actionHint` | 蓝色小字提示，可留空 |
+| `beforeShow` | 进入这步之前干点什么 |
+| `afterLeave` | 离开这步之后干点什么 |
+| `requireCanProceed` | true = 必须满足条件才能点下一步 |
+| `conditionId` | 条件名字，和 notifyCondition 配对 |
+| `canProceed` | 返回 true 表示条件满足了 |
+
+### 信号（可选 connect）
+
+- `started` — 引导开始了  
+- `stepChanged` — 换了一步  
+- `skipped` — 用户点了跳过  
+- `stopped` — 引导结束了  
 
 ---
 
-## 12. 行为契约（改库前必读）
+## 记住 4 句话
 
-1. **不挡鼠标**：`GuideOverlay` 使用 `WA_TransparentForMouseEvents`。
-2. **不自动跳步**：只有用户点「下一步」/「完成」才前进。
-3. **门控只灰「下一步」**：不禁用目标控件（除非你在 `beforeShow` 自己 disable 别的面板）。
-4. **末步「完成」始终可点**：即使写了 `requireCanProceed`。
-5. **C++14**：`guide/` 内勿用 C++17 语法。
-
----
-
-## 13. 改库源码时
-
-| 文件 | 可改场景 |
-|------|----------|
-| `GuideBubbleWidget.cpp` | 按钮文案、布局、进度格式 |
-| `GuideOverlay.cpp` | 高亮形状、动画 |
-| `GuideManager.cpp` | 轮询间隔 `kConditionPollMs`、QSettings 键规则 |
-| `GuideStep.h` | 新增步骤字段（需同步 Manager） |
-
-改库内注释须符合项目 `code-comments.mdc`（函数上一行中文说明）。
-
----
-
-## 14. 相关链接
-
-- 项目总则：`README.md` → 一分钟了解 / 架构
-- 开发者时序：`docs/DEVELOPER_GUIDE.md`
-- GuideKit 契约与测试：`docs/GUIDEKIT_DEVELOPMENT_GUIDE.md`
-
----
-
-**维护提示**：每次修改 `populateBasicCaptureGuide()` 中的步骤定义或文案，请同步 **递增 `setVersion`**，并在提交说明里写清引导变更，便于测试与用户重新学习。
+1. 步骤代码写在你自己的主窗口 `.cpp`，**不要**写进 `guide` 文件夹。  
+2. 第一次启动引导写在 **`showEvent`** 里，不要写在构造函数。  
+3. 改了引导内容，**version 数字加 1**。  
+4. 先跑通 **小 Demo**，再按需从 **完整 Demo** 里抄功能。
