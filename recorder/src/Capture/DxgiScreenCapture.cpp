@@ -218,6 +218,11 @@ void copyRowBgra(const std::uint8_t *src,
                  int height)
 {
     const int copyBytes = width * 4;
+    if (srcStride == dstStride)
+    {
+        std::memcpy(dst, src, static_cast<size_t>(srcStride) * static_cast<size_t>(height));
+        return;
+    }
     for (int y = 0; y < height; ++y)
     {
         std::memcpy(dst + static_cast<size_t>(y) * static_cast<size_t>(dstStride),
@@ -298,19 +303,19 @@ public:
     // 打开后预抓一帧；静止桌面首次 AcquireNextFrame 常超时，避免预览/录制首帧失败。
     void warmUpInitialFrame()
     {
-        for (int i = 0; i < 20 && !m_hasLastFrame; ++i)
+        for (int i = 0; i < 5 && !m_hasLastFrame; ++i)
         {
             CaptureFrame tmp;
             std::string err;
-            if (grabFrameOnce(&tmp, &err, 500))
+            if (grabFrameOnce(&tmp, &err, 100))
                 return;
-            Sleep(30);
+            Sleep(20);
         }
     }
 
     bool grab(CaptureFrame *frame, std::string *error)
     {
-        return grabFrameOnce(frame, error, 200);
+        return grabFrameOnce(frame, error, 16);
     }
 
     void close()
@@ -337,7 +342,6 @@ public:
         }
         m_open = false;
         m_hasLastFrame = false;
-        m_lastFrame.bgra.clear();
     }
 
     int captureWidth() const { return m_region.width; }
@@ -360,7 +364,10 @@ private:
         {
             if (m_hasLastFrame)
             {
-                *frame = m_lastFrame;
+                frame->width = m_region.width;
+                frame->height = m_region.height;
+                frame->stride = m_region.width * 4;
+                frame->hasNewPixels = false;
                 return true;
             }
             if (error)
@@ -422,7 +429,11 @@ private:
         frame->width = m_region.width;
         frame->height = m_region.height;
         frame->stride = stride;
-        frame->bgra.resize(static_cast<size_t>(stride) * static_cast<size_t>(m_region.height));
+        frame->hasNewPixels = true;
+        const size_t byteCount =
+            static_cast<size_t>(stride) * static_cast<size_t>(m_region.height);
+        if (frame->bgra.size() != byteCount)
+            frame->bgra.resize(byteCount);
         copyRowBgra(static_cast<const std::uint8_t *>(mapped.pData),
                     static_cast<int>(mapped.RowPitch),
                     frame->bgra.data(),
@@ -431,7 +442,6 @@ private:
                     m_region.height);
         m_context->Unmap(m_staging, 0);
 
-        m_lastFrame = *frame;
         m_hasLastFrame = true;
         return true;
     }
@@ -461,7 +471,6 @@ private:
     Rect m_outputDesktop;
     int m_cropX = 0;
     int m_cropY = 0;
-    CaptureFrame m_lastFrame;
     bool m_hasLastFrame = false;
     bool m_open = false;
 };

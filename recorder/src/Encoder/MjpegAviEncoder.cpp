@@ -1,5 +1,7 @@
 #include "MjpegAviEncoder.h"
 
+#include "../../include/RecorderPresets.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -278,6 +280,7 @@ public:
         m_height = params.height;
         m_fps = params.fps > 0 ? params.fps : 30;
         m_bitrateKbps = params.bitrateKbps;
+        m_encodeLevel = params.encodeLevel;
         m_filePath = params.filePath;
 
         const HRESULT coHr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -366,7 +369,7 @@ public:
         return true;
     }
 
-    bool writeFrame(const CaptureFrame &frame, std::string *error)
+    bool writeFrame(const CaptureFrame &frame, std::string *error, int timelineSlots)
     {
         if (!m_open || !m_file)
         {
@@ -374,12 +377,51 @@ public:
                 *error = "编码器未打开。";
             return false;
         }
+        if (timelineSlots < 1)
+            timelineSlots = 1;
 
-        std::vector<std::uint8_t> jpeg;
-        const int quality = clampInt(m_bitrateKbps / 100, 50, 95);
-        if (!encodeJpeg(m_factory, frame, m_width, m_height, quality, &jpeg, error))
+        const int quality = encodeMjpegQuality(m_encodeLevel, m_bitrateKbps);
+        if (!encodeJpeg(m_factory, frame, m_width, m_height, quality, &m_lastJpeg, error))
             return false;
 
+        for (int i = 0; i < timelineSlots; ++i)
+        {
+            if (!writeJpegChunk(error))
+                return false;
+        }
+        return true;
+    }
+
+    bool writeCachedTimeline(std::string *error, int timelineSlots)
+    {
+        if (!m_open || !m_file)
+        {
+            if (error)
+                *error = "编码器未打开。";
+            return false;
+        }
+        if (timelineSlots < 1)
+            return true;
+        if (m_lastJpeg.empty())
+        {
+            if (error)
+                *error = "尚无缓存帧，无法写入时间轴。";
+            return false;
+        }
+
+        for (int i = 0; i < timelineSlots; ++i)
+        {
+            if (!writeJpegChunk(error))
+                return false;
+        }
+        return true;
+    }
+
+private:
+    bool writeJpegChunk(std::string *error)
+    {
+        (void)error;
+        const std::vector<std::uint8_t> &jpeg = m_lastJpeg;
         const std::uint32_t chunkSize = static_cast<std::uint32_t>(jpeg.size());
         const std::uint32_t padded = padToWord(chunkSize);
         const long offset = std::ftell(m_file) - m_moviStart + 4;
@@ -400,6 +442,8 @@ public:
         ++m_frameCount;
         return true;
     }
+
+public:
 
     bool close(std::string *error)
     {
@@ -479,6 +523,7 @@ private:
     int m_height = 0;
     int m_fps = 30;
     int m_bitrateKbps = 4000;
+    EncodeLevel m_encodeLevel = EncodeLevel::Default;
     long m_riffSizePos = 0;
     long m_hdrlSizePos = 0;
     long m_strlSizePos = 0;
@@ -488,6 +533,7 @@ private:
     long m_strhLengthPos = 0;
     std::uint32_t m_frameCount = 0;
     std::vector<IndexEntry> m_index;
+    std::vector<std::uint8_t> m_lastJpeg;
     bool m_open = false;
     bool m_comInited = false;
 };
@@ -507,9 +553,14 @@ bool MjpegAviEncoder::open(const EncoderOpenParams &params, std::string *error)
     return m_impl->open(params, error);
 }
 
-bool MjpegAviEncoder::writeFrame(const CaptureFrame &frame, std::string *error)
+bool MjpegAviEncoder::writeFrame(const CaptureFrame &frame, std::string *error, int timelineSlots)
 {
-    return m_impl->writeFrame(frame, error);
+    return m_impl->writeFrame(frame, error, timelineSlots);
+}
+
+bool MjpegAviEncoder::writeCachedTimeline(std::string *error, int timelineSlots)
+{
+    return m_impl->writeCachedTimeline(error, timelineSlots);
 }
 
 bool MjpegAviEncoder::close(std::string *error)

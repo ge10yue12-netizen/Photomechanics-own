@@ -2,26 +2,32 @@
 #include "ui_ScreenRecorderDialog.h"
 #include "ScreenRecorderSettingsDialog.h"
 
+#include "../RecorderFloatBall.h"
 #include "../RecorderControlBar.h"
-#include "../RecorderHost.h"
+#include "../RecorderController.h"
 #include "../RecorderOutputListWidget.h"
 #include "../RecorderPathHelper.h"
 #include "../RecorderPreviewCapture.h"
+#include "../RecorderVideoProbe.h"
 #include "../RecorderStatusText.h"
 #include "../RecorderUiBinder.h"
+#include "../RecorderComboStyle.h"
 #include "../RegionSelectorWidget.h"
+#include "../include/RecorderWindowTarget.h"
 
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDir>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMessageBox>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QShowEvent>
 #include <QSize>
-#include <QSpinBox>
 #include <QTimer>
 #include <QUrl>
 
@@ -40,33 +46,122 @@ ScreenRecorderDialog::ScreenRecorderDialog(QWidget *parent)
     m_durationTimer->setInterval(kDurationTickMs);
     connect(m_durationTimer, &QTimer::timeout, this, &ScreenRecorderDialog::onDurationTimer);
 
+    m_outputDirResyncTimer.setSingleShot(true);
+    m_outputDirResyncTimer.setInterval(400);
+    connect(&m_outputDirWatcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString &) {
+        m_outputDirResyncTimer.start();
+    });
+    connect(&m_outputDirResyncTimer, &QTimer::timeout, this, &ScreenRecorderDialog::resyncOutputListFromDisk);
+
     wireUi();
+    wireFloatBall();
 }
 
 ScreenRecorderDialog::~ScreenRecorderDialog()
 {
+    delete m_floatBall;
     delete ui;
 }
 
-void ScreenRecorderDialog::bindRecorderHost(RecorderHost *host)
+void ScreenRecorderDialog::bindController(RecorderController *controller)
 {
-    m_host = host;
-    wireHost();
-    if (m_host)
-        applyStateToUi(m_host->state());
+    m_controller = controller;
+    wireController();
+    if (m_controller)
+        applyStateToUi(m_controller->state());
+}
+
+void ScreenRecorderDialog::setFixedWindowTarget(recorder::IRecorderWindowTarget *target, const QString &label)
+{
+    m_windowTarget = target;
+    m_windowTargetLabel = label.trimmed();
+    refreshCaptureModeCombo();
+}
+
+void ScreenRecorderDialog::refreshCaptureModeCombo()
+{
+    if (!ui || !ui->regionCombo)
+        return;
+
+    const auto prevMode = static_cast<recorder::CaptureMode>(ui->regionCombo->currentData().toInt());
+
+    m_blockRegionCombo = true;
+    RecorderUiBinder::fillCaptureModeCombo(ui->regionCombo);
+    if (m_windowTarget && !m_windowTargetLabel.isEmpty())
+    {
+        ui->regionCombo->addItem(m_windowTargetLabel,
+                                 static_cast<int>(recorder::CaptureMode::Window));
+    }
+
+    const int idx = ui->regionCombo->findData(static_cast<int>(prevMode));
+    if (idx >= 0)
+        ui->regionCombo->setCurrentIndex(idx);
+    else if (ui->regionCombo->count() > 0)
+        ui->regionCombo->setCurrentIndex(0);
+
+    m_blockRegionCombo = false;
+    refreshRegionSummary();
+}
+
+std::uintptr_t ScreenRecorderDialog::currentWindowHandle() const
+{
+    if (!m_windowTarget)
+        return 0;
+    return m_windowTarget->windowHandle();
+}
+
+void ScreenRecorderDialog::syncWindowVisualConsumers()
+{
+    if (!m_windowTarget)
+        return;
+
+    int flags = 0;
+    const auto mode = static_cast<recorder::CaptureMode>(ui->regionCombo->currentData().toInt());
+    if (mode == recorder::CaptureMode::Window)
+    {
+        if (isVisible() && isGeneralPage())
+            flags |= static_cast<int>(recorder::VisualConsumerFlag::LivePreview);
+
+        if (m_controller)
+        {
+            const recorder::RecorderState st = m_controller->state();
+            if (st == recorder::RecorderState::Recording || st == recorder::RecorderState::Paused)
+                flags |= static_cast<int>(recorder::VisualConsumerFlag::Recording);
+        }
+    }
+
+    m_windowTarget->setVisualConsumerFlags(flags);
+}
+
+int ScreenRecorderDialog::resolveSavedVideoDurationSeconds(int fallbackSeconds) const
+{
+    if (m_activeRecordPath.isEmpty())
+        return fallbackSeconds < 0 ? 0 : fallbackSeconds;
+    return RecorderVideoProbe::durationSecondsWithFallback(m_activeRecordPath, fallbackSeconds);
 }
 
 void ScreenRecorderDialog::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
+    m_outputStore.setOutputDirectory(currentOutputDirectory());
     m_outputStore.load(nullptr);
     ui->outputList->setStore(&m_outputStore);
     ensureDefaultPath();
-    syncResolutionFromCapture();
-    refreshSettingsSummary();
+    updatePresetSummary();
+    refreshRegionSummary();
     refreshStatusText();
+    syncWindowVisualConsumers();
     refreshPreviewCapture();
-    m_previewTimer->start();
+    updatePreviewTimerForPage();
+    updateOutputDirWatcher();
+}
+
+void ScreenRecorderDialog::changeEvent(QEvent *event)
+{
+    QDialog::changeEvent(event);
+    // 从资源管理器切回时 resync，覆盖 watcher 未触达的情况
+    if (event->type() == QEvent::ActivationChange && isActiveWindow() && isVisible())
+        resyncOutputListFromDisk();
 }
 
 void ScreenRecorderDialog::hideEvent(QHideEvent *event)
@@ -74,94 +169,156 @@ void ScreenRecorderDialog::hideEvent(QHideEvent *event)
     QDialog::hideEvent(event);
     m_previewTimer->stop();
     invalidatePreviewSessions();
+    syncWindowVisualConsumers();
 }
 
 void ScreenRecorderDialog::closeEvent(QCloseEvent *event)
 {
-    handleCloseWhileRecording();
     event->ignore();
     hide();
 }
 
-void ScreenRecorderDialog::handleCloseWhileRecording()
-{
-    if (!m_host)
-        return;
-
-    const recorder::RecorderState st = m_host->state();
-    if (st != recorder::RecorderState::Recording && st != recorder::RecorderState::Paused)
-        return;
-
-    if (m_host->stop())
-        handleStopFinished();
-    else
-        refreshStatusText();
-}
-
 void ScreenRecorderDialog::wireUi()
 {
-    // 布局拉伸比例在代码中设置（uic 对 stretch 属性支持不佳）。
     ui->generalVBox->setStretch(0, 1);
     ui->generalVBox->setStretch(1, 0);
-    ui->contentHBox->setStretch(1, 1);
-    ui->previewCol->setStretch(1, 1);
-    ui->controlBarRow->setStretch(0, 1);
-    ui->controlBarRow->setStretch(1, 0);
-    ui->controlBarRow->setStretch(2, 1);
+    ui->previewCol->setStretch(0, 1);
+    ui->controlBarRow->setStretch(4, 1);
 
     RecorderUiBinder::fillCaptureModeCombo(ui->regionCombo);
+    RecorderComboStyle::applyTo(ui->regionCombo);
 
     connect(ui->navSidebar, &RecorderNavSidebar::pageChanged, this, &ScreenRecorderDialog::onNavPageChanged);
     connect(ui->regionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ScreenRecorderDialog::onRegionComboChanged);
     connect(ui->reselectRegionBtn, &QPushButton::clicked, this, &ScreenRecorderDialog::onReselectRegionClicked);
-    connect(ui->browseBtn, &QPushButton::clicked, this, &ScreenRecorderDialog::onBrowsePathClicked);
     connect(ui->controlBar, &RecorderControlBar::startClicked, this, &ScreenRecorderDialog::onStartClicked);
     connect(ui->controlBar, &RecorderControlBar::pauseClicked, this, &ScreenRecorderDialog::onPauseClicked);
     connect(ui->controlBar, &RecorderControlBar::resumeClicked, this, &ScreenRecorderDialog::onResumeClicked);
     connect(ui->controlBar, &RecorderControlBar::stopClicked, this, &ScreenRecorderDialog::onStopClicked);
-    connect(ui->pathEdit, &QLineEdit::textChanged, this, &ScreenRecorderDialog::updatePathTooltip);
 
-    connect(ui->settingsPanel, &ScreenRecorderSettingsDialog::settingsChanged,
-            this, &ScreenRecorderDialog::onSettingsChanged);
+    if (ui->settingsPanel)
+    {
+        connect(ui->settingsPanel->browseBtn(), &QPushButton::clicked, this, &ScreenRecorderDialog::onBrowsePathClicked);
+        connect(ui->settingsPanel->pathEdit(), &QLineEdit::textChanged, this, &ScreenRecorderDialog::onPathSettingsChanged);
+        connect(ui->settingsPanel, &ScreenRecorderSettingsDialog::presetChanged,
+                this, &ScreenRecorderDialog::onSettingsChanged);
+    }
 
     m_lastCaptureMode = recorder::CaptureMode::FullScreen;
     onRegionComboChanged(ui->regionCombo->currentIndex());
     applyStateToUi(recorder::RecorderState::Idle);
 }
 
-void ScreenRecorderDialog::wireHost()
+void ScreenRecorderDialog::wireFloatBall()
 {
-    if (!m_host)
+    m_floatBall = new RecorderFloatBall();
+    connect(m_floatBall, &RecorderFloatBall::pauseClicked, this, &ScreenRecorderDialog::onPauseClicked);
+    connect(m_floatBall, &RecorderFloatBall::resumeClicked, this, &ScreenRecorderDialog::onResumeClicked);
+    connect(m_floatBall, &RecorderFloatBall::stopClicked, this, &ScreenRecorderDialog::onStopClicked);
+    connect(m_floatBall, &RecorderFloatBall::openPanelRequested, this, [this]() {
+        show();
+        raise();
+        activateWindow();
+    });
+}
+
+bool ScreenRecorderDialog::isRecordingActive() const
+{
+    if (!m_controller)
+        return false;
+    const recorder::RecorderState st = m_controller->state();
+    return st == recorder::RecorderState::Recording || st == recorder::RecorderState::Paused;
+}
+
+void ScreenRecorderDialog::syncFloatBall()
+{
+    if (!m_floatBall || !m_controller)
         return;
-    connect(m_host, &RecorderHost::stateChanged, this, &ScreenRecorderDialog::onHostStateChanged);
-    connect(m_host, &RecorderHost::durationChanged, this, &ScreenRecorderDialog::onHostDurationChanged);
-    connect(m_host, &RecorderHost::errorOccurred, this, &ScreenRecorderDialog::onHostError);
+
+    if (isRecordingActive())
+    {
+        m_floatBall->setRecorderState(m_controller->state());
+        if (!m_floatBall->isVisible())
+            m_floatBall->show();
+    }
+    else
+    {
+        hideFloatBall();
+    }
+}
+
+void ScreenRecorderDialog::showFloatBallForRecording()
+{
+    if (!m_floatBall || !m_controller)
+        return;
+
+    m_floatBall->setRecorderState(m_controller->state());
+    m_floatBall->setDurationSeconds(m_controller->recordedSeconds());
+    m_floatBall->show();
+    m_floatBall->raise();
+}
+
+void ScreenRecorderDialog::hideFloatBall()
+{
+    if (m_floatBall)
+        m_floatBall->hide();
+}
+
+void ScreenRecorderDialog::wireController()
+{
+    if (!m_controller)
+        return;
+    disconnect(m_controller, nullptr, this, nullptr);
+    connect(m_controller, &RecorderController::stateChanged, this, &ScreenRecorderDialog::onControllerStateChanged);
+    connect(m_controller, &RecorderController::durationChanged, this, &ScreenRecorderDialog::onControllerDurationChanged);
+    connect(m_controller, &RecorderController::errorOccurred, this, &ScreenRecorderDialog::onControllerError);
 }
 
 void ScreenRecorderDialog::onNavPageChanged(RecorderNavSidebar::Page page)
 {
     ui->stack->setCurrentIndex(static_cast<int>(page));
     if (page == RecorderNavSidebar::List)
-        ui->outputList->reloadList();
+    {
+        updateOutputDirWatcher();
+        resyncOutputListFromDisk();
+    }
+    else if (page == RecorderNavSidebar::Settings)
+    {
+        updatePresetSummary();
+        updatePresetSummary();
+    }
+    updatePreviewTimerForPage();
+    syncWindowVisualConsumers();
 }
 
 void ScreenRecorderDialog::ensureDefaultPath()
 {
     QString err;
     RecorderPathHelper::ensureRecordRootExists(&err);
-    if (ui->pathEdit->text().trimmed().isEmpty() || !m_pathInitialized)
+    QLineEdit *pathEdit = ui->settingsPanel ? ui->settingsPanel->pathEdit() : nullptr;
+    if (pathEdit && (pathEdit->text().trimmed().isEmpty() || !m_pathInitialized))
     {
-        ui->pathEdit->setText(RecorderPathHelper::defaultOutputFile(currentFormat()));
+        pathEdit->setText(RecorderPathHelper::recordRootDir());
         m_pathInitialized = true;
     }
     ui->controlBar->setDurationSeconds(0);
     updatePathTooltip();
 }
 
+QString ScreenRecorderDialog::currentOutputDirectory() const
+{
+    const QString raw = ui->settingsPanel && ui->settingsPanel->pathEdit()
+                            ? ui->settingsPanel->pathEdit()->text().trimmed()
+                            : QString();
+    return RecorderPathHelper::normalizeOutputDirectory(raw);
+}
+
 void ScreenRecorderDialog::updatePathTooltip()
 {
-    ui->pathEdit->setToolTip(ui->pathEdit->text().trimmed());
+    if (!ui->settingsPanel || !ui->settingsPanel->pathEdit())
+        return;
+    ui->settingsPanel->pathEdit()->setToolTip(ui->settingsPanel->pathEdit()->text().trimmed());
 }
 
 void ScreenRecorderDialog::invalidatePreviewSessions()
@@ -180,55 +337,46 @@ void ScreenRecorderDialog::refreshRegionSummary()
 {
     const auto mode = static_cast<recorder::CaptureMode>(ui->regionCombo->currentData().toInt());
     const bool regionMode = mode == recorder::CaptureMode::Region;
+    const bool windowMode = mode == recorder::CaptureMode::Window;
     ui->reselectRegionBtn->setVisible(regionMode);
 
-    if (!regionMode)
+    QString tip;
+    if (windowMode)
     {
-        ui->regionSummaryLabel->hide();
-        return;
+        tip = m_windowTargetLabel.isEmpty()
+                  ? QString::fromUtf8(recorder::captureModeLabel(recorder::CaptureMode::Window))
+                  : m_windowTargetLabel;
+        if (m_windowTarget && !m_windowTarget->isAvailable())
+            tip += QStringLiteral("（预览不可用）");
     }
-    ui->regionSummaryLabel->show();
-    if (!m_regionValid)
+    else if (!regionMode)
     {
-        ui->regionSummaryLabel->setText(QStringLiteral("区域录制：尚未选择区域"));
-        return;
+        tip = QString::fromUtf8(recorder::captureModeLabel(recorder::CaptureMode::FullScreen));
     }
-    ui->regionSummaryLabel->setText(
-        QStringLiteral("区域 %1×%2，起点 (%3, %4)")
-            .arg(m_region.width)
-            .arg(m_region.height)
-            .arg(m_region.x)
-            .arg(m_region.y));
+    else if (!m_regionValid)
+    {
+        tip = QStringLiteral("区域录制：尚未选择区域");
+    }
+    else
+    {
+        tip = QStringLiteral("区域 %1×%2 @ (%3, %4)")
+                  .arg(m_region.width)
+                  .arg(m_region.height)
+                  .arg(m_region.x)
+                  .arg(m_region.y);
+    }
+    ui->regionCombo->setToolTip(tip);
 }
 
-void ScreenRecorderDialog::refreshSettingsSummary()
+void ScreenRecorderDialog::updatePresetSummary()
 {
     if (!ui->settingsPanel)
-        return;
-    const int fps = ui->settingsPanel->fpsSpin() ? ui->settingsPanel->fpsSpin()->value() : 25;
-    const int width = ui->settingsPanel->widthSpin() ? ui->settingsPanel->widthSpin()->value() : 0;
-    const int height = ui->settingsPanel->heightSpin() ? ui->settingsPanel->heightSpin()->value() : 0;
-    const int bitrate = ui->settingsPanel->bitrateSpin() ? ui->settingsPanel->bitrateSpin()->value() : 10000;
-    const auto fmt = currentFormat();
-    const QString fmtText = QString::fromUtf8(recorder::videoFormatLabel(fmt));
-    ui->settingsSummaryLabel->setText(
-        QStringLiteral("%1 FPS · %2×%3 · %4 · %5 kbps").arg(fps).arg(width).arg(height).arg(fmtText).arg(bitrate));
-}
-
-void ScreenRecorderDialog::syncResolutionFromCapture()
-{
-    if (!ui->settingsPanel)
-        return;
-
-    QSpinBox *widthSpin = ui->settingsPanel->widthSpin();
-    QSpinBox *heightSpin = ui->settingsPanel->heightSpin();
-    if (!widthSpin || !heightSpin)
         return;
 
     const auto mode = static_cast<recorder::CaptureMode>(ui->regionCombo->currentData().toInt());
-    const QSize size = RecorderUiBinder::captureSourceSize(mode, m_region, m_regionValid);
-    widthSpin->setValue(size.width());
-    heightSpin->setValue(size.height());
+    const QSize size =
+        RecorderUiBinder::captureSourceSize(mode, m_region, m_regionValid, currentWindowHandle());
+    ui->settingsPanel->updatePresetSummary(size.width(), size.height());
 }
 
 recorder::CaptureMode ScreenRecorderDialog::currentPreviewMode() const
@@ -242,15 +390,13 @@ void ScreenRecorderDialog::refreshPreviewCapture()
     const auto mode = currentPreviewMode();
     QImage previewImage;
     QString err;
-    recorder::Rect unused{};
 
-    const bool ok = mode == recorder::CaptureMode::Region
-                        ? RecorderPreviewCapture::grabFrame(mode, m_region, m_regionValid, &previewImage, &err)
-                        : RecorderPreviewCapture::grabFrame(recorder::CaptureMode::FullScreen,
-                                                            unused,
-                                                            false,
-                                                            &previewImage,
-                                                            &err);
+    const bool ok = RecorderPreviewCapture::grabFrame(mode,
+                                                      m_region,
+                                                      m_regionValid,
+                                                      m_windowTarget,
+                                                      &previewImage,
+                                                      &err);
     if (ok)
         ui->mainPreview->setPreviewImage(previewImage);
     // 单帧失败保留上一帧，避免预览闪黑。
@@ -267,62 +413,59 @@ void ScreenRecorderDialog::applyStateToUi(recorder::RecorderState state)
 
     ui->regionCombo->setEnabled(idleLike);
     ui->reselectRegionBtn->setEnabled(idleLike);
-    ui->pathEdit->setEnabled(idleLike);
-    ui->navSidebar->setSettingsEnabled(idleLike);
+    if (ui->navSidebar)
+        ui->navSidebar->setSettingsEnabled(idleLike);
     if (ui->settingsPanel)
         ui->settingsPanel->setControlsEnabled(idleLike);
-    ui->outputList->setControlsEnabled(idleLike);
+    if (ui->outputList)
+        ui->outputList->setControlsEnabled(idleLike);
     ui->controlBar->setRecorderState(state);
 
     const bool recordingLike = recording || paused;
     if (recordingLike)
     {
-        m_previewTimer->stop();
         if (!m_durationTimer->isActive())
             m_durationTimer->start();
+        updatePreviewTimerForPage();
     }
     else
     {
         m_durationTimer->stop();
-        if (isVisible() && !m_previewTimer->isActive())
-            m_previewTimer->start();
+        updatePreviewTimerForPage();
     }
 }
 
 void ScreenRecorderDialog::refreshStatusText()
 {
-    const recorder::RecorderState st = m_host ? m_host->state() : recorder::RecorderState::Idle;
-    const QString err = m_host ? m_host->lastError() : QString();
-    ui->statusLabel->setText(RecorderStatusText::sessionSummary(recorder::stateLabel(st), err));
+    const recorder::RecorderState st = m_controller ? m_controller->state() : recorder::RecorderState::Idle;
+    const QString err = m_controller ? m_controller->lastError() : QString();
+    const QString text = RecorderStatusText::sessionSummary(recorder::stateLabel(st), err);
+    ui->statusLabel->setText(text);
+    if (!err.isEmpty())
+        ui->statusLabel->setStyleSheet(QStringLiteral("color: #D32F2F; font-size: 12px;"));
+    else
+        ui->statusLabel->setStyleSheet(QStringLiteral("color: #666; font-size: 12px;"));
 }
 
 recorder::RecorderConfig ScreenRecorderDialog::currentConfig() const
 {
-    return RecorderUiBinder::configFromWidgets(
+    const auto mode = static_cast<recorder::CaptureMode>(ui->regionCombo->currentData().toInt());
+    const QSize capSize =
+        RecorderUiBinder::captureSourceSize(mode, m_region, m_regionValid, currentWindowHandle());
+
+    recorder::RecorderConfig cfg = RecorderUiBinder::configFromWidgets(
         ui->regionCombo,
-        ui->settingsPanel ? ui->settingsPanel->fpsSpin() : nullptr,
-        ui->settingsPanel ? ui->settingsPanel->widthSpin() : nullptr,
-        ui->settingsPanel ? ui->settingsPanel->heightSpin() : nullptr,
-        ui->settingsPanel ? ui->settingsPanel->bitrateSpin() : nullptr,
+        ui->settingsPanel ? ui->settingsPanel->qualityCombo() : nullptr,
+        ui->settingsPanel ? ui->settingsPanel->encodeCombo() : nullptr,
+        ui->settingsPanel ? ui->settingsPanel->fpsCombo() : nullptr,
         ui->settingsPanel ? ui->settingsPanel->formatCombo() : nullptr,
-        ui->pathEdit,
-        m_region);
-}
-
-void ScreenRecorderDialog::syncPathExtensionToFormat()
-{
-    QString path = ui->pathEdit->text().trimmed();
-    if (path.isEmpty())
-        return;
-
-    const QString ext = RecorderPathHelper::extensionFor(currentFormat());
-    const int dot = path.lastIndexOf('.');
-    if (dot > 0)
-        path = path.left(dot) + ext;
-    else
-        path += ext;
-    ui->pathEdit->setText(path);
-    updatePathTooltip();
+        ui->settingsPanel ? ui->settingsPanel->pathEdit() : nullptr,
+        m_region,
+        capSize.width(),
+        capSize.height());
+    if (cfg.mode == recorder::CaptureMode::Window && m_windowTarget)
+        recorder::applyWindowTarget(&cfg, m_windowTarget);
+    return cfg;
 }
 
 bool ScreenRecorderDialog::beginRegionSelection()
@@ -343,72 +486,66 @@ bool ScreenRecorderDialog::beginRegionSelection()
     m_region = region;
     m_regionValid = true;
     invalidatePreviewSessions();
-    syncResolutionFromCapture();
+    updatePresetSummary();
     refreshRegionSummary();
-    refreshSettingsSummary();
     refreshPreviewCapture();
     return true;
 }
 
-void ScreenRecorderDialog::addOutputToHistory(const QString &path, int durationSeconds)
+void ScreenRecorderDialog::handleStopFinished(int finalDurationSeconds)
 {
-    if (path.isEmpty())
-        return;
+    Q_UNUSED(finalDurationSeconds);
 
-    RecorderOutputEntry entry;
-    entry.filePath = path;
-    entry.durationSeconds = durationSeconds;
-    entry.savedAt = QDateTime::currentDateTime().toString(Qt::ISODate);
-    if (QFileInfo::exists(path))
-        entry.sizeBytes = QFileInfo(path).size();
+    if (!m_activeRecordPath.isEmpty())
+        resyncOutputListFromDisk();
 
-    m_outputStore.addEntry(entry);
-    m_outputStore.save(nullptr);
-}
-
-void ScreenRecorderDialog::handleStopFinished()
-{
-    const QString path = m_activeRecordPath.isEmpty() ? ui->pathEdit->text().trimmed() : m_activeRecordPath;
-    const int duration = m_host ? m_host->recordedSeconds() : 0;
-    addOutputToHistory(path, duration);
-
-    const auto ret = QMessageBox::question(this,
-                                           QStringLiteral("录制完成"),
-                                           QStringLiteral("文件已保存至：\n%1\n\n时长 %2\n\n打开文件还是打开所在文件夹？")
-                                               .arg(path)
-                                               .arg(RecorderStatusText::formatDuration(duration)),
-                                           QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
-                                           QMessageBox::Yes);
-    if (ret == QMessageBox::Yes)
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    else if (ret == QMessageBox::No)
-        QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+    showSavedToast();
 
     m_activeRecordPath.clear();
     ui->controlBar->setDurationSeconds(0);
-    applyStateToUi(m_host ? m_host->state() : recorder::RecorderState::Stopped);
+    hideFloatBall();
+    show();
+    raise();
+    applyStateToUi(m_controller ? m_controller->state() : recorder::RecorderState::Stopped);
     refreshStatusText();
     refreshPreviewCapture();
 }
 
+void ScreenRecorderDialog::showSavedToast()
+{
+    auto *msg = new QMessageBox(QMessageBox::Information,
+                                QStringLiteral("屏幕录制"),
+                                QStringLiteral("录制已保存。"),
+                                QMessageBox::NoButton,
+                                this);
+    msg->setAttribute(Qt::WA_DeleteOnClose);
+    msg->setWindowModality(Qt::NonModal);
+    msg->show();
+    QTimer::singleShot(2000, msg, &QWidget::close);
+}
+
 void ScreenRecorderDialog::onBrowsePathClicked()
 {
-    const QString path = QFileDialog::getSaveFileName(this,
-                                                      QStringLiteral("选择保存路径"),
-                                                      ui->pathEdit->text(),
-                                                      QStringLiteral("MP4 (*.mp4);;AVI (*.avi)"));
-    if (!path.isEmpty())
-    {
-        ui->pathEdit->setText(path);
-        updatePathTooltip();
-    }
+    if (!ui->settingsPanel || !ui->settingsPanel->pathEdit())
+        return;
+
+    const QString dir = QFileDialog::getExistingDirectory(this,
+                                                            QStringLiteral("选择保存目录"),
+                                                            currentOutputDirectory());
+    if (!dir.isEmpty())
+        ui->settingsPanel->pathEdit()->setText(QDir(dir).absolutePath());
 }
 
 void ScreenRecorderDialog::onSettingsChanged()
 {
-    syncPathExtensionToFormat();
-    refreshSettingsSummary();
+    updatePresetSummary();
+}
+
+void ScreenRecorderDialog::onPathSettingsChanged()
+{
     updatePathTooltip();
+    updateOutputDirWatcher();
+    resyncOutputListFromDisk();
 }
 
 void ScreenRecorderDialog::onReselectRegionClicked()
@@ -421,6 +558,8 @@ void ScreenRecorderDialog::onReselectRegionClicked()
 
 void ScreenRecorderDialog::onPreviewTimer()
 {
+    if (!isGeneralPage())
+        return;
     if (m_previewGrabbing)
         return;
     m_previewGrabbing = true;
@@ -428,10 +567,68 @@ void ScreenRecorderDialog::onPreviewTimer()
     m_previewGrabbing = false;
 }
 
+bool ScreenRecorderDialog::isGeneralPage() const
+{
+    return ui->navSidebar && ui->navSidebar->currentPage() == RecorderNavSidebar::General;
+}
+
+bool ScreenRecorderDialog::isListPage() const
+{
+    return ui->navSidebar && ui->navSidebar->currentPage() == RecorderNavSidebar::List;
+}
+
+void ScreenRecorderDialog::updateOutputDirWatcher()
+{
+    const QString path = currentOutputDirectory();
+    const QStringList watched = m_outputDirWatcher.directories();
+    for (const QString &p : watched)
+        m_outputDirWatcher.removePath(p);
+    if (!path.isEmpty() && QDir(path).exists())
+        m_outputDirWatcher.addPath(path);
+}
+
+void ScreenRecorderDialog::resyncOutputListFromDisk()
+{
+    if (!isVisible())
+        return;
+
+    m_outputStore.setOutputDirectory(currentOutputDirectory());
+    m_outputStore.rebuildFromDirectory(nullptr);
+    if (isListPage() && ui->outputList)
+        ui->outputList->refreshView();
+}
+
+void ScreenRecorderDialog::updatePreviewTimerForPage()
+{
+    if (!m_previewTimer)
+        return;
+
+    const recorder::RecorderState st =
+        m_controller ? m_controller->state() : recorder::RecorderState::Idle;
+    const bool idleLike = st == recorder::RecorderState::Idle ||
+                          st == recorder::RecorderState::Initialized ||
+                          st == recorder::RecorderState::Stopped ||
+                          st == recorder::RecorderState::Error;
+    const bool recordingLike = st == recorder::RecorderState::Recording ||
+                               st == recorder::RecorderState::Paused;
+    if (isVisible() && isGeneralPage() && (idleLike || recordingLike))
+    {
+        if (!m_previewTimer->isActive())
+            m_previewTimer->start();
+    }
+    else
+    {
+        m_previewTimer->stop();
+    }
+}
+
 void ScreenRecorderDialog::onStartClicked()
 {
-    if (!m_host)
+    if (!m_controller)
+    {
+        QMessageBox::warning(this, QStringLiteral("屏幕录制"), QStringLiteral("未绑定录制控制器。"));
         return;
+    }
 
     const auto mode = static_cast<recorder::CaptureMode>(ui->regionCombo->currentData().toInt());
     if (mode == recorder::CaptureMode::Region && !m_regionValid)
@@ -442,94 +639,124 @@ void ScreenRecorderDialog::onStartClicked()
             return;
         }
     }
+    if (mode == recorder::CaptureMode::Window)
+    {
+        if (!m_windowTarget || !m_windowTarget->isAvailable())
+        {
+            QMessageBox::warning(this,
+                                 QStringLiteral("屏幕录制"),
+                                 QStringLiteral("请先打开相机并显示预览。"));
+            return;
+        }
+        m_windowTarget->refreshVisualCache(true);
+    }
 
-    syncResolutionFromCapture();
-    refreshSettingsSummary();
+    updatePresetSummary();
 
-    const recorder::RecorderConfig cfg = currentConfig();
+    m_activeRecordPath =
+        RecorderPathHelper::uniqueOutputFileInDir(currentOutputDirectory(), currentFormat());
+
+    recorder::RecorderConfig cfg = currentConfig();
+    cfg.output.filePath = m_activeRecordPath.toStdString();
     const QString err = RecorderUiBinder::validateForUi(cfg);
     if (!err.isEmpty())
     {
         QMessageBox::warning(this, QStringLiteral("屏幕录制"), err);
+        m_activeRecordPath.clear();
         return;
     }
 
-    m_activeRecordPath = ui->pathEdit->text().trimmed();
-
-    // DXGI 每输出仅允许一个 Duplication 会话；开录前释放预览占用。
+    // 预览走 GDI/视觉缓存，与录制 DXGI 会话独立；开录前释放 idle 预览占用以便重建。
     m_previewTimer->stop();
     invalidatePreviewSessions();
 
-    if (!m_host->init(cfg))
+    if (!m_controller->init(cfg))
     {
-        QMessageBox::warning(this, QStringLiteral("屏幕录制"), m_host->lastError());
+        QMessageBox::warning(this, QStringLiteral("屏幕录制"), m_controller->lastError());
         refreshStatusText();
+        updatePreviewTimerForPage();
+        refreshPreviewCapture();
         return;
     }
-    if (!m_host->start())
+    if (!m_controller->start())
     {
-        m_host->stop();
-        QMessageBox::warning(this, QStringLiteral("屏幕录制"), m_host->lastError());
+        m_controller->stop();
+        QMessageBox::warning(this, QStringLiteral("屏幕录制"), m_controller->lastError());
         refreshStatusText();
+        updatePreviewTimerForPage();
+        refreshPreviewCapture();
         return;
     }
-    applyStateToUi(m_host->state());
+    applyStateToUi(m_controller->state());
     refreshStatusText();
+    showFloatBallForRecording();
+    syncWindowVisualConsumers();
+    hide();
 }
 
 void ScreenRecorderDialog::onPauseClicked()
 {
-    if (m_host)
-        m_host->pause();
+    if (m_controller)
+        m_controller->pause();
 }
 
 void ScreenRecorderDialog::onResumeClicked()
 {
-    if (m_host)
-        m_host->resume();
+    if (m_controller)
+        m_controller->resume();
 }
 
 void ScreenRecorderDialog::onStopClicked()
 {
-    if (!m_host)
+    if (!m_controller)
         return;
 
-    const auto ret = QMessageBox::question(this,
-                                           QStringLiteral("停止录制"),
-                                           QStringLiteral("确定停止并保存当前录制？"),
-                                           QMessageBox::Yes | QMessageBox::No,
-                                           QMessageBox::Yes);
-    if (ret != QMessageBox::Yes)
-        return;
+    m_durationTimer->stop();
 
-    if (m_host->stop())
-        handleStopFinished();
+    if (m_controller->stop())
+    {
+        const int finalDuration =
+            resolveSavedVideoDurationSeconds(m_controller->recordedSeconds());
+        ui->controlBar->setDurationSeconds(finalDuration);
+        handleStopFinished(finalDuration);
+    }
     else
         refreshStatusText();
 }
 
-void ScreenRecorderDialog::onHostStateChanged(recorder::RecorderState state)
+void ScreenRecorderDialog::onControllerStateChanged(recorder::RecorderState state)
 {
     applyStateToUi(state);
+    syncFloatBall();
+    syncWindowVisualConsumers();
     refreshStatusText();
 }
 
-void ScreenRecorderDialog::onHostDurationChanged(int seconds)
+void ScreenRecorderDialog::onControllerDurationChanged(int seconds)
 {
+    if (!m_controller)
+        return;
+    const recorder::RecorderState st = m_controller->state();
+    if (st != recorder::RecorderState::Recording && st != recorder::RecorderState::Paused)
+        return;
     ui->controlBar->setDurationSeconds(seconds);
+    if (m_floatBall)
+        m_floatBall->setDurationSeconds(seconds);
 }
 
 void ScreenRecorderDialog::onDurationTimer()
 {
-    if (!m_host)
+    if (!m_controller)
         return;
-    const recorder::RecorderState st = m_host->state();
+    const recorder::RecorderState st = m_controller->state();
     if (st != recorder::RecorderState::Recording && st != recorder::RecorderState::Paused)
         return;
-    ui->controlBar->setDurationSeconds(m_host->recordedSeconds());
+    ui->controlBar->setDurationSeconds(m_controller->recordedSeconds());
+    if (m_floatBall)
+        m_floatBall->setDurationSeconds(m_controller->recordedSeconds());
 }
 
-void ScreenRecorderDialog::onHostError(const QString &message)
+void ScreenRecorderDialog::onControllerError(const QString &message)
 {
     if (!message.isEmpty())
         QMessageBox::warning(this, QStringLiteral("屏幕录制"), message);
@@ -558,12 +785,12 @@ void ScreenRecorderDialog::onRegionComboChanged(int index)
     {
         m_regionValid = false;
         invalidatePreviewSessions();
-        syncResolutionFromCapture();
+        updatePresetSummary();
     }
 
     m_lastCaptureMode = mode;
     refreshRegionSummary();
-    refreshSettingsSummary();
+    syncWindowVisualConsumers();
     refreshPreviewCapture();
-    applyStateToUi(m_host ? m_host->state() : recorder::RecorderState::Idle);
+    applyStateToUi(m_controller ? m_controller->state() : recorder::RecorderState::Idle);
 }

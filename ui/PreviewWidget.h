@@ -1,11 +1,13 @@
 #pragma once
 
+#include "../recorder/RecorderQtVisualSource.h"
+
 #include <QImage>
 #include <QPointF>
 #include <QWidget>
 
 // PreviewWidget：相机预览区，支持滚轮缩放、拖拽平移、双击切换适应/1:1、悬停像素读数
-class PreviewWidget : public QWidget
+class PreviewWidget : public QWidget, public IRecorderQtVisualSource
 {
     Q_OBJECT
 
@@ -16,7 +18,12 @@ public:
     void clearImage();
     void setPlaceholderText(const QString &text);
 
+    QImage recorderVisualSnapshot() const override;
+    quint64 visualRevision() const { return m_visualRevision; }
+
 signals:
+    // 预览视觉内容变化（图像/视图/占位）；录屏按需刷新缓存。
+    void visualRevisionChanged();
     // 鼠标位于有效图像像素上时上报原图坐标与灰度值（非图像区域时 valid=false）
     void pixelInfoChanged(int x, int y, int gray, bool valid);
 
@@ -47,6 +54,7 @@ private:
     int sampleGrayAt(int x, int y) const;
     void emitPixelInfoAt(const QPoint &widgetPos);
     void clampScale();
+    void bumpVisualRevision();
 
     QImage m_image;
     bool m_hasImage = false;
@@ -56,4 +64,5 @@ private:
     QPointF m_viewTopLeft;      // 图像 (0,0) 在控件坐标系中的位置
     bool m_dragging = false;
     QPoint m_lastDragPos;
+    quint64 m_visualRevision = 0;
 };

@@ -75,6 +75,13 @@ void RecorderOutputListWidget::setStore(RecorderOutputStore *store)
 
 void RecorderOutputListWidget::reloadList()
 {
+    if (m_store)
+        m_store->rebuildFromDirectory(nullptr);
+    refreshTable();
+}
+
+void RecorderOutputListWidget::refreshView()
+{
     refreshTable();
 }
 
@@ -95,9 +102,10 @@ void RecorderOutputListWidget::refreshTable()
     {
         const RecorderOutputEntry &e = entries.at(i);
         const QFileInfo fi(e.filePath);
+        const qint64 sizeBytes = fi.exists() ? fi.size() : e.sizeBytes;
         ui->outputTable->setItem(i, 0, centeredTableItem(fi.fileName()));
         ui->outputTable->setItem(i, 1, centeredTableItem(RecorderStatusText::formatDuration(e.durationSeconds)));
-        ui->outputTable->setItem(i, 2, centeredTableItem(formatSize(e.sizeBytes)));
+        ui->outputTable->setItem(i, 2, centeredTableItem(formatSize(sizeBytes)));
         ui->outputTable->setItem(i, 3, centeredTableItem(formatSavedAt(e.savedAt)));
     }
 }
@@ -152,7 +160,12 @@ void RecorderOutputListWidget::onPlay()
         return;
     if (!QFileInfo::exists(path))
     {
-        QMessageBox::warning(this, QStringLiteral("屏幕录制"), QStringLiteral("文件不存在。"));
+        if (m_store)
+        {
+            m_store->rebuildFromDirectory(nullptr);
+            refreshTable();
+        }
+        QMessageBox::warning(this, QStringLiteral("屏幕录制"), QStringLiteral("文件不存在，已从列表移除。"));
         return;
     }
     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
@@ -177,10 +190,7 @@ void RecorderOutputListWidget::onCopy()
         return;
     }
     if (!QFile::copy(path, dest))
-    {
         QMessageBox::warning(this, QStringLiteral("屏幕录制"), QStringLiteral("复制失败。"));
-        return;
-    }
 }
 
 void RecorderOutputListWidget::onRename()
@@ -208,7 +218,6 @@ void RecorderOutputListWidget::onRename()
         QMessageBox::warning(this, QStringLiteral("屏幕录制"), err);
         return;
     }
-    m_store->save(nullptr);
     refreshTable();
 }
 
@@ -242,7 +251,5 @@ void RecorderOutputListWidget::onDelete()
         QMessageBox::warning(this, QStringLiteral("屏幕录制"), err);
         return;
     }
-    m_store->save(nullptr);
     refreshTable();
 }
-

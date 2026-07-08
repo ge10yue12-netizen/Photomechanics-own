@@ -5,19 +5,17 @@
 #include <QObject>
 #include <QString>
 
-// 录屏集成门面（对齐 RemoteHost）。
-// 职责：持有 ScreenRecorder、将 std::function 回调转 Qt 信号、供对话框或宿主直接调用。
-class RecorderHost : public QObject
+// Qt 集成层：持有 recorder::ScreenRecorder，将 C++ 回调转为 Qt 信号。
+// 生命周期须不短于绑定它的 UI；析构时自动 stop()。
+class RecorderController : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit RecorderHost(QObject *parent = nullptr);
-    ~RecorderHost() override;
+    explicit RecorderController(QObject *parent = nullptr);
+    ~RecorderController() override;
 
-    // 按 config 初始化核心模块。
     bool init(const recorder::RecorderConfig &config);
-
     bool start();
     bool pause();
     bool resume();

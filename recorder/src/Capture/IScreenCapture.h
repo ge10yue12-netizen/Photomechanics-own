@@ -14,6 +14,8 @@ struct CaptureFrame
     int height = 0;
     int stride = 0;
     std::vector<std::uint8_t> bgra;
+    // false 表示桌面无新帧（DXGI 超时）；编码器可复用上一帧像素，跳过 GPU 回读。
+    bool hasNewPixels = true;
 };
 
 // 屏幕采集抽象；实现类仅出现在 .cpp。

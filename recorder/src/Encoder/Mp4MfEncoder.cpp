@@ -1,5 +1,7 @@
 #include "Mp4MfEncoder.h"
 
+#include "../../include/RecorderPresets.h"
+
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
@@ -53,10 +55,7 @@ bool scaleBgraBilinear(const CaptureFrame &src, int dstW, int dstH, std::vector<
     if (!out || dstW <= 0 || dstH <= 0 || src.width <= 0 || src.height <= 0)
         return false;
     if (src.width == dstW && src.height == dstH)
-    {
-        *out = src.bgra;
-        return true;
-    }
+        return false;
 
     const int dstStride = dstW * 4;
     out->assign(static_cast<size_t>(dstStride) * static_cast<size_t>(dstH), 0);
@@ -108,7 +107,8 @@ bool scaleBgraBilinear(const CaptureFrame &src, int dstW, int dstH, std::vector<
     return true;
 }
 
-bool configureH264Quality(IMFSinkWriter *writer, DWORD streamIndex, int fps, int bitrateKbps)
+bool configureH264Quality(IMFSinkWriter *writer, DWORD streamIndex, int fps, int bitrateKbps,
+                          EncodeLevel encodeLevel)
 {
     if (!writer)
         return false;
@@ -129,9 +129,15 @@ bool configureH264Quality(IMFSinkWriter *writer, DWORD streamIndex, int fps, int
         return SUCCEEDED(hr);
     };
 
-    setUi4(CODECAPI_AVEncCommonRateControlMode, static_cast<UINT32>(eAVEncCommonRateControlMode_CBR));
+    int gopMultiplier = encodeGopMultiplier(encodeLevel);
+    const double maxBitrateFactor = encodeMaxBitrateFactor(encodeLevel);
+
+    setUi4(CODECAPI_AVEncCommonRateControlMode,
+           static_cast<UINT32>(eAVEncCommonRateControlMode_UnconstrainedVBR));
     setUi4(CODECAPI_AVEncCommonMeanBitRate, static_cast<UINT32>(bitrateKbps) * 1000u);
-    const int gop = fps > 0 ? fps * 2 : 50;
+    setUi4(CODECAPI_AVEncCommonMaxBitRate,
+           static_cast<UINT32>(static_cast<double>(bitrateKbps) * 1000.0 * maxBitrateFactor));
+    const int gop = encodeGopSize(encodeLevel, fps);
     setUi4(CODECAPI_AVEncMPVGOPSize, static_cast<UINT32>(gop));
 
     codecApi->Release();
@@ -159,6 +165,7 @@ public:
         m_height = evenDim(params.height);
         m_fps = params.fps > 0 ? params.fps : 25;
         m_bitrateKbps = params.bitrateKbps > 0 ? params.bitrateKbps : 8000;
+        m_encodeLevel = params.encodeLevel;
         m_frameIndex = 0;
 
         if (m_width < 100 || m_height < 100)
@@ -193,7 +200,6 @@ public:
             return false;
         }
         attrs->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
-        attrs->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, TRUE);
 
         if (FAILED(MFCreateSinkWriterFromURL(wpath.c_str(), nullptr, attrs, &m_writer)) || !m_writer)
         {
@@ -245,84 +251,53 @@ public:
             return false;
         }
 
-        configureH264Quality(m_writer, m_streamIndex, m_fps, m_bitrateKbps);
+        configureH264Quality(m_writer, m_streamIndex, m_fps, m_bitrateKbps, m_encodeLevel);
 
         outType->Release();
         inType->Release();
+
+        const LONG stride = m_width * 4;
+        m_bufferSize = static_cast<DWORD>(static_cast<size_t>(stride) * static_cast<size_t>(m_height));
+        if (FAILED(MFCreateMemoryBuffer(m_bufferSize, &m_mediaBuffer)) || !m_mediaBuffer)
+        {
+            if (error)
+                *error = "创建复用媒体缓冲失败。";
+            return false;
+        }
+        if (FAILED(MFCreateSample(&m_sample)) || !m_sample)
+        {
+            if (error)
+                *error = "创建复用媒体样本失败。";
+            return false;
+        }
+
         m_open = true;
+        m_hasCachedPixels = false;
         return true;
     }
 
-    bool writeFrame(const CaptureFrame &frame, std::string *error)
+    bool submitSample(std::string *error, int timelineSlots)
     {
-        if (!m_open || !m_writer)
+        if (timelineSlots < 1)
+            timelineSlots = 1;
+        if (!m_hasCachedPixels)
         {
             if (error)
-                *error = "MP4 编码器未打开。";
+                *error = "尚无缓存帧，无法写入时间轴。";
             return false;
         }
 
-        std::vector<std::uint8_t> pixels;
-        const bool sameSize = frame.width == m_width && frame.height == m_height;
-        if (sameSize)
-        {
-            pixels = frame.bgra;
-        }
-        else if (!scaleBgraBilinear(frame, m_width, m_height, &pixels))
-        {
-            if (error)
-                *error = "缩放视频帧失败。";
-            return false;
-        }
-
-        const LONG stride = m_width * 4;
-        const DWORD bufferSize = static_cast<DWORD>(static_cast<size_t>(stride) * static_cast<size_t>(m_height));
-
-        IMFMediaBuffer *buffer = nullptr;
-        if (FAILED(MFCreateMemoryBuffer(bufferSize, &buffer)) || !buffer)
-        {
-            if (error)
-                *error = "创建媒体缓冲失败。";
-            return false;
-        }
-
-        BYTE *data = nullptr;
-        if (FAILED(buffer->Lock(&data, nullptr, nullptr)) || !data)
-        {
-            buffer->Release();
-            if (error)
-                *error = "锁定媒体缓冲失败。";
-            return false;
-        }
-
-        for (int y = 0; y < m_height; ++y)
-        {
-            std::memcpy(data + static_cast<size_t>(y) * static_cast<size_t>(stride),
-                        pixels.data() + static_cast<size_t>(y) * static_cast<size_t>(stride),
-                        static_cast<size_t>(stride));
-        }
-        buffer->Unlock();
-        buffer->SetCurrentLength(bufferSize);
-
-        IMFSample *sample = nullptr;
-        if (FAILED(MFCreateSample(&sample)) || !sample)
-        {
-            buffer->Release();
-            if (error)
-                *error = "创建媒体样本失败。";
-            return false;
-        }
-        sample->AddBuffer(buffer);
-        buffer->Release();
+        m_sample->RemoveAllBuffers();
+        m_sample->AddBuffer(m_mediaBuffer);
 
         const LONGLONG unit = 10'000'000LL;
-        const LONGLONG duration = unit / m_fps;
-        const LONGLONG timestamp = m_frameIndex * duration;
-        sample->SetSampleTime(timestamp);
-        sample->SetSampleDuration(duration);
+        const LONGLONG frameDur = unit / m_fps;
+        const LONGLONG timestamp = m_frameIndex * frameDur;
+        const LONGLONG duration = frameDur * static_cast<LONGLONG>(timelineSlots);
+        m_sample->SetSampleTime(timestamp);
+        m_sample->SetSampleDuration(duration);
 
-        const HRESULT hr = m_writer->WriteSample(m_streamIndex, sample);
-        sample->Release();
+        const HRESULT hr = m_writer->WriteSample(m_streamIndex, m_sample);
         if (FAILED(hr))
         {
             if (error)
@@ -330,8 +305,75 @@ public:
             return false;
         }
 
-        ++m_frameIndex;
+        m_frameIndex += timelineSlots;
         return true;
+    }
+
+    bool writeFrame(const CaptureFrame &frame, std::string *error, int timelineSlots)
+    {
+        if (!m_open || !m_writer || !m_mediaBuffer)
+        {
+            if (error)
+                *error = "MP4 编码器未打开。";
+            return false;
+        }
+        if (timelineSlots < 1)
+            timelineSlots = 1;
+
+        const bool sameSize = frame.width == m_width && frame.height == m_height;
+        BYTE *data = nullptr;
+        if (FAILED(m_mediaBuffer->Lock(&data, nullptr, nullptr)) || !data)
+        {
+            if (error)
+                *error = "锁定媒体缓冲失败。";
+            return false;
+        }
+
+        if (sameSize)
+        {
+            const LONG encStride = m_width * 4;
+            if (frame.stride == encStride)
+            {
+                std::memcpy(data, frame.bgra.data(), static_cast<size_t>(m_bufferSize));
+            }
+            else
+            {
+                for (int y = 0; y < m_height; ++y)
+                {
+                    std::memcpy(data + static_cast<size_t>(y) * static_cast<size_t>(encStride),
+                                frame.bgra.data() +
+                                    static_cast<size_t>(y) * static_cast<size_t>(frame.stride),
+                                static_cast<size_t>(encStride));
+                }
+            }
+        }
+        else
+        {
+            if (!scaleBgraBilinear(frame, m_width, m_height, &m_pixels))
+            {
+                m_mediaBuffer->Unlock();
+                if (error)
+                    *error = "缩放视频帧失败。";
+                return false;
+            }
+            std::memcpy(data, m_pixels.data(), static_cast<size_t>(m_bufferSize));
+        }
+
+        m_mediaBuffer->Unlock();
+        m_mediaBuffer->SetCurrentLength(m_bufferSize);
+        m_hasCachedPixels = true;
+        return submitSample(error, timelineSlots);
+    }
+
+    bool writeCachedTimeline(std::string *error, int timelineSlots)
+    {
+        if (!m_open || !m_writer || !m_mediaBuffer)
+        {
+            if (error)
+                *error = "MP4 编码器未打开。";
+            return false;
+        }
+        return submitSample(error, timelineSlots);
     }
 
     bool close(std::string *error)
@@ -353,6 +395,16 @@ public:
             m_writer->Release();
             m_writer = nullptr;
         }
+        if (m_mediaBuffer)
+        {
+            m_mediaBuffer->Release();
+            m_mediaBuffer = nullptr;
+        }
+        if (m_sample)
+        {
+            m_sample->Release();
+            m_sample = nullptr;
+        }
         if (m_mfStarted)
         {
             MFShutdown();
@@ -360,19 +412,27 @@ public:
         }
         m_open = false;
         m_frameIndex = 0;
+        m_hasCachedPixels = false;
+        m_pixels.clear();
         return ok;
     }
 
 private:
     IMFSinkWriter *m_writer = nullptr;
+    IMFMediaBuffer *m_mediaBuffer = nullptr;
+    IMFSample *m_sample = nullptr;
     DWORD m_streamIndex = 0;
     int m_width = 0;
     int m_height = 0;
     int m_fps = 25;
     int m_bitrateKbps = 8000;
+    EncodeLevel m_encodeLevel = EncodeLevel::Default;
+    DWORD m_bufferSize = 0;
     LONGLONG m_frameIndex = 0;
     bool m_open = false;
     bool m_mfStarted = false;
+    bool m_hasCachedPixels = false;
+    std::vector<std::uint8_t> m_pixels;
 };
 
 Mp4MfEncoder::Mp4MfEncoder()
@@ -390,9 +450,14 @@ bool Mp4MfEncoder::open(const EncoderOpenParams &params, std::string *error)
     return m_impl->open(params, error);
 }
 
-bool Mp4MfEncoder::writeFrame(const CaptureFrame &frame, std::string *error)
+bool Mp4MfEncoder::writeFrame(const CaptureFrame &frame, std::string *error, int timelineSlots)
 {
-    return m_impl->writeFrame(frame, error);
+    return m_impl->writeFrame(frame, error, timelineSlots);
+}
+
+bool Mp4MfEncoder::writeCachedTimeline(std::string *error, int timelineSlots)
+{
+    return m_impl->writeCachedTimeline(error, timelineSlots);
 }
 
 bool Mp4MfEncoder::close(std::string *error)

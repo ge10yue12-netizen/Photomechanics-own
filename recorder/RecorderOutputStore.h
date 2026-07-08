@@ -1,9 +1,9 @@
 #pragma once
 
-#include <QStringList>
 #include <QList>
+#include <QString>
 
-// 单次录制输出条目。
+// 单次录制输出条目（扫描保存目录生成）。
 struct RecorderOutputEntry
 {
     QString filePath;
@@ -12,19 +12,23 @@ struct RecorderOutputEntry
     QString savedAt;
 };
 
-// 输出历史持久化（Record/output_history.json）。
+// 录制输出：列表 = 保存目录内视频；时长从容器读取，无 sidecar JSON。
 class RecorderOutputStore
 {
 public:
+    void setOutputDirectory(const QString &absoluteDir);
+
     bool load(QString *errorMessage);
-    bool save(QString *errorMessage) const;
+    bool rebuildFromDirectory(QString *errorMessage);
 
     const QList<RecorderOutputEntry> &entries() const { return m_entries; }
 
-    void addEntry(const RecorderOutputEntry &entry);
     bool removeEntryAt(int index, QString *errorMessage);
     bool renameEntryAt(int index, const QString &newPath, QString *errorMessage);
 
 private:
+    static QString pathKey(const QString &absolutePath);
+
+    QString m_outputDirectory;
     QList<RecorderOutputEntry> m_entries;
 };

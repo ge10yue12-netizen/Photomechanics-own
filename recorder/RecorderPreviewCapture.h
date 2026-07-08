@@ -1,22 +1,20 @@
 #pragma once
-
 #include "RecorderKit.h"
-
 #include <QImage>
-
-class QString;
-
-// 预览抓帧（GDI 长连接 + 降采样，独立于录制线程；录制走 DXGI）。
+class QWidget;
+namespace recorder
+{
+struct Rect;
+class IRecorderWindowTarget;
+}
+// 预览帧抓取（GDI / 视觉缓存；与录制线程独立）。
 namespace RecorderPreviewCapture
 {
-
 bool grabFrame(recorder::CaptureMode mode,
                const recorder::Rect &region,
                bool regionValid,
+               recorder::IRecorderWindowTarget *windowTarget,
                QImage *image,
                QString *errorMessage);
-
-// 对话框隐藏或模式切换时可释放采集句柄。
 void releaseSessions();
-
 } // namespace RecorderPreviewCapture

@@ -37,8 +37,11 @@ public:
     // 返回最近一次错误的用户可读说明。
     std::string lastError() const;
 
-    // 返回已录制秒数（含暂停前累计）。
+    // 录制中：墙钟已录秒数（不含暂停）；停止后同值，UI 应以容器 probe 为准。
     int recordedSeconds() const;
+
+    // 已写入时间轴的整秒数（frameCount / fps）；诊断用。
+    int mediaTimelineSeconds() const;
 
     // 注册回调；可在 Init 前后调用。
     void setCallback(const RecorderCallback &callback);

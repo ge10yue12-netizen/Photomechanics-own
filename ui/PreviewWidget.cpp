@@ -36,6 +36,7 @@ void PreviewWidget::setImage(const QImage &image)
     if (sizeChanged || m_viewMode == ViewMode::Fit)
         applyFitView();
 
+    bumpVisualRevision();
     update();
 }
 
@@ -49,6 +50,7 @@ void PreviewWidget::clearImage()
     m_dragging = false;
     unsetCursor();
     emit pixelInfoChanged(0, 0, 0, false);
+    bumpVisualRevision();
     update();
 }
 
@@ -56,7 +58,39 @@ void PreviewWidget::setPlaceholderText(const QString &text)
 {
     m_placeholder = text;
     if (!m_hasImage)
+    {
+        bumpVisualRevision();
         update();
+    }
+}
+
+void PreviewWidget::bumpVisualRevision()
+{
+    ++m_visualRevision;
+    emit visualRevisionChanged();
+}
+
+QImage PreviewWidget::recorderVisualSnapshot() const
+{
+    QImage img(qMax(1, width()), qMax(1, height()), QImage::Format_ARGB32);
+    img.fill(QColor(26, 26, 26));
+
+    if (!m_hasImage)
+    {
+        if (!m_placeholder.isEmpty())
+        {
+            QPainter painter(&img);
+            painter.setPen(QColor(136, 136, 136));
+            painter.drawText(img.rect(), Qt::AlignCenter, m_placeholder);
+        }
+        return img;
+    }
+
+    QPainter painter(&img);
+    const QRectF target(m_viewTopLeft, displayedImageSize());
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, m_viewScale < 1.0);
+    painter.drawImage(target, m_image, QRectF(0, 0, m_image.width(), m_image.height()));
+    return img;
 }
 
 double PreviewWidget::fitScale() const
@@ -195,10 +229,10 @@ void PreviewWidget::resizeEvent(QResizeEvent *event)
         applyOneToOneView();
     else
     {
-        // Manual 模式窗口尺寸变化时保持比例，仅重新居中
         const QSizeF shown = displayedImageSize();
         m_viewTopLeft = QPointF((width() - shown.width()) * 0.5, (height() - shown.height()) * 0.5);
     }
+    bumpVisualRevision();
 }
 
 void PreviewWidget::wheelEvent(QWheelEvent *event)
@@ -228,6 +262,7 @@ void PreviewWidget::wheelEvent(QWheelEvent *event)
     m_viewTopLeft = QPointF(wx - ix * m_viewScale, wy - iy * m_viewScale);
     setCursor(Qt::OpenHandCursor);
     emitPixelInfoAt(pos);
+    bumpVisualRevision();
     update();
     event->accept();
 }
@@ -260,6 +295,7 @@ void PreviewWidget::mouseMoveEvent(QMouseEvent *event)
     m_lastDragPos = event->pos();
     m_viewTopLeft += delta;
     m_viewMode = ViewMode::Manual;
+    bumpVisualRevision();
     update();
 }
 
@@ -288,6 +324,7 @@ void PreviewWidget::mouseDoubleClickEvent(QMouseEvent *event)
         applyOneToOneView();
 
     emitPixelInfoAt(event->pos());
+    bumpVisualRevision();
     update();
 }
 

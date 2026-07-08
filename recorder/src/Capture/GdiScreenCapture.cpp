@@ -90,6 +90,7 @@ public:
         frame->width = m_region.width;
         frame->height = m_region.height;
         frame->stride = stride;
+        frame->hasNewPixels = true;
         const size_t byteCount =
             static_cast<size_t>(stride) * static_cast<size_t>(m_region.height);
         frame->bgra.resize(byteCount);

@@ -5,12 +5,25 @@
 #include "../stage/StageManager.h"
 #include "../recorder/RecorderKit.h"
 #include "../recorder/RecorderUiBinder.h"
+#include "../recorder/include/RecorderPresets.h"
+#include "../recorder/RecorderOutputStore.h"
+#include "../recorder/RecorderPathHelper.h"
+#include "../recorder/RecorderVideoProbe.h"
+#include "../recorder/include/VisualFrameCache.h"
+#include "../ui/PreviewWidget.h"
+#include "../recorder/src/Capture/FrameCompare.h"
 
 #include <QtTest>
 #include <QCoreApplication>
+#include <QGuiApplication>
 #include <QTemporaryDir>
+#include <cstring>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 
 // --- SavePathHelper ---
@@ -351,6 +364,42 @@ bool recorderValidateTests()
     if (RecorderUiBinder::previewCaptureMode(recorder::CaptureMode::Region, true) !=
         recorder::CaptureMode::Region)
         return false;
+    if (RecorderUiBinder::previewCaptureMode(recorder::CaptureMode::Window, false) !=
+        recorder::CaptureMode::Window)
+        return false;
+    if (std::strcmp(recorder::captureModeLabel(recorder::CaptureMode::Window), "窗口录制") != 0)
+        return false;
+    {
+        recorder::RecorderConfig cfg;
+        cfg.mode = recorder::CaptureMode::Window;
+        cfg.output.filePath = "D:/tmp/test.mp4";
+        cfg.video.fps = 25;
+        recorder::RecorderErrorCode code = recorder::RecorderErrorCode::None;
+        std::string message;
+        if (recorder::validateConfig(cfg, &code, &message))
+            return false;
+        if (code != recorder::RecorderErrorCode::InvalidWindowTarget)
+            return false;
+    }
+    {
+        recorder::FixedWindowTarget target(0);
+        if (target.isAvailable())
+            return false;
+        recorder::RecorderConfig cfg;
+        cfg.output.filePath = "D:/tmp/test.mp4";
+        cfg.video.fps = 25;
+        recorder::applyWindowTarget(&cfg, &target);
+        if (cfg.mode != recorder::CaptureMode::Window)
+            return false;
+        if (cfg.windowTarget.provider != &target)
+            return false;
+    }
+    if (!recorder::hasVisualConsumerFlag(
+            static_cast<int>(recorder::VisualConsumerFlag::LivePreview),
+            recorder::VisualConsumerFlag::LivePreview))
+        return false;
+    if (recorder::hasVisualConsumerFlag(0, recorder::VisualConsumerFlag::Recording))
+        return false;
     {
         recorder::Rect region;
         region.width = 801;
@@ -361,13 +410,307 @@ bool recorderValidateTests()
     }
     {
         const int suggested = recorder::suggestScreenBitrateKbps(1920, 1080, 25);
-        if (suggested < 8000 || suggested > 50000)
+        if (suggested < 2000 || suggested > 50000)
             return false;
-        if (recorder::effectiveScreenBitrateKbps(3000, 1920, 1080, 25) != suggested)
+        if (recorder::effectiveScreenBitrateKbps(3000, 1920, 1080, 25) != 3000)
             return false;
         if (recorder::effectiveScreenBitrateKbps(20000, 1920, 1080, 25) != 20000)
             return false;
+        const int minKbps = recorder::minimumScreenBitrateKbps(1920, 1080, 25);
+        if (recorder::effectiveScreenBitrateKbps(800, 1920, 1080, 25) != minKbps)
+            return false;
     }
+    {
+        recorder::CaptureFrame a;
+        a.width = 64;
+        a.height = 64;
+        a.stride = 64 * 4;
+        a.bgra.assign(static_cast<size_t>(a.stride) * 64u, 0);
+        recorder::CaptureFrame b = a;
+        if (recorder::capture::framesVisuallyChanged(a, b))
+            return false;
+        b.bgra[0] = 255;
+        b.bgra[1] = 255;
+        b.bgra[2] = 255;
+        if (!recorder::capture::framesVisuallyChanged(a, b))
+            return false;
+    }
+    return true;
+}
+
+bool recorderVisualCacheTests()
+{
+    recorder::VisualFrameCache cache;
+    if (cache.hasFrame())
+        return false;
+
+    recorder::CaptureFrame frame;
+    frame.width = 4;
+    frame.height = 2;
+    frame.stride = 16;
+    frame.bgra = {10, 20, 30, 255, 11, 21, 31, 255, 12, 22, 32, 255, 13, 23, 33, 255,
+                  14, 24, 34, 255, 15, 25, 35, 255, 16, 26, 36, 255, 17, 27, 37, 255};
+    cache.publish(frame);
+
+    recorder::CaptureFrame copy;
+    std::uint64_t version = 0;
+    if (!cache.copyLatest(&copy, &version))
+        return false;
+    if (version != 1 || copy.width != 4 || copy.bgra.size() != frame.bgra.size())
+        return false;
+
+    frame.bgra[0] = 99;
+    cache.publish(std::move(frame));
+    if (cache.version() != 2)
+        return false;
+    if (!cache.copyLatest(&copy) || copy.bgra[0] != 99)
+        return false;
+    return true;
+}
+
+bool previewWidgetSnapshotTests()
+{
+    PreviewWidget widget;
+    widget.resize(320, 240);
+    widget.show();
+    QGuiApplication::processEvents();
+
+    QImage pattern(160, 120, QImage::Format_Grayscale8);
+    for (int y = 0; y < pattern.height(); ++y)
+        for (int x = 0; x < pattern.width(); ++x)
+            pattern.scanLine(y)[x] = static_cast<uchar>((x + y) & 0xFF);
+    widget.setImage(pattern);
+    QGuiApplication::processEvents();
+
+    const QImage snap = widget.recorderVisualSnapshot();
+    if (snap.isNull() || snap.width() != 320)
+        return false;
+
+    int nonBg = 0;
+    for (int y = 0; y < snap.height(); ++y)
+    {
+        const QRgb *row = reinterpret_cast<const QRgb *>(snap.constScanLine(y));
+        for (int x = 0; x < snap.width(); ++x)
+        {
+            const QRgb px = row[x];
+            if (qRed(px) > 40 || qGreen(px) > 40 || qBlue(px) > 40)
+                ++nonBg;
+        }
+    }
+    return nonBg > 500;
+}
+
+bool recorderOutputStoreSyncTests()
+{
+    QTemporaryDir temp;
+    if (!temp.isValid())
+        return false;
+
+    RecorderPathHelper::setRecordRootDirOverride(temp.path());
+
+    auto writeVideo = [&](const QString &fileName) -> bool {
+        QFile file(temp.filePath(fileName));
+        if (!file.open(QIODevice::WriteOnly))
+            return false;
+        file.write("fake");
+        return true;
+    };
+
+    if (!writeVideo(QStringLiteral("first.mp4")) || !writeVideo(QStringLiteral("second.mp4")))
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+
+    RecorderOutputStore store;
+    store.setOutputDirectory(temp.path());
+    if (!store.load(nullptr))
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+    if (store.entries().size() != 2)
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+    if (QFile::exists(temp.filePath(QStringLiteral("output_history.json"))))
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+
+    const QString thirdPath = RecorderPathHelper::uniqueOutputFileInDir(temp.path(), recorder::VideoFormat::Mp4);
+    QFile third(thirdPath);
+    if (!third.open(QIODevice::WriteOnly))
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+    third.write("fake3");
+    third.close();
+
+    if (!store.rebuildFromDirectory(nullptr) || store.entries().size() != 3)
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+    if (QFile::exists(temp.filePath(QStringLiteral("output_history.json"))))
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+
+    const QString firstPath = store.entries().first().filePath;
+    if (!store.removeEntryAt(0, nullptr) || QFile::exists(firstPath))
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+    if (store.entries().size() != 2)
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+
+    const QString externalDeletePath = store.entries().first().filePath;
+    if (!QFile::remove(externalDeletePath))
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+    if (!store.rebuildFromDirectory(nullptr) || store.entries().size() != 1)
+    {
+        RecorderPathHelper::clearRecordRootDirOverride();
+        return false;
+    }
+    for (const RecorderOutputEntry &entry : store.entries())
+    {
+        if (entry.filePath == externalDeletePath)
+        {
+            RecorderPathHelper::clearRecordRootDirOverride();
+            return false;
+        }
+    }
+
+    RecorderPathHelper::clearRecordRootDirOverride();
+    return true;
+}
+
+bool recorderPresetResolveTests()
+{
+    using recorder::EncodeLevel;
+    using recorder::FrameRatePreset;
+    using recorder::QualityLevel;
+    using recorder::ResolvedVideoParams;
+
+    const auto resolve = [](QualityLevel q) {
+        return recorder::resolveVideoPresets(q,
+                                             EncodeLevel::Default,
+                                             FrameRatePreset::Standard,
+                                             1920,
+                                             1080,
+                                             recorder::VideoFormat::Mp4);
+    };
+
+    const ResolvedVideoParams original = resolve(QualityLevel::Original);
+    const ResolvedVideoParams ultra = resolve(QualityLevel::UltraClear);
+    const ResolvedVideoParams hd = resolve(QualityLevel::HD);
+    const ResolvedVideoParams clear = resolve(QualityLevel::Clear);
+    const ResolvedVideoParams low = resolve(QualityLevel::Low);
+
+    if (original.fps != 20 || ultra.fps != 20 || hd.fps != 20 || low.fps != 20)
+        return false;
+    if (original.outputWidth != 1920 || original.outputHeight != 1080)
+        return false;
+    if (ultra.outputWidth != 1920 || ultra.outputHeight != 1080)
+        return false;
+    if (clear.outputWidth < 1920 || clear.outputHeight < 1080)
+        return false;
+    if (low.outputWidth == 1920 || low.outputHeight == 1080)
+        return false;
+    if (original.bitrateKbps <= ultra.bitrateKbps)
+        return false;
+    if (ultra.bitrateKbps <= hd.bitrateKbps)
+        return false;
+    if (hd.bitrateKbps <= clear.bitrateKbps)
+        return false;
+    if (clear.bitrateKbps <= low.bitrateKbps)
+        return false;
+    if (low.bitrateKbps < recorder::minimumScreenBitrateKbps(low.outputWidth, low.outputHeight, 20))
+        return false;
+
+    const ResolvedVideoParams smooth =
+        recorder::resolveVideoPresets(QualityLevel::HD,
+                                    EncodeLevel::Fine,
+                                    FrameRatePreset::Smooth,
+                                    678,
+                                    460,
+                                    recorder::VideoFormat::Mp4);
+    if (smooth.fps != 15 || smooth.encodeLevel != EncodeLevel::Fine)
+        return false;
+    if (smooth.outputWidth != 678 || smooth.outputHeight != 460)
+        return false;
+
+    recorder::RecorderConfig cfg = RecorderUiBinder::configFromWidgets(
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, {}, 1920, 1080);
+    if (cfg.video.fps != 20 || cfg.video.bitrateKbps < 500)
+        return false;
+    if (cfg.video.outputWidth != 1920 || cfg.video.outputHeight != 1080)
+        return false;
+
+    if (recorder::defaultQualityLevel() != QualityLevel::UltraClear)
+        return false;
+    if (recorder::frameRateFromPreset(FrameRatePreset::High) != 30)
+        return false;
+    if (QString::fromUtf8(recorder::qualityLevelLabel(QualityLevel::HD)) != QStringLiteral("高清"))
+        return false;
+    if (recorder::qualityScaleRatio(QualityLevel::Low) != 0.5)
+        return false;
+
+    if (recorder::encodeGopSize(EncodeLevel::Default, 20) != 40)
+        return false;
+    if (recorder::encodeGopSize(EncodeLevel::Fine, 20) != 20)
+        return false;
+    if (recorder::encodeGopSize(EncodeLevel::General, 20) != 60)
+        return false;
+    if (recorder::encodeMaxBitrateKbps(EncodeLevel::Default, 3000) != 6000)
+        return false;
+    if (recorder::encodeMaxBitrateKbps(EncodeLevel::Fine, 3000) != 7500)
+        return false;
+    if (recorder::encodeMjpegQuality(EncodeLevel::Fine, 5000) != 55)
+        return false;
+
+    return true;
+}
+
+bool recorderVideoProbeTests()
+{
+    if (RecorderVideoProbe::durationSeconds(QString()) != 0)
+        return false;
+    if (RecorderVideoProbe::durationSeconds(QStringLiteral("Z:/no_such_file.mp4")) != 0)
+        return false;
+
+    if (RecorderVideoProbe::hundredNanosecondsToRoundedSeconds(0) != 0)
+        return false;
+    if (RecorderVideoProbe::hundredNanosecondsToRoundedSeconds(10000000ULL) != 1)
+        return false;
+    if (RecorderVideoProbe::hundredNanosecondsToRoundedSeconds(134000000ULL) != 13)
+        return false;
+    if (RecorderVideoProbe::hundredNanosecondsToRoundedSeconds(136000000ULL) != 14)
+        return false;
+    if (RecorderVideoProbe::hundredNanosecondsToRoundedSeconds(135000000ULL) != 14)
+        return false;
+    if (RecorderVideoProbe::hundredNanosecondsToRoundedSeconds(134999999ULL) != 13)
+        return false;
+
+    if (RecorderVideoProbe::durationSecondsWithFallback(QString(), 12) != 12)
+        return false;
+    if (RecorderVideoProbe::durationSecondsWithFallback(QStringLiteral("Z:/missing.mp4"), 9) != 9)
+        return false;
+    if (RecorderVideoProbe::durationSecondsWithFallback(QStringLiteral("Z:/missing.mp4"), -1) != 0)
+        return false;
+
     return true;
 }
 
@@ -375,8 +718,8 @@ bool recorderValidateTests()
 
 int main(int argc, char *argv[])
 {
-    // 全程复用同一 QCoreApplication，避免多次 qExec 销毁事件循环导致 QTimer 失效。
-    QCoreApplication app(argc, argv);
+    // 全程复用同一 QGuiApplication，避免多次 qExec 销毁事件循环导致 QTimer 失效。
+    QGuiApplication app(argc, argv);
 
     int status = 0;
     {
@@ -392,6 +735,16 @@ int main(int argc, char *argv[])
         status |= QTest::qExec(&suite, argc, argv);
     }
     if (!recorderValidateTests())
+        status |= 1;
+    if (!recorderVisualCacheTests())
+        status |= 1;
+    if (!previewWidgetSnapshotTests())
+        status |= 1;
+    if (!recorderOutputStoreSyncTests())
+        status |= 1;
+    if (!recorderPresetResolveTests())
+        status |= 1;
+    if (!recorderVideoProbeTests())
         status |= 1;
     return status;
 }

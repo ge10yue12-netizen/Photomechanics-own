@@ -1,8 +1,8 @@
-#include "RecorderHost.h"
+#include "RecorderController.h"
 
 #include <QTimer>
 
-RecorderHost::RecorderHost(QObject *parent)
+RecorderController::RecorderController(QObject *parent)
     : QObject(parent)
 {
     recorder::RecorderCallback cb;
@@ -23,47 +23,47 @@ RecorderHost::RecorderHost(QObject *parent)
     m_recorder.setCallback(cb);
 }
 
-RecorderHost::~RecorderHost()
+RecorderController::~RecorderController()
 {
     m_recorder.stop();
 }
 
-bool RecorderHost::init(const recorder::RecorderConfig &config)
+bool RecorderController::init(const recorder::RecorderConfig &config)
 {
     return m_recorder.init(config);
 }
 
-bool RecorderHost::start()
+bool RecorderController::start()
 {
     return m_recorder.start();
 }
 
-bool RecorderHost::pause()
+bool RecorderController::pause()
 {
     return m_recorder.pause();
 }
 
-bool RecorderHost::resume()
+bool RecorderController::resume()
 {
     return m_recorder.resume();
 }
 
-bool RecorderHost::stop()
+bool RecorderController::stop()
 {
     return m_recorder.stop();
 }
 
-recorder::RecorderState RecorderHost::state() const
+recorder::RecorderState RecorderController::state() const
 {
     return m_recorder.state();
 }
 
-QString RecorderHost::lastError() const
+QString RecorderController::lastError() const
 {
     return QString::fromStdString(m_recorder.lastError());
 }
 
-int RecorderHost::recordedSeconds() const
+int RecorderController::recordedSeconds() const
 {
     return m_recorder.recordedSeconds();
 }

@@ -90,7 +90,7 @@ flowchart TD
 | **阶段** | `StageManager` — 目标帧数驱动：`round(时长×fps)` 张 |
 | **存图** | `SavePathHelper` 定路径；`ImageSaveThread` 有界队列 + `trySubmit`；`writeBmpFile` 写入 8 位灰度或 24 位 RGB BMP |
 | **远程遥控** | `RemoteKit` + `RemoteControlGuard`（命令互斥）；扫码见 `remote-qr/`；说明见 [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) |
-| **屏幕录制** | `RecorderHost` + `ScreenRecorderDialog`；核心见 `recorder/`；说明见 [recorder/README.md](recorder/README.md) |
+| **屏幕录制** | `RecorderController` + `ScreenRecorderDialog`；核心见 `recorder/`；说明见 [recorder/README.md](recorder/README.md) |
 | **新手引导** | 复制 `guide/` + `#include "guide/GuideKit.h"`；说明见 [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) |
 | **日志** | `AppLogger` — `Log/run_*.log` 落盘；主窗口 `log()` 同步写文件与界面 |
 | **遥控配置** | 项目根 `config/netconfig.ini`（见 [remote/README.md](remote/README.md)） |
@@ -201,7 +201,7 @@ flowchart TB
 | 写 BMP | `ImageSaveThread::run` → `writeBmpFile`（直写，非 `QImage::save`） | `save/ImageSaveThread.cpp` |
 | **BLE 遥控命令** | `onRemoteCommand` ← `BleControlServer` | `QtProject_1.cpp` / `remote/ble/` |
 | **打开屏幕录制** | `onScreenRecorder` → `ScreenRecorderDialog` | `QtProject_1.cpp` / `recorder/dialog/` |
-| **录屏核心** | `RecorderHost` → `recorder::ScreenRecorder` | `recorder/RecorderHost.h` |
+| **录屏核心** | `RecorderController` → `recorder::ScreenRecorder` | `recorder/RecorderController.h` |
 | **新手引导组件** | `GuideKit.h` → `GuideManager` + `GuideStep` | [docs/GUIDEKIT_DEVELOPMENT_GUIDE.md](docs/GUIDEKIT_DEVELOPMENT_GUIDE.md) |
 | **微信小程序** | `miniprogram/` — WiFi/BLE 遥控 | [docs/REMOTE_CONTROL_GUIDE.md](docs/REMOTE_CONTROL_GUIDE.md) §4 |
 

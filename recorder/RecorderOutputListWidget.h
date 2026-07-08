@@ -21,6 +21,7 @@ public:
 
     void setStore(RecorderOutputStore *store);
     void reloadList();
+    void refreshView();
     void setControlsEnabled(bool enabled);
 
 private slots:
@@ -40,4 +41,3 @@ private:
     Ui::RecorderOutputListWidget *ui = nullptr;
     RecorderOutputStore *m_store = nullptr;
 };
-

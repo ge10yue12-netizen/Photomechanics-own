@@ -73,7 +73,11 @@ QtProject_1::QtProject_1(QWidget *parent)
     ui.outerSplitter->setCollapsible(1, true);
     ui.imageLabel->setMinimumSize(640, 400);
     ui.imageLabel->setPlaceholderText(QStringLiteral("未连接相机"));
+    m_cameraPreviewTarget.setWidget(ui.imageLabel);
     connect(ui.imageLabel, &PreviewWidget::pixelInfoChanged, this, &QtProject_1::onPreviewPixelInfo);
+    connect(ui.imageLabel, &PreviewWidget::visualRevisionChanged, this, [this]() {
+        m_cameraPreviewTarget.notifyVisualChanged();
+    });
     ui.logTextEdit->setMaximumBlockCount(2000);
     // 六个主操作按钮通过 btnRole 区分蓝(primary)/红(danger)；禁用为灰
     // 底部状态条用浅灰底 + 顶部分隔线，区别于普通区域
@@ -151,12 +155,12 @@ QtProject_1::QtProject_1(QWidget *parent)
     recorderLayout->addWidget(m_recorderSummaryLabel, 1);
     ui.logLayout->insertWidget(1, recorderRow);
     connect(recorderBtn, &QPushButton::clicked, this, &QtProject_1::onScreenRecorder);
-    connect(&m_recorderHost, &RecorderHost::stateChanged, this, [this](recorder::RecorderState st) {
+    connect(&m_recorderController, &RecorderController::stateChanged, this, [this](recorder::RecorderState st) {
         refreshRecorderSummaryLabel();
-        if (st == recorder::RecorderState::Error && !m_recorderHost.lastError().isEmpty())
-            log(QStringLiteral("录屏：%1").arg(m_recorderHost.lastError()));
+        if (st == recorder::RecorderState::Error && !m_recorderController.lastError().isEmpty())
+            log(QStringLiteral("录屏：%1").arg(m_recorderController.lastError()));
     });
-    connect(&m_recorderHost, &RecorderHost::logMessage, this, [this](const QString &msg) {
+    connect(&m_recorderController, &RecorderController::logMessage, this, [this](const QString &msg) {
         if (!msg.isEmpty())
             log(QStringLiteral("录屏：%1").arg(msg));
     });
@@ -289,7 +293,7 @@ void QtProject_1::shutdownAll()
         delete m_recorderDialog;
         m_recorderDialog = nullptr;
     }
-    m_recorderHost.stop();
+    m_recorderController.stop();
     if (m_remoteCenter)
     {
         m_remoteCenter->hide();
@@ -1442,7 +1446,8 @@ void QtProject_1::onScreenRecorder()
     if (!m_recorderDialog)
     {
         m_recorderDialog = new ScreenRecorderDialog(this);
-        m_recorderDialog->bindRecorderHost(&m_recorderHost);
+        m_recorderDialog->setFixedWindowTarget(&m_cameraPreviewTarget, QStringLiteral("相机预览录制"));
+        m_recorderDialog->bindController(&m_recorderController);
     }
     m_recorderDialog->show();
     m_recorderDialog->raise();
@@ -1454,8 +1459,8 @@ void QtProject_1::refreshRecorderSummaryLabel()
     if (!m_recorderSummaryLabel)
         return;
     const QString text = RecorderStatusText::sessionSummary(
-        recorder::stateLabel(m_recorderHost.state()),
-        m_recorderHost.lastError());
+        recorder::stateLabel(m_recorderController.state()),
+        m_recorderController.lastError());
     m_recorderSummaryLabel->setText(text);
 }
 

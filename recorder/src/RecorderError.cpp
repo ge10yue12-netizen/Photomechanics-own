@@ -1,5 +1,9 @@
 #include "../include/RecorderError.h"
 
+#include "../include/IRecorderWindowTarget.h"
+#include "../include/VisualFrameCache.h"
+#include "Capture/CaptureCommon.h"
+
 #include <algorithm>
 #include <cctype>
 
@@ -50,6 +54,8 @@ const char *errorMessage(RecorderErrorCode code)
         return "录制参数无效，请检查帧率、分辨率与保存路径。";
     case RecorderErrorCode::InvalidRegion:
         return "录制区域无效，请重新选择录制区域。";
+    case RecorderErrorCode::InvalidWindowTarget:
+        return "窗口录制目标无效，请先打开相机并显示预览。";
     case RecorderErrorCode::InvalidOutputPath:
         return "保存路径无效或无法写入，请更换目录后重试。";
     case RecorderErrorCode::UnsupportedFormat:
@@ -98,6 +104,8 @@ const char *captureModeLabel(CaptureMode mode)
         return "主屏录制";
     case CaptureMode::Region:
         return "区域录制";
+    case CaptureMode::Window:
+        return "窗口录制";
     }
     return "—";
 }
@@ -153,6 +161,20 @@ bool validateConfig(const RecorderConfig &config,
             return fail(RecorderErrorCode::InvalidRegion);
     }
 
+    if (config.mode == CaptureMode::Window)
+    {
+        if (config.windowTarget.provider && config.windowTarget.provider->visualCache())
+        {
+            if (!config.windowTarget.provider->visualCache()->hasFrame())
+                return fail(RecorderErrorCode::InvalidWindowTarget);
+        }
+        else if (!capture::isValidWindowHandle(config.windowTarget.nativeHandle) ||
+                 !capture::isWindowCapturable(config.windowTarget.nativeHandle))
+        {
+            return fail(RecorderErrorCode::InvalidWindowTarget);
+        }
+    }
+
     if (config.video.outputWidth != 0 &&
         (config.video.outputWidth < 100 || config.video.outputHeight < 100))
     {
@@ -169,15 +191,29 @@ bool validateConfig(const RecorderConfig &config,
 int suggestScreenBitrateKbps(int width, int height, int fps)
 {
     if (width < 100 || height < 100)
-        return 8000;
-    const int fp = fps > 0 ? fps : 25;
+        return 3000;
+    const int fp = fps > 0 ? fps : 20;
     const long long pixels = static_cast<long long>(width) * static_cast<long long>(height);
-    // 屏录含大量文字/UI 边缘，约 0.15 bpp/frame
-    int kbps = static_cast<int>((pixels * fp * 15) / 100000);
-    if (kbps < 8000)
-        kbps = 8000;
+    // 屏录约 0.08 bpp/frame；VBR + 静止跳帧下实际远低于均值。
+    int kbps = static_cast<int>((pixels * fp * 8) / 100000);
+    if (kbps < 2000)
+        kbps = 2000;
     if (kbps > 50000)
         kbps = 50000;
+    return kbps;
+}
+
+int minimumScreenBitrateKbps(int width, int height, int fps)
+{
+    (void)fps;
+    if (width < 100 || height < 100)
+        return 1200;
+    const long long pixels = static_cast<long long>(width) * static_cast<long long>(height);
+    int kbps = static_cast<int>(pixels / 500000);
+    if (kbps < 1200)
+        kbps = 1200;
+    if (kbps > 4000)
+        kbps = 4000;
     return kbps;
 }
 
@@ -186,7 +222,11 @@ int effectiveScreenBitrateKbps(int userKbps, int width, int height, int fps)
     const int suggested = suggestScreenBitrateKbps(width, height, fps);
     if (userKbps < 500)
         return suggested;
-    return userKbps > suggested ? userKbps : suggested;
+
+    const int minKbps = minimumScreenBitrateKbps(width, height, fps);
+    if (userKbps < minKbps)
+        return minKbps;
+    return userKbps;
 }
 
 } // namespace recorder

@@ -13,7 +13,8 @@ public:
     ~Mp4MfEncoder() override;
 
     bool open(const EncoderOpenParams &params, std::string *error) override;
-    bool writeFrame(const CaptureFrame &frame, std::string *error) override;
+    bool writeFrame(const CaptureFrame &frame, std::string *error, int timelineSlots = 1) override;
+    bool writeCachedTimeline(std::string *error, int timelineSlots) override;
     bool close(std::string *error) override;
 
 private:

@@ -309,10 +309,13 @@
     <QtMoc Include="recorder\RecorderControlBar.h">
       <Filter>recorder</Filter>
     </QtMoc>
+    <QtMoc Include="recorder\RecorderFloatBall.h">
+      <Filter>recorder</Filter>
+    </QtMoc>
     <QtMoc Include="recorder\RecorderNavSidebar.h">
       <Filter>recorder</Filter>
     </QtMoc>
-    <QtMoc Include="recorder\RecorderHost.h">
+    <QtMoc Include="recorder\RecorderController.h">
       <Filter>recorder</Filter>
     </QtMoc>
     <QtMoc Include="recorder\RegionSelectorWidget.h">
@@ -321,10 +324,13 @@
     <ClCompile Include="recorder\RecorderControlBar.cpp">
       <Filter>recorder</Filter>
     </ClCompile>
+    <ClCompile Include="recorder\RecorderFloatBall.cpp">
+      <Filter>recorder</Filter>
+    </ClCompile>
     <ClCompile Include="recorder\RecorderNavSidebar.cpp">
       <Filter>recorder</Filter>
     </ClCompile>
-    <ClCompile Include="recorder\RecorderHost.cpp">
+    <ClCompile Include="recorder\RecorderController.cpp">
       <Filter>recorder</Filter>
     </ClCompile>
     <ClCompile Include="recorder\RecorderUiBinder.cpp">

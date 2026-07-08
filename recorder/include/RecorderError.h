@@ -12,6 +12,7 @@ enum class RecorderErrorCode
     None = 0,
     InvalidConfig,
     InvalidRegion,
+    InvalidWindowTarget,
     InvalidOutputPath,
     UnsupportedFormat,
     CaptureInitFailed,
@@ -42,10 +43,13 @@ const char *videoFormatLabel(VideoFormat format);
 // 判断当前构建是否支持该导出格式。
 bool isFormatSupported(VideoFormat format);
 
-// 屏幕录制建议码率（kbps），按像素与帧率估算，保证文字边缘可辨。
+// 屏幕录制建议码率（kbps），按像素与帧率估算。
 int suggestScreenBitrateKbps(int width, int height, int fps);
 
-// 取用户码率与建议下限的较大值。
+// 解析有效码率：尊重用户设置，仅对过低值做安全下限钳制。
 int effectiveScreenBitrateKbps(int userKbps, int width, int height, int fps);
+
+// 编码器允许的绝对最低码率（kbps）。
+int minimumScreenBitrateKbps(int width, int height, int fps);
 
 } // namespace recorder

@@ -140,7 +140,8 @@ private:
     RemoteControlGuard m_remoteGuard; // 跨客户端命令通道互斥
     RemoteControlCenter *m_remoteCenter = nullptr; // 远程控制管理对话框
     QLabel *m_remoteSummaryLabel = nullptr;        // 主界面远程状态摘要标签
-    RecorderHost m_recorderHost;                   // 屏幕录制门面
+    RecorderController m_recorderController;
+    QWidgetRecorderTarget m_cameraPreviewTarget;
     ScreenRecorderDialog *m_recorderDialog = nullptr; // 屏幕录制管理对话框
     QLabel *m_recorderSummaryLabel = nullptr;      // 主界面录屏状态摘要标签
     bool m_remoteEnabled = false;    // 远程服务总闸；为 false 时不监听 HTTP/BLE/扫码

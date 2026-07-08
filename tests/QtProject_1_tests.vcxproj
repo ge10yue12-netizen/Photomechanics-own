@@ -64,6 +64,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>mfplat.lib;mfreadwrite.lib;mfuuid.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
@@ -83,8 +84,18 @@
     <ClCompile Include="..\save\SavePathHelper.cpp" />
     <ClCompile Include="..\save\ImageSaveThread.cpp" />
     <ClCompile Include="..\stage\StageManager.cpp" />
+    <ClCompile Include="..\recorder\src\RecorderPresets.cpp" />
     <ClCompile Include="..\recorder\src\RecorderError.cpp" />
+    <ClCompile Include="..\recorder\src\RecorderWindowTarget.cpp" />
+    <ClCompile Include="..\recorder\src\IRecorderWindowTarget.cpp" />
+    <ClCompile Include="..\recorder\src\VisualFrameCache.cpp" />
     <ClCompile Include="..\recorder\RecorderUiBinder.cpp" />
+    <ClCompile Include="..\recorder\RecorderOutputStore.cpp" />
+    <ClCompile Include="..\recorder\RecorderVideoProbe.cpp" />
+    <ClCompile Include="..\recorder\RecorderPathHelper.cpp" />
+    <ClCompile Include="..\recorder\src\Capture\FrameCompare.cpp" />
+    <ClCompile Include="..\ui\PreviewWidget.cpp" />
+    <QtMoc Include="..\ui\PreviewWidget.h" />
     <QtMoc Include="..\save\ImageSaveThread.h" />
     <QtMoc Include="..\stage\StageManager.h" />
   </ItemGroup>

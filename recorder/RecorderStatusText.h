@@ -2,7 +2,7 @@
 
 #include <QString>
 
-// 录屏模块 UI 文案（header-only，对齐 RemoteStatusText 风格）。
+// 录屏模块 UI 文案（header-only）。
 namespace RecorderStatusText
 {
 

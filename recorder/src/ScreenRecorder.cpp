@@ -1,8 +1,7 @@
 #include "../include/ScreenRecorder.h"
 
-#include "Capture/DxgiScreenCapture.h"
-#include "Capture/GdiScreenCapture.h"
 #include "Capture/CaptureOpen.h"
+#include "Capture/FrameCompare.h"
 #include "Encoder/MjpegAviEncoder.h"
 #include "Encoder/Mp4MfEncoder.h"
 
@@ -11,6 +10,12 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 namespace recorder
 {
@@ -29,16 +34,6 @@ std::unique_ptr<IVideoEncoder> createEncoder(VideoFormat format)
     if (format == VideoFormat::Avi)
         return std::unique_ptr<IVideoEncoder>(new MjpegAviEncoder());
     return nullptr;
-}
-
-// 优先 DXGI，失败时回退 GDI（主屏 / 区域录制）。
-bool tryOpenCapture(CaptureMode mode,
-                    const Rect &region,
-                    std::unique_ptr<IScreenCapture> *out,
-                    std::string *error,
-                    std::string *logHint)
-{
-    return capture::openScreenCapture(mode, region, out, error, logHint);
 }
 
 } // namespace
@@ -61,7 +56,12 @@ public:
         m_config = config;
         std::string capErr;
         std::string capHint;
-        if (!tryOpenCapture(config.mode, config.region, &m_capture, &capErr, &capHint))
+        if (!capture::openScreenCapture(config.mode,
+                                        config.region,
+                                        config.windowTarget,
+                                        &m_capture,
+                                        &capErr,
+                                        &capHint))
         {
             m_lastError = capErr.empty() ? errorMessage(RecorderErrorCode::CaptureInitFailed)
                                          : capErr;
@@ -91,26 +91,36 @@ public:
             nativeH &= ~1;
         }
 
-        const int userW = config.video.outputWidth > 0 ? config.video.outputWidth : 0;
-        const int userH = config.video.outputHeight > 0 ? config.video.outputHeight : 0;
-        if (userW > 0 && userH > 0 && (userW != nativeW || userH != nativeH))
+        int outW = config.video.outputWidth > 0 ? config.video.outputWidth : nativeW;
+        int outH = config.video.outputHeight > 0 ? config.video.outputHeight : nativeH;
+        if (config.output.format == VideoFormat::Mp4)
         {
-            logMessage("输出分辨率 " + std::to_string(userW) + "x" + std::to_string(userH) +
-                       " 与采集 " + std::to_string(nativeW) + "x" + std::to_string(nativeH) +
-                       " 不一致，已改为 1:1 原生编码以保持清晰。");
+            outW &= ~1;
+            outH &= ~1;
+        }
+        if (outW < 100 || outH < 100)
+        {
+            outW = nativeW;
+            outH = nativeH;
         }
 
-        m_outputWidth = nativeW;
-        m_outputHeight = nativeH;
-        m_config.video.outputWidth = nativeW;
-        m_config.video.outputHeight = nativeH;
+        if (outW != nativeW || outH != nativeH)
+        {
+            logMessage("输出尺寸 " + std::to_string(outW) + "x" + std::to_string(outH) +
+                       "（采集 " + std::to_string(nativeW) + "x" + std::to_string(nativeH) +
+                       "，画质档位缩放）。");
+        }
+
+        m_outputWidth = outW;
+        m_outputHeight = outH;
+        m_config.video.outputWidth = outW;
+        m_config.video.outputHeight = outH;
 
         const int effectiveBitrate =
-            effectiveScreenBitrateKbps(config.video.bitrateKbps, nativeW, nativeH, config.video.fps);
+            effectiveScreenBitrateKbps(config.video.bitrateKbps, outW, outH, config.video.fps);
         if (effectiveBitrate != config.video.bitrateKbps)
         {
-            logMessage("码率已从 " + std::to_string(config.video.bitrateKbps) + " 提升至 " +
-                       std::to_string(effectiveBitrate) + " kbps（屏幕录制建议下限）。");
+            logMessage("码率已调整为 " + std::to_string(effectiveBitrate) + " kbps（画质档位安全下限）。");
             m_config.video.bitrateKbps = effectiveBitrate;
         }
 
@@ -131,6 +141,7 @@ public:
         encParams.height = m_outputHeight;
         encParams.fps = config.video.fps;
         encParams.bitrateKbps = m_config.video.bitrateKbps;
+        encParams.encodeLevel = config.video.encodeLevel;
 
         std::string encErr;
         if (!m_encoder->open(encParams, &encErr))
@@ -145,8 +156,15 @@ public:
 
         logMessage("编码参数：" + std::to_string(m_outputWidth) + "x" + std::to_string(m_outputHeight) +
                    " @ " + std::to_string(config.video.fps) + " FPS, " +
-                   std::to_string(m_config.video.bitrateKbps) + " kbps（1:1 原生像素）");
+                   std::to_string(m_config.video.bitrateKbps) + " kbps");
 
+        m_grabBuffer.bgra.clear();
+        m_grabBuffer.bgra.reserve(static_cast<size_t>(m_outputWidth) * static_cast<size_t>(m_outputHeight) * 4u);
+
+        m_pendingHoldSlots = 0;
+        m_hasEncodedFrame = false;
+        m_frameCount = 0;
+        m_lastEncodedFrame = CaptureFrame{};
         m_lastError.clear();
         m_recordedSeconds = 0;
         setState(RecorderState::Initialized);
@@ -250,8 +268,13 @@ public:
 
         m_stopRequested = true;
         m_paused = false;
+
         shutdownWorkers();
         releaseHardware();
+
+        m_recordedSeconds.store(elapsedWallSeconds());
+        m_lastDurationReport = m_recordedSeconds.load();
+
         setState(RecorderState::Stopped);
         logMessage("录制已停止，文件已保存。");
         return true;
@@ -273,6 +296,11 @@ public:
         return m_recordedSeconds.load();
     }
 
+    int mediaTimelineSeconds() const
+    {
+        return mediaSecondsFromSlots();
+    }
+
     void setCallback(const RecorderCallback &callback)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -280,15 +308,32 @@ public:
     }
 
 private:
+    int mediaSecondsFromSlots() const
+    {
+        const int fps = fpsMax(m_config.video.fps);
+        return fps > 0 ? m_frameCount / fps : 0;
+    }
+
+    // 与视频时间轴一致：elapsed 内应完成的帧槽数（首帧立即开始，无 +1 偏差）。
+    int targetFrameSlots(const std::chrono::steady_clock::duration &elapsed,
+                         const std::chrono::microseconds &frameInterval) const
+    {
+        const long long slots =
+            std::max(1LL, static_cast<long long>(elapsed / frameInterval));
+        return static_cast<int>(slots);
+    }
+
     void workerLoop()
     {
+        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+
         using clock = std::chrono::steady_clock;
         const auto frameInterval =
             std::chrono::microseconds(1'000'000 / fpsMax(m_config.video.fps));
 
         while (!m_stopRequested)
         {
-            reportWallDuration();
+            reportMediaDuration();
 
             if (m_paused)
             {
@@ -297,36 +342,84 @@ private:
             }
 
             const auto elapsed = activeElapsed();
-            const int targetFrames =
-                static_cast<int>(elapsed / frameInterval) + 1;
+            const int targetFrames = targetFrameSlots(elapsed, frameInterval);
 
             if (m_frameCount >= targetFrames)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                const auto nextSlotEnd = m_wallStart + m_wallPausedTotal +
+                                         frameInterval * static_cast<int64_t>(m_frameCount + 1);
+                const auto now = clock::now();
+                if (now < nextSlotEnd)
+                    std::this_thread::sleep_until(nextSlotEnd);
                 continue;
             }
 
-            CaptureFrame frame;
+            if (m_frameCount + 1 < targetFrames)
+            {
+                const int gap = targetFrames - 1 - m_frameCount;
+                if (gap > 0)
+                {
+                    if (m_hasEncodedFrame)
+                        m_pendingHoldSlots += gap;
+                    m_frameCount += gap;
+                }
+            }
+
+            m_grabBuffer.hasNewPixels = true;
             std::string capErr;
-            if (!m_capture || !m_capture->grab(&frame, &capErr))
+            if (!m_capture || !m_capture->grab(&m_grabBuffer, &capErr))
             {
                 reportError(capErr.empty() ? errorMessage(RecorderErrorCode::CaptureInitFailed) : capErr);
                 m_stopRequested = true;
                 break;
             }
 
+            bool contentChanged = m_grabBuffer.hasNewPixels;
+            if (contentChanged && m_hasEncodedFrame &&
+                !capture::framesVisuallyChanged(m_grabBuffer, m_lastEncodedFrame, m_changeParams))
+            {
+                contentChanged = false;
+            }
+
+            if (!contentChanged && m_hasEncodedFrame)
+            {
+                ++m_pendingHoldSlots;
+                ++m_frameCount;
+                continue;
+            }
+
+            int timelineSlots;
+            if (!m_hasEncodedFrame)
+                timelineSlots = std::max(1, m_frameCount);
+            else
+                timelineSlots = m_pendingHoldSlots + 1;
+            m_pendingHoldSlots = 0;
+
             std::string encErr;
-            if (!m_encoder || !m_encoder->writeFrame(frame, &encErr))
+            if (!m_encoder || !m_encoder->writeFrame(m_grabBuffer, &encErr, timelineSlots))
             {
                 reportError(encErr.empty() ? errorMessage(RecorderErrorCode::WriteFileFailed) : encErr);
                 m_stopRequested = true;
                 break;
             }
 
+            capture::copyFramePixels(m_grabBuffer, &m_lastEncodedFrame);
+            m_hasEncodedFrame = true;
             ++m_frameCount;
         }
 
-        reportWallDuration();
+        reportMediaDuration();
+    }
+
+    void flushPendingTimeline()
+    {
+        if (m_pendingHoldSlots <= 0 || !m_encoder || !m_hasEncodedFrame)
+            return;
+
+        std::string encErr;
+        if (!m_encoder->writeCachedTimeline(&encErr, m_pendingHoldSlots) && !encErr.empty())
+            m_lastError = encErr;
+        m_pendingHoldSlots = 0;
     }
 
     std::chrono::steady_clock::duration activeElapsed() const
@@ -338,11 +431,18 @@ private:
         return now - m_wallStart - m_wallPausedTotal;
     }
 
-    void reportWallDuration()
+    int elapsedWallSeconds() const
     {
         const auto elapsed = activeElapsed();
-        const int wholeSec =
-            static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+        return static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+    }
+
+    void reportMediaDuration()
+    {
+        if (m_stopRequested.load())
+            return;
+
+        const int wholeSec = elapsedWallSeconds();
         if (wholeSec == m_lastDurationReport)
             return;
 
@@ -353,6 +453,8 @@ private:
 
     void releaseHardware()
     {
+        flushPendingTimeline();
+
         std::string encErr;
         if (m_encoder)
         {
@@ -385,35 +487,29 @@ private:
         m_lastError = errorMessage(RecorderErrorCode::InvalidState);
     }
 
+    RecorderCallback lockedCallback()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_callback;
+    }
+
     void logMessage(const std::string &msg)
     {
-        RecorderCallback cb;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            cb = m_callback;
-        }
+        const RecorderCallback cb = lockedCallback();
         if (cb.onLog)
             cb.onLog(msg);
     }
 
     void notifyState(RecorderState st)
     {
-        RecorderCallback cb;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            cb = m_callback;
-        }
+        const RecorderCallback cb = lockedCallback();
         if (cb.onStateChanged)
             cb.onStateChanged(st);
     }
 
     void notifyDuration(int seconds)
     {
-        RecorderCallback cb;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            cb = m_callback;
-        }
+        const RecorderCallback cb = lockedCallback();
         if (cb.onDurationChanged)
             cb.onDurationChanged(seconds);
     }
@@ -430,11 +526,7 @@ private:
 
     void notifyError(const std::string &msg)
     {
-        RecorderCallback cb;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            cb = m_callback;
-        }
+        const RecorderCallback cb = lockedCallback();
         if (cb.onError)
             cb.onError(msg);
     }
@@ -457,6 +549,11 @@ private:
     std::chrono::steady_clock::time_point m_wallPauseBegin;
     std::chrono::steady_clock::duration m_wallPausedTotal;
     std::string m_lastError;
+    CaptureFrame m_grabBuffer;
+    CaptureFrame m_lastEncodedFrame;
+    capture::FrameChangeParams m_changeParams;
+    int m_pendingHoldSlots = 0;
+    bool m_hasEncodedFrame = false;
 };
 
 ScreenRecorder::ScreenRecorder()
@@ -507,6 +604,11 @@ std::string ScreenRecorder::lastError() const
 int ScreenRecorder::recordedSeconds() const
 {
     return m_impl->recordedSeconds();
+}
+
+int ScreenRecorder::mediaTimelineSeconds() const
+{
+    return m_impl->mediaTimelineSeconds();
 }
 
 void ScreenRecorder::setCallback(const RecorderCallback &callback)
